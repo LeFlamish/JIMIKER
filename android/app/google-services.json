@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "307056666844",
+    "project_id": "jimiker-ssdev",
+    "storage_bucket": "jimiker-ssdev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:307056666844:android:7c7a25bc2e5e5658b36c19",
+        "android_client_info": {
+          "package_name": "com.example.jimiker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGdGO7UYnz058HpY8w6Sc-u_n471KwjKI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
