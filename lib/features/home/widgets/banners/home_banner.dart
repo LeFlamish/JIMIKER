@@ -97,7 +97,7 @@ class HomeBanner extends StatelessWidget {
                   margin: EdgeInsets.only(left: index == 0 ? 0 : 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(30),
-                    color: Colors.white.withOpacity(0.9 - index * 0.15),
+                    color: Colors.white.withValues(alpha: 0.9 - index * 0.15),
                   ),
                 );
               }),

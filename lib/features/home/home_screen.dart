@@ -16,7 +16,6 @@ class HomeScreen extends StatelessWidget {
             children: [
               HomeBannerCarousel(),
               SizedBox(height: 24),
-              // 섹션 타이틀
               Text(
                 '무엇을 하시겠어요?',
                 style: TextStyle(
@@ -26,7 +25,7 @@ class HomeScreen extends StatelessWidget {
               ),
               SizedBox(height: 12),
 
-              HomeActionGrid(), // ✅ 버튼 여러 개 들어가는 그리드
+              HomeActionGrid(),
               SizedBox(height: 24),
               // TODO: 아래에 카테고리/그리드 영역 이어서 추가
             ],

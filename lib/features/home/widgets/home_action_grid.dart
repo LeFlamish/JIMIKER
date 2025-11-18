@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 class HomeActionGrid extends StatelessWidget {
   const HomeActionGrid({super.key});
 
-  // 한 번만 생성되는 액션 목록 (빌드마다 새로 안 만듦)
   static final List<_HomeActionItem> _actions = [
     _HomeActionItem(
       icon: Icons.search,
@@ -101,7 +100,7 @@ class _HomeActionCard extends StatelessWidget {
               BoxShadow(
                 blurRadius: 6,
                 offset: const Offset(0, 3),
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
               ),
             ],
           ),

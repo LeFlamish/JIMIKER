@@ -12,7 +12,6 @@ class _HomeBannerCarouselState extends State<HomeBannerCarousel> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // 일단은 같은 배너 3개라고 가정 (나중에 데이터 넣어서 다르게 만들 수 있음)
   final int _totalPage = 3;
 
   @override
@@ -24,7 +23,7 @@ class _HomeBannerCarouselState extends State<HomeBannerCarousel> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 210, // 배너 높이와 동일
+      height: 210,
       child: Stack(
         children: [
           PageView.builder(
@@ -42,7 +41,6 @@ class _HomeBannerCarouselState extends State<HomeBannerCarousel> {
             },
           ),
 
-          // ✅ 여기 인디케이터는 배너 위에 '고정'된 상태로 숫자만 변경
           Positioned(
             bottom: 16,
             right: 20,
