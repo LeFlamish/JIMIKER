@@ -1,6 +1,7 @@
 // lib/features/home/widgets/home_action_grid.dart
 import 'package:flutter/material.dart';
 import 'package:jimiker/features/profile/my_info_screen.dart';
+import 'package:jimiker/features/research/research.dart';
 
 class HomeActionGrid extends StatelessWidget {
   const HomeActionGrid({super.key});
@@ -13,7 +14,10 @@ class HomeActionGrid extends StatelessWidget {
         icon: Icons.search,
         label: '창고 찾기',
         onTap: () {
-          // TODO: 창고 검색 화면으로 이동
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const Research()),
+          );
         },
       ),
       _HomeActionItem(
@@ -68,9 +72,9 @@ class HomeActionGrid extends StatelessWidget {
         icon: Icons.person_outline,
         label: '내 정보',
         onTap: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const MyInfoScreen()));
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const MyInfoScreen()),
+          );
         },
       ),
     ];
@@ -121,7 +125,10 @@ class _HomeActionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: item.onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             color: theme.cardColor,
@@ -137,7 +144,11 @@ class _HomeActionCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(item.icon, size: 24, color: theme.colorScheme.primary),
+              Icon(
+                item.icon,
+                size: 24,
+                color: theme.colorScheme.primary,
+              ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -151,7 +162,10 @@ class _HomeActionCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     '바로가기',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey.shade600,
+                    ),
                   ),
                 ],
               ),

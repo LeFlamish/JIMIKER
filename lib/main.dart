@@ -8,7 +8,9 @@ import 'package:jimiker/features/home/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const ProviderScope(child: JimikerApp()));
 }
 
@@ -21,7 +23,9 @@ class JimikerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: '지미커',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF5E5BFF)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF5E5BFF),
+        ),
         useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFFF5F5F7),
       ),
