@@ -45,8 +45,7 @@ class _HomeBannerCarouselState extends State<HomeBannerCarousel> {
             bottom: 16,
             right: 20,
             child: Container(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: Colors.white30,
                 borderRadius: BorderRadius.circular(999),

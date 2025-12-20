@@ -13,10 +13,7 @@ class HomeBanner extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF5E5BFF),
-            Color(0xFF7AE8D6),
-          ],
+          colors: [Color(0xFF5E5BFF), Color(0xFF7AE8D6)],
         ),
       ),
       child: Stack(
@@ -46,8 +43,10 @@ class HomeBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white24,
                     borderRadius: BorderRadius.circular(20),
@@ -74,7 +73,7 @@ class HomeBanner extends StatelessWidget {
                 const SizedBox(height: 8),
                 const Text(
                   '창고를 공유하고 싶은 공간 소유자도,\n'
-                      '창고를 사용하고 싶은 공간 수요자도.',
+                  '창고를 사용하고 싶은 공간 수요자도.',
                   style: TextStyle(
                     fontSize: 11,
                     height: 1.4,

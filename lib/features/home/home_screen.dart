@@ -9,6 +9,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F7),
       body: const SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(16),
@@ -18,10 +19,7 @@ class HomeScreen extends StatelessWidget {
               SizedBox(height: 24),
               Text(
                 '무엇을 하시겠어요?',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 12),
 
