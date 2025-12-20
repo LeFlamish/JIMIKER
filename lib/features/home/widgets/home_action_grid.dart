@@ -1,7 +1,8 @@
 // lib/features/home/widgets/home_action_grid.dart
 import 'package:flutter/material.dart';
 import 'package:jimiker/features/profile/my_info_screen.dart';
-import 'package:jimiker/features/research/research.dart';
+
+import '../research/research.dart';
 
 class HomeActionGrid extends StatelessWidget {
   const HomeActionGrid({super.key});
