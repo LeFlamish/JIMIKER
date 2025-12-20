@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:jimiker/features/profile/my_info_screen.dart';
 
-import '../research/research.dart';
+import '../search/search.dart';
 
 class HomeActionGrid extends StatelessWidget {
   const HomeActionGrid({super.key});
