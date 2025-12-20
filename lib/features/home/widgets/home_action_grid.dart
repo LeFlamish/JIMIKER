@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:jimiker/features/profile/my_info_screen.dart';
 
-import '../search/search.dart';
+import '../find_storage/google_map.dart';
 
 class HomeActionGrid extends StatelessWidget {
   const HomeActionGrid({super.key});
