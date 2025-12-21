@@ -1,4 +1,4 @@
-import 'package:jimiker/data/model/storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Location {
   final String id;
@@ -14,4 +14,24 @@ class Location {
     required this.lng,
     required this.storages,
   });
+
+  factory Location.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Location(
+      id: doc.id,
+      address: data['address'],
+      lat: data['lat'],
+      lng: data['lng'],
+      storages: List<String>.from(data['storages']),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'address': address,
+      'lat': lat,
+      'lng': lng,
+      'storages': storages,
+    };
+  }
 }

@@ -4,6 +4,8 @@
 
 // 창고에 들어가면 해당 창고에 관한 예약목록을 보여주는데 거기에서 Status가 rejected인거는 안보여준다.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum Status { waiting, rejected }
 
 class Reservation {
@@ -28,4 +30,35 @@ class Reservation {
     required this.endAt,
     required this.status,
   });
+
+  factory Reservation.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+
+    return Reservation(
+      id: doc.id,
+      userId: data['userId'],
+      ownerId: data['ownerId'],
+      storageId: data['storageId'],
+      containerIndex: data['containerIndex'],
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      startAt: (data['startAt'] as Timestamp).toDate(),
+      endAt: (data['endAt'] as Timestamp).toDate(),
+      status: Status.values.firstWhere(
+        (status) => status.name == data['status'],
+      ),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'userId': userId,
+      'ownerId': ownerId,
+      'storageId': storageId,
+      'containerIndex': containerIndex,
+      'createdAt': createdAt,
+      'startAt': startAt,
+      'endAt': endAt,
+      'status': status.name,
+    };
+  }
 }

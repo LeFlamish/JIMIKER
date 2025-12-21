@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Usage {
   final String id;
 
@@ -26,4 +28,30 @@ class Usage {
     required this.endAt,
     required this.createdAt,
   });
+
+  factory Usage.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Usage(
+      id: doc.id,
+      userId: data['userId'],
+      ownerId: data['ownerId'],
+      storageId: data['storageId'],
+      containerIndex: data['containerIndex'],
+      startAt: (data['startAt'] as Timestamp).toDate(),
+      endAt: (data['endAt'] as Timestamp).toDate(),
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'userId': userId,
+      'ownerId': ownerId,
+      'storageId': storageId,
+      'containerIndex': containerIndex,
+      'startAt': startAt,
+      'endAt': endAt,
+      'createdAt': createdAt,
+    };
+  }
 }
