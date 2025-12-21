@@ -27,7 +27,7 @@ class JimikerApp extends StatelessWidget {
           seedColor: const Color(0xFF5E5BFF),
         ),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF5F5F7),
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
       ),
       home: const HomeScreen(),
     );

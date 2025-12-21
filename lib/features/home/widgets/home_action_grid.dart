@@ -1,5 +1,6 @@
 // lib/features/home/widgets/home_action_grid.dart
 import 'package:flutter/material.dart';
+import 'package:jimiker/features/home/menu/my_information/my_information_screen.dart';
 import 'package:jimiker/features/profile/my_info_screen.dart';
 
 import '../menu/find_storage/google_map_screen.dart';
@@ -73,8 +74,9 @@ class HomeActionGrid extends StatelessWidget {
         icon: Icons.person_outline,
         label: '내 정보',
         onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const MyInfoScreen()),
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MyInformationScreen()),
           );
         },
       ),
@@ -132,7 +134,7 @@ class _HomeActionCard extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            color: theme.cardColor,
+            color: Colors.white,
             boxShadow: [
               BoxShadow(
                 blurRadius: 6,
