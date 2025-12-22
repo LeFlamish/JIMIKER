@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class SignInScreen extends StatelessWidget {
+import '../../auth_providers.dart';
+
+class SignInScreen extends ConsumerWidget {
   const SignInScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authController = ref.read(authControllerProvider.notifier);
+
     return Scaffold(
       body: Stack(
         children: [
@@ -94,9 +99,14 @@ class SignInScreen extends StatelessWidget {
 
                         // 4. 구글 로그인 버튼
                         _googleLoginButton(
-                          onPressed: () {
-                            // TODO: 실제 구글 로그인 로직 구현 (firebase_auth 등)
-                            print('구글 로그인 버튼 클릭됨');
+                          onPressed: () async {
+                            final loginResult = await authController
+                                .signInWithGoogle();
+                            if (loginResult) {
+                              if (context.mounted) {
+                                Navigator.of(context).pop(true);
+                              }
+                            }
                           },
                         ),
                       ],

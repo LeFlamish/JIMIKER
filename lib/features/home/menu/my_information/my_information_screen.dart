@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class MyInformationScreen extends StatelessWidget {
+import '../../../../auth_providers.dart';
+
+class MyInformationScreen extends ConsumerWidget {
   const MyInformationScreen({super.key});
 
   // 브랜드 컬러 정의 (스크린샷 기반 추정)
@@ -11,13 +14,19 @@ class MyInformationScreen extends StatelessWidget {
   final Color textDark = const Color(0xFF222222);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(authControllerProvider);
+    final authController = ref.read(authControllerProvider.notifier);
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text(
           '내 정보',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: backgroundColor,
         elevation: 0,
@@ -35,7 +44,11 @@ class MyInformationScreen extends StatelessWidget {
           children: [
             const SizedBox(height: 10),
             // 1. 상단 프로필 카드 (그라데이션 적용)
-            _buildProfileCard(),
+            _buildProfileCard(
+              name: me != null ? me.nickName : '',
+              email: me != null ? me.email : '',
+              photoURL: me != null ? me.photoURL : '',
+            ),
 
             const SizedBox(height: 24),
 
@@ -79,7 +92,10 @@ class MyInformationScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   _buildMenuTile(Icons.notifications_none, "알림 설정"),
-                  _buildMenuTile(Icons.headset_mic_outlined, "고객센터 / 문의하기"),
+                  _buildMenuTile(
+                    Icons.headset_mic_outlined,
+                    "고객센터 / 문의하기",
+                  ),
                   _buildMenuTile(Icons.info_outline, "약관 및 정책"),
                 ],
               ),
@@ -93,6 +109,7 @@ class MyInformationScreen extends StatelessWidget {
               child: TextButton(
                 onPressed: () {
                   // 로그아웃 로직
+                  authController.signOut(context);
                 },
                 child: const Text(
                   "로그아웃",
@@ -108,7 +125,11 @@ class MyInformationScreen extends StatelessWidget {
   }
 
   // 위젯: 프로필 카드
-  Widget _buildProfileCard() {
+  Widget _buildProfileCard({
+    required String name,
+    required String email,
+    required String photoURL,
+  }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(20),
@@ -138,15 +159,19 @@ class MyInformationScreen extends StatelessWidget {
               color: Colors.white.withOpacity(0.2),
               border: Border.all(color: Colors.white, width: 2),
             ),
-            child: const Icon(Icons.person, color: Colors.white, size: 35),
+            child: const Icon(
+              Icons.person,
+              color: Colors.white,
+              size: 35,
+            ),
           ),
           const SizedBox(width: 16),
           // 이름 및 이메일
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "홍길동 님",
+                name,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -155,11 +180,8 @@ class MyInformationScreen extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                "jimiker@example.com",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
+                email,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
           ),
@@ -171,8 +193,12 @@ class MyInformationScreen extends StatelessWidget {
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.edit, color: Colors.white, size: 18),
-          )
+            child: const Icon(
+              Icons.edit,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
         ],
       ),
     );
@@ -210,7 +236,11 @@ class MyInformationScreen extends StatelessWidget {
             color: Colors.black87,
           ),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.grey,
+        ),
         onTap: () {
           // 메뉴 클릭 이벤트
         },

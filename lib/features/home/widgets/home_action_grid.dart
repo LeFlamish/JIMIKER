@@ -1,15 +1,17 @@
-// lib/features/home/widgets/home_action_grid.dart
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/auth_providers.dart';
 import 'package:jimiker/features/home/menu/my_information/my_information_screen.dart';
-import 'package:jimiker/features/profile/my_info_screen.dart';
-
 import '../menu/find_storage/google_map_screen.dart';
 
-class HomeActionGrid extends StatelessWidget {
+class HomeActionGrid extends ConsumerWidget {
   const HomeActionGrid({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authController = ref.read(authControllerProvider.notifier);
+
     final actions = [
       // 1행
       _HomeActionItem(
@@ -73,11 +75,21 @@ class HomeActionGrid extends StatelessWidget {
       _HomeActionItem(
         icon: Icons.person_outline,
         label: '내 정보',
-        onTap: () {
-          Navigator.push(
+        onTap: () async {
+          final bool check = await authController.checkSignIn(
             context,
-            MaterialPageRoute(builder: (context) => const MyInformationScreen()),
           );
+
+          if (!context.mounted) return;
+
+          if (check) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const MyInformationScreen(),
+              ),
+            );
+          }
         },
       ),
     ];
