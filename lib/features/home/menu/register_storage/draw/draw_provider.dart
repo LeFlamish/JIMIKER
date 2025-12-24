@@ -139,6 +139,11 @@ class DrawNotifier extends Notifier<DrawProviderData> {
       width: width,
       height: height,
     );
+
+    state = state.copyWith(
+      width: _transformedData!.width,
+      height: _transformedData!.height,
+    );
   }
 }
 

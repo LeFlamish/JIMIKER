@@ -29,9 +29,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final fingerCountRef = ref.watch(touchCounterNotifier);
-    final fingerCount = ref.read(touchCounterNotifier);
-    // final notifier = context.read<TouchCounterNotifier>();
+    final fingerCount = ref.watch(touchCounterNotifier);
     final canDraw = fingerCount <= 1;
     final scale = _transform.value.getMaxScaleOnAxis();
     final scaledSize = 1000 / scale;

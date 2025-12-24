@@ -37,6 +37,8 @@ class _RegisterStorageScreenState
   bool _isStructureDrawn = false;
   // 상태 변수: 등록된 구역 리스트
   List<ZoneData> _zones = [];
+  // 스크롤 여부
+  bool scroll = true;
   @override
   void initState() {
     // TODO: implement initState
@@ -59,6 +61,7 @@ class _RegisterStorageScreenState
   @override
   Widget build(BuildContext context) {
     final registerRef = ref.watch(registerProvider);
+    final drawState = ref.watch(drawProvider);
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: SafeArea(
@@ -128,6 +131,7 @@ class _RegisterStorageScreenState
 
                     // 3. 창고 배치 구성 (수정된 부분)
                     _buildSectionTitle("창고 배치 구성"),
+
                     const SizedBox(height: 10),
 
                     // 3-1. 구조 그리기 버튼 또는 결과 화면
@@ -180,9 +184,10 @@ class _RegisterStorageScreenState
 
   // 내부 구조 그리기 영역 (핵심 수정 부분)
   Widget _buildStructureEditorArea() {
+    final drawState = ref.read(drawProvider);
     return Container(
       width: double.infinity,
-      height: 200,
+      height: drawState.height + 100,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -201,16 +206,35 @@ class _RegisterStorageScreenState
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(
-                            Icons.map_outlined,
-                            size: 48,
-                            color: Colors.blueGrey,
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            "저장된 도면 화면",
-                            style: TextStyle(color: Colors.blueGrey),
+                        children: [
+                          // Icon(
+                          //   Icons.map_outlined,
+                          //   size: 48,
+                          //   color: Colors.blueGrey,
+                          // ),
+                          // SizedBox(height: 8),
+                          SingleChildScrollView(
+                            physics: scroll
+                                ? null
+                                : const NeverScrollableScrollPhysics(),
+                            scrollDirection: Axis.horizontal,
+                            child: Container(
+                              width: drawState.width,
+                              height: drawState.height,
+                              child: Stack(
+                                children: [
+                                  CustomPaint(
+                                    painter: GridPainter(
+                                      gridSize: 30,
+                                      width: drawState.width ?? 0.0,
+                                      height: drawState.height ?? 0.0,
+                                      lines: drawState.lines ?? [],
+                                      doors: drawState.doors ?? {},
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
