@@ -1,14 +1,15 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:jimiker/data/model/zone.dart';
-import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
-import 'package:jimiker/services/auth_providers.dart';
 
 import '../../../../../data/model/storage.dart';
+import '../../../../../data/model/zone.dart';
+import '../../../../../services/auth_providers.dart';
 import '../../../../search/search_screen.dart';
+import 'draw/draw_provider.dart';
 
 class RegisterData {
   final String? address;
@@ -70,10 +71,14 @@ class RegisterNotifier extends Notifier<RegisterData> {
     state = state.copyWith(images: newState);
   }
 
-  void addressTap(BuildContext context, TextEditingController controller) async {
+  void addressTap(
+      BuildContext context,
+      TextEditingController controller,
+      ) async {
     final result = await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
+
     if (result != null && context.mounted) {
       state = state.copyWith(
         address: result["address"],
@@ -81,6 +86,7 @@ class RegisterNotifier extends Notifier<RegisterData> {
         latLng: result["latLng"],
       );
     }
+
     controller.text = state.address ?? "";
   }
 

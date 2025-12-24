@@ -17,29 +17,28 @@ class RegisterStorageScreen extends ConsumerStatefulWidget {
       _RegisterStorageScreenState();
 }
 
-class _RegisterStorageScreenState
-    extends ConsumerState<RegisterStorageScreen> {
+class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
   static const double _gridSize = 30.0;
 
-  late TextEditingController _addressController;
-  late TextEditingController _detailAddressController;
+  late final TextEditingController _addressController;
+  late final TextEditingController _detailAddressController;
+
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     _addressController = TextEditingController();
     _detailAddressController = TextEditingController();
-    _addressController.text =
-        ref.read(registerProvider).address ?? '';
+
+    _addressController.text = ref.read(registerProvider).address ?? '';
     _detailAddressController.text =
         ref.read(registerProvider).detailAddress ?? '';
   }
 
   @override
   void dispose() {
-    super.dispose();
     _addressController.dispose();
     _detailAddressController.dispose();
+    super.dispose();
   }
 
   @override
@@ -47,137 +46,137 @@ class _RegisterStorageScreenState
     final drawState = ref.watch(drawProvider);
     final zones = ref.watch(zoneProvider);
     final isStructureDrawn = drawState.lines.isNotEmpty;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1. 사진 등록 (기존 유지)
-                    _buildSectionTitle("사진"),
-                    const SizedBox(height: 10),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          const SizedBox(height: 10),
-                          PhotoButton(
-                            onTap: () {
-                              ref
-                                  .read(registerProvider.notifier)
-                                  .pickImage();
-                            },
-                            pickedCount: ref
-                                .watch(registerProvider)
-                                .images
-                                .length,
-                          ),
-                          const SizedBox(height: 30),
-                          PhotoList(
-                            delete: (index) {
-                              ref
-                                  .read(registerProvider.notifier)
-                                  .deletePhoto(index);
-                            },
-                            pickedImages: ref
-                                .watch(registerProvider)
-                                .images,
-                          ),
-                        ],
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1) 사진
+                      _buildSectionTitle("사진"),
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            const SizedBox(height: 10),
+                            PhotoButton(
+                              onTap: () {
+                                ref
+                                    .read(registerProvider.notifier)
+                                    .pickImage();
+                              },
+                              pickedCount:
+                              ref.watch(registerProvider).images.length,
+                            ),
+                            const SizedBox(width: 30),
+                            PhotoList(
+                              delete: (index) {
+                                ref
+                                    .read(registerProvider.notifier)
+                                    .deletePhoto(index);
+                              },
+                              pickedImages: ref.watch(registerProvider).images,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 30),
-                    // 2. 주소 입력 (기존 유지)
-                    _buildSectionTitle("위치 정보"),
-                    const SizedBox(height: 10),
-                    _buildTextField(
-                      onTap: () {
-                        ref
-                            .read(registerProvider.notifier)
-                            .addressTap(context, _addressController);
-                      },
-                      controller: _addressController,
-                      hint: "주소를 검색해주세요",
-                      icon: Icons.search,
-                      isReadOnly: true,
-                    ),
-                    const SizedBox(height: 10),
-                    _buildTextField(
-                      controller: _detailAddressController,
-                      hint: "상세 주소를 입력해주세요",
-                      icon: Icons.edit_location_alt_outlined,
-                      onChanged: (value) {
-                        ref
-                            .read(registerProvider.notifier)
-                            .updateDetailAddress(value);
-                      },
-                    ),
-                    const SizedBox(height: 30),
+                      const SizedBox(height: 30),
 
-                    // 3. 창고 배치 구성 (수정된 부분)
-                    _buildSectionTitle("창고 배치 구성"),
+                      // 2) 주소
+                      _buildSectionTitle("위치 정보"),
+                      const SizedBox(height: 10),
+                      _buildTextField(
+                        onTap: () {
+                          ref
+                              .read(registerProvider.notifier)
+                              .addressTap(context, _addressController);
+                        },
+                        controller: _addressController,
+                        hint: "주소를 검색해주세요",
+                        icon: Icons.search,
+                        isReadOnly: true,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildTextField(
+                        controller: _detailAddressController,
+                        hint: "상세 주소를 입력해주세요",
+                        icon: Icons.edit_location_alt_outlined,
+                        onChanged: (value) {
+                          ref
+                              .read(registerProvider.notifier)
+                              .updateDetailAddress(value);
+                        },
+                      ),
+                      const SizedBox(height: 30),
 
-                    const SizedBox(height: 10),
+                      // 3) 구조/구역
+                      _buildSectionTitle("창고 배치 구성"),
+                      const SizedBox(height: 10),
 
-                    // 3-1. 구조 그리기 버튼 또는 결과 화면
-                    _buildStructureEditorArea(drawState, zones),
+                      // 구조 그리기 (diff 적용: drawState를 인자로 받는 형태)
+                      _buildStructureEditorArea(drawState),
 
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                    // 3-2. 구역 추가 및 리스트 (도면이 있을 때만 활성화)
-                    if (isStructureDrawn) ...[
-                      Row(
-                        mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            "등록된 구역 목록",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: _showAddZoneDialog,
-                            icon: const Icon(
-                              Icons.add_box_outlined,
-                              size: 18,
-                            ),
-                            label: const Text("구역 추가"),
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(
-                                0xFF6B66FF,
+                      if (isStructureDrawn) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "등록된 구역 목록",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      _buildZoneList(zones),
-                      const SizedBox(height: 20),
+                            TextButton.icon(
+                              onPressed: _showAddZoneDialog,
+                              icon: const Icon(Icons.add_box_outlined, size: 18),
+                              label: const Text("구역 추가"),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF6B66FF),
+                              ),
+                            ),
+                          ],
+                        ),
+                        _buildZoneList(zones),
+                        const SizedBox(height: 20),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-            _buildBottomRegisterButton(),
-          ],
+              _buildBottomRegisterButton(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // --- 위젯 빌더 메서드 ---
+  // =========================
+  // UI builders
+  // =========================
 
-  // 내부 구조 그리기 영역 (핵심 수정 부분)
-  Widget _buildStructureEditorArea(DrawProviderData drawState, List<Zone> zones,) {
+  Widget _buildStructureEditorArea(DrawProviderData drawState) {
+    final zones = ref.watch(zoneProvider);
+
+    final double layoutW = drawState.width.toDouble();
+    final double layoutH = drawState.height.toDouble();
+
     return Container(
       width: double.infinity,
-      height: drawState.height + 100,
+      height: layoutH + 100.0,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -193,40 +192,31 @@ class _RegisterStorageScreenState
               height: double.infinity,
               color: Colors.blueGrey[50],
               child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Icon(
-                    //   Icons.map_outlined,
-                    //   size: 48,
-                    //   color: Colors.blueGrey,
-                    // ),
-                    // SizedBox(height: 8),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Container(
-                        width: drawState.width,
-                        height: drawState.height,
-                        child: Stack(
-                          children: [
-                            CustomPaint(
-                              painter: GridPainter(
-                                gridSize: _gridSize,
-                                width: drawState.width,
-                                height: drawState.height,
-                                lines: drawState.lines,
-                                doors: drawState.doors,
-                              ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: layoutW,
+                    height: layoutH,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: GridPainter(
+                              gridSize: _gridSize,
+                              width: layoutW,
+                              height: layoutH,
+                              lines: drawState.lines,
+                              doors: drawState.doors,
                             ),
-                            ..._buildZoneOverlays(
-                              drawState: drawState,
-                              zones: zones,
-                            )
-                          ],
+                          ),
                         ),
-                      ),
+                        ..._buildZoneOverlays(
+                          drawState: drawState,
+                          zones: zones,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -238,13 +228,9 @@ class _RegisterStorageScreenState
               onPressed: _navigateToEditor,
               icon: const CircleAvatar(
                 backgroundColor: Colors.white,
-                child: Icon(
-                  Icons.edit,
-                  color: Colors.black,
-                  size: 20,
-                ),
+                child: Icon(Icons.edit, color: Colors.black, size: 20),
               ),
-            )
+            ),
           ),
         ],
       )
@@ -256,10 +242,8 @@ class _RegisterStorageScreenState
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF6B66FF),
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 12,
-            ),
+            padding:
+            const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(30),
             ),
@@ -269,7 +253,6 @@ class _RegisterStorageScreenState
     );
   }
 
-  // 구역 리스트 보여주기
   Widget _buildZoneList(List<Zone> zones) {
     if (zones.isEmpty) {
       return Container(
@@ -281,11 +264,12 @@ class _RegisterStorageScreenState
         ),
       );
     }
+
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: zones.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 10),
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final zone = zones[index];
         return InkWell(
@@ -325,7 +309,7 @@ class _RegisterStorageScreenState
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "크기 ${zone.width}m * ${zone.height}m, ${zone.price}원",
+                        "크기 ${zone.width}m × ${zone.height}m · ${zone.price}원",
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 12,
@@ -341,9 +325,7 @@ class _RegisterStorageScreenState
                     size: 20,
                   ),
                   onPressed: () {
-                    ref
-                        .read(zoneProvider.notifier)
-                        .removeZone(zone.index);
+                    ref.read(zoneProvider.notifier).removeZone(zone.index);
                   },
                 ),
               ],
@@ -354,17 +336,25 @@ class _RegisterStorageScreenState
     );
   }
 
-  List<Widget> _buildZoneOverlays({required DrawProviderData drawState, required List<Zone> zones}) {
-    if (zones.isEmpty) {
-      return [];
-    }
+  List<Widget> _buildZoneOverlays({
+    required DrawProviderData drawState,
+    required List<Zone> zones,
+  }) {
+    if (zones.isEmpty) return [];
+
+    final layoutSize = Size(
+      drawState.width.toDouble(),
+      drawState.height.toDouble(),
+    );
+
     return zones.map((zone) {
-      final zoneWidth = zone.width * _gridSize;
-      final zoneHeight = zone.height * _gridSize;
+      final zoneWidth = zone.width.toDouble() * _gridSize;
+      final zoneHeight = zone.height.toDouble() * _gridSize;
+
       final position = _clampZoneOffset(
-        Offset(zone.x, zone.y),
+        Offset(zone.x.toDouble(), zone.y.toDouble()),
         Size(zoneWidth, zoneHeight),
-        Size(drawState.width, drawState.height),
+        layoutSize,
       );
 
       if (position.dx != zone.x || position.dy != zone.y) {
@@ -381,10 +371,14 @@ class _RegisterStorageScreenState
         child: GestureDetector(
           onPanUpdate: (details) {
             final updated = _clampZoneOffset(
-              Offset(zone.x + details.delta.dx, zone.y + details.delta.dy),
+              Offset(
+                zone.x.toDouble() + details.delta.dx,
+                zone.y.toDouble() + details.delta.dy,
+              ),
               Size(zoneWidth, zoneHeight),
-              Size(drawState.width, drawState.height),
+              layoutSize,
             );
+
             ref.read(zoneProvider.notifier).updateZone(
               zone.copyWith(x: updated.dx, y: updated.dy),
             );
@@ -416,12 +410,17 @@ class _RegisterStorageScreenState
       _snapToGrid(offset.dx),
       _snapToGrid(offset.dy),
     );
-    final maxX = (layoutSize.width - zoneSize.width).clamp(0.0, layoutSize.width);
-    final maxY = (layoutSize.height - zoneSize.height).clamp(0.0, layoutSize.height);
+
+    final double maxX = (layoutSize.width - zoneSize.width)
+        .clamp(0.0, layoutSize.width)
+        .toDouble();
+    final double maxY = (layoutSize.height - zoneSize.height)
+        .clamp(0.0, layoutSize.height)
+        .toDouble();
 
     return Offset(
-      snapped.dx.clamp(0, maxX),
-      snapped.dy.clamp(0, maxY),
+      snapped.dx.clamp(0.0, maxX).toDouble(),
+      snapped.dy.clamp(0.0, maxY).toDouble(),
     );
   }
 
@@ -429,16 +428,17 @@ class _RegisterStorageScreenState
     return (value / _gridSize).round() * _gridSize;
   }
 
-  // 화면 이동 시뮬레이션 (구조 그리기 화면)
+  // =========================
+  // Actions
+  // =========================
+
   void _navigateToEditor() async {
-    // 실제로는 Navigator.push를 통해 에디터 화면으로 이동
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const DrawScreen()),
     );
   }
 
-  // 구역 추가 다이얼로그
   Future<void> _showAddZoneDialog() async {
     final nextIndex = ref.read(zoneProvider.notifier).nextIndex();
     await _showZoneDialog(index: nextIndex);
@@ -446,6 +446,7 @@ class _RegisterStorageScreenState
 
   Future<void> _showZoneDialog({Zone? zone, String? index}) async {
     final zoneIndex = index ?? zone?.index ?? '';
+
     final result = await showDialog<ZoneFormData>(
       context: context,
       builder: (context) => ZoneFormDialog(
@@ -460,31 +461,36 @@ class _RegisterStorageScreenState
       ),
     );
 
-    if (result != null) {
-      final notifier = ref.read(zoneProvider.notifier);
-      if (zone == null) {
-        notifier.addZone(
-          Zone(
-            index: zoneIndex,
-            width: result.width,
-            height: result.height,
-            price: result.price,
-            x: _gridSize,
-            y: _gridSize,
-            angle: 0,
-          ),
-        );
-      } else {
-        notifier.updateZone(
-          zone.copyWith(
-            width: result.width,
-            height: result.height,
-            price: result.price,
-          ),
-        );
-      }
+    if (result == null) return;
+
+    final notifier = ref.read(zoneProvider.notifier);
+
+    if (zone == null) {
+      notifier.addZone(
+        Zone(
+          index: zoneIndex,
+          width: result.width,
+          height: result.height,
+          price: result.price,
+          x: _gridSize,
+          y: _gridSize,
+          angle: 0,
+        ),
+      );
+    } else {
+      notifier.updateZone(
+        zone.copyWith(
+          width: result.width,
+          height: result.height,
+          price: result.price,
+        ),
+      );
     }
   }
+
+  // =========================
+  // Small UI helpers
+  // =========================
 
   Widget _buildSectionTitle(String title) {
     return Text(
@@ -530,6 +536,7 @@ class _RegisterStorageScreenState
     final registerRef = ref.watch(registerProvider);
     final drawState = ref.watch(drawProvider);
     final zones = ref.watch(zoneProvider);
+
     return Container(
       padding: const EdgeInsets.all(20),
       color: Colors.white,
@@ -539,6 +546,7 @@ class _RegisterStorageScreenState
         child: ElevatedButton(
           onPressed: () async {
             final detailAddress = _detailAddressController.text.trim();
+
             final validationResult = RegisterStorageValidator.validate(
               registerData: registerRef,
               drawState: drawState,
@@ -554,17 +562,21 @@ class _RegisterStorageScreenState
             }
 
             try {
-              await ref
-                  .read(registerProvider.notifier)
-                  .registerStorage(
+              await ref.read(registerProvider.notifier).registerStorage(
                 drawState: drawState,
                 zones: zones,
                 detailAddress: detailAddress,
               );
+
               if (!mounted) return;
+
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("등록 요청이 완료되었습니다.")),
               );
+
+              if (mounted) {
+                Navigator.of(context).pop();
+              }
             } catch (error) {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(

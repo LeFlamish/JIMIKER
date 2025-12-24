@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:jimiker/data/model/zone.dart';
 
 class ZoneFormData {
   final double width;
@@ -112,15 +111,15 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
   }) {
     return TextFormField(
       controller: controller,
-      keyboardType: TextInputType.numberWithOptions(decimal: !isInteger),
+      keyboardType: TextInputType.numberWithOptions(
+        decimal: !isInteger,
+      ),
       decoration: InputDecoration(labelText: label),
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
           return '필수 입력 항목입니다.';
         }
-        final parsed = isInteger
-            ? int.tryParse(value)
-            : double.tryParse(value);
+        final parsed = isInteger ? int.tryParse(value) : double.tryParse(value);
         if (parsed == null) {
           return '숫자를 입력해주세요.';
         }
@@ -133,9 +132,11 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
+
     final width = double.parse(_widthController.text);
     final height = double.parse(_heightController.text);
     final price = int.parse(_priceController.text);
+
     Navigator.pop(
       context,
       ZoneFormData(width: width, height: height, price: price),

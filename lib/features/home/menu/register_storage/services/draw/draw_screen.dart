@@ -2,8 +2,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/features/home/menu/register_storage/services/draw/touch_counter.dart';
 import 'package:jimiker/data/model/storage.dart';
+import 'package:jimiker/data/model/zone.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/draw/touch_counter.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/zone_provider.dart';
+
 import 'draw_provider.dart';
 
 class DrawScreen extends ConsumerStatefulWidget {
@@ -14,31 +17,38 @@ class DrawScreen extends ConsumerStatefulWidget {
 }
 
 class _DrawScreenState extends ConsumerState<DrawScreen> {
-  @override
-  void initState() {
-    // TODO: implement initState
-    super.initState();
-  }
+  static const double _gridSize = 30.0;
+
+  bool _isLayoutEditing = true;
 
   Offset? _startPoint;
   final ValueNotifier<Offset?> _previewPoint = ValueNotifier(null);
-  final double _gridSize = 30.0;
-  final _transform = TransformationController();
+  final TransformationController _transform = TransformationController();
+
   Line? _focusLine;
   bool checkBoolChange = false;
+
+  @override
+  void dispose() {
+    _previewPoint.dispose();
+    _transform.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final fingerCount = ref.watch(touchCounterNotifier);
     final canDraw = fingerCount <= 1;
+
     final scale = _transform.value.getMaxScaleOnAxis();
     final scaledSize = 1000 / scale;
 
+    final zones = ref.watch(zoneProvider);
+    final drawState = ref.watch(drawProvider);
+
     return WillPopScope(
       onWillPop: () async {
-        ref
-            .read(drawProvider.notifier)
-            .getTransformedDataWithMargin(_gridSize);
+        ref.read(drawProvider.notifier).getTransformedDataWithMargin(_gridSize);
         ref.read(drawProvider.notifier).drawChange(false);
         return true;
       },
@@ -49,54 +59,118 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
               ref.read(touchCounterNotifier.notifier).onPointerDown(),
           onPointerUp: (_) =>
               ref.read(touchCounterNotifier.notifier).onPointerUp(),
-          onPointerCancel: (_) => ref
-              .read(touchCounterNotifier.notifier)
-              .onPointerCancel(),
-          child: Center(
-            child: SizedBox(
-              width: 1000,
-              height: 1000,
-              child: ClipRect(
-                child: InteractiveViewer(
-                  panEnabled: !canDraw,
-                  scaleEnabled: !canDraw,
-                  minScale: 0.5,
-                  maxScale: 3.0,
-                  constrained: false,
-                  clipBehavior: Clip.none,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTapUp: _focus,
-                    onPanStart: canDraw ? _onPanStart : null,
-                    onPanUpdate: canDraw ? _onPanUpdate : null,
-                    onPanEnd: canDraw ? _onPanEnd : null,
-                    onDoubleTapDown: _handleDoubleTap,
-                    onLongPressStart: _handleLongPress,
-                    child: ValueListenableBuilder<Offset?>(
-                      valueListenable: _previewPoint,
-                      builder: (context, preview, _) => CustomPaint(
-                        size: Size(scaledSize, scaledSize),
-                        painter: GridPainter(
-                          width: 1000,
-                          height: 1000,
-                          gridSize: _gridSize,
-                          lines: ref.read(drawProvider).lines,
-                          previewStart: _startPoint,
-                          previewEnd: preview,
-                          doors: ref.read(drawProvider).doors,
-                          lineToFocus: _focusLine,
+          onPointerCancel: (_) =>
+              ref.read(touchCounterNotifier.notifier).onPointerCancel(),
+          child: Stack(
+            children: [
+              Center(
+                child: SizedBox(
+                  width: 1000,
+                  height: 1000,
+                  child: ClipRect(
+                    child: InteractiveViewer(
+                      transformationController: _transform,
+                      panEnabled: _isLayoutEditing ? !canDraw : false,
+                      scaleEnabled: _isLayoutEditing ? !canDraw : false,
+                      minScale: 0.5,
+                      maxScale: 3.0,
+                      constrained: false,
+                      clipBehavior: Clip.none,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTapUp: _isLayoutEditing ? _focus : null,
+                        onPanStart:
+                        _isLayoutEditing && canDraw ? _onPanStart : null,
+                        onPanUpdate:
+                        _isLayoutEditing && canDraw ? _onPanUpdate : null,
+                        onPanEnd:
+                        _isLayoutEditing && canDraw ? _onPanEnd : null,
+                        onDoubleTapDown:
+                        _isLayoutEditing ? _handleDoubleTap : null,
+                        onLongPressStart:
+                        _isLayoutEditing ? _handleLongPress : null,
+                        child: ValueListenableBuilder<Offset?>(
+                          valueListenable: _previewPoint,
+                          builder: (context, preview, _) => Stack(
+                            children: [
+                              CustomPaint(
+                                size: Size(scaledSize, scaledSize),
+                                painter: GridPainter(
+                                  width: 1000,
+                                  height: 1000,
+                                  gridSize: _gridSize,
+                                  lines: ref.read(drawProvider).lines,
+                                  previewStart: _startPoint,
+                                  previewEnd: preview,
+                                  doors: ref.read(drawProvider).doors,
+                                  lineToFocus: _focusLine,
+                                ),
+                              ),
+                              if (!_isLayoutEditing)
+                                ..._buildZoneOverlays(
+                                  zones: zones,
+                                  drawState: drawState,
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
+
+              // 하단 버튼들
+              Positioned(
+                left: 16,
+                bottom: 24,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _isLayoutEditing = true;
+                    });
+                  },
+                  icon: const Icon(Icons.draw_outlined),
+                  label: const Text("도면 수정"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isLayoutEditing
+                        ? const Color(0xFF6B66FF)
+                        : Colors.grey.shade400,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 16,
+                bottom: 24,
+                child: ElevatedButton.icon(
+                  onPressed: zones.isEmpty
+                      ? null
+                      : () {
+                    setState(() {
+                      _isLayoutEditing = false;
+                    });
+                  },
+                  icon: const Icon(Icons.dashboard_customize),
+                  label: const Text("구역 수정"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: !_isLayoutEditing
+                        ? const Color(0xFF6B66FF)
+                        : Colors.grey.shade400,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  // ==========================
+  // Layout draw handlers
+  // ==========================
 
   void _onPanStart(DragStartDetails details) {
     final local = details.localPosition;
@@ -105,14 +179,13 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
 
     Set<Offset>? doorsToRemove;
     if (_focusLine != null) {
-      if (_focusLine!.start == _startPoint ||
-          _focusLine!.end == _startPoint) {
+      if (_focusLine!.start == _startPoint || _focusLine!.end == _startPoint) {
         doorsToRemove = ref.read(drawProvider).doors.where((door) {
           return distanceToSegment(
-                door,
-                _focusLine!.start,
-                _focusLine!.end,
-              ) <
+            door,
+            _focusLine!.start,
+            _focusLine!.end,
+          ) <
               5.0;
         }).toSet();
 
@@ -121,20 +194,21 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
         } else {
           _startPoint = _focusLine!.start;
         }
+
+        // NOTE: 원 코드 그대로 유지(직접 remove). 가능하면 notifier로 통일하는 게 좋음.
         ref.read(drawProvider).lines.remove(_focusLine);
         _focusLine = null;
       }
     }
 
-    checkBoolChange = checkBoolChange ? false : true;
+    checkBoolChange = !checkBoolChange;
     if (doorsToRemove != null) {
       ref.read(drawProvider).doors.removeAll(doorsToRemove);
     }
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
-    final local = details.localPosition;
-    _previewPoint.value = local;
+    _previewPoint.value = details.localPosition;
   }
 
   void _onPanEnd(DragEndDetails details) {
@@ -145,6 +219,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
       if (_startPoint! != snappedEnd) {
         ref.read(drawProvider.notifier).addLine(newLine);
       }
+
       _startPoint = null;
       _previewPoint.value = null;
     }
@@ -167,15 +242,12 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
       10.0,
     );
 
-    final existing = ref
-        .read(drawProvider)
-        .doors
-        .firstWhere(
+    final existing = ref.read(drawProvider).doors.firstWhere(
           (door) => (door - clamped).distance < 15.0,
-          orElse: () => Offset.infinite,
-        );
+      orElse: () => Offset.infinite,
+    );
 
-    checkBoolChange = checkBoolChange ? false : true;
+    checkBoolChange = !checkBoolChange;
     if (existing != Offset.infinite) {
       ref.read(drawProvider.notifier).removeDoor(existing);
     } else {
@@ -186,33 +258,34 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   void _handleLongPress(LongPressStartDetails details) {
     _focusLine = null;
     final sceneTap = details.localPosition;
-    final lineToRemove = ref
-        .read(drawProvider)
-        .lines
-        .firstWhere(
-          (line) =>
-              distanceToSegment(sceneTap, line.start, line.end) <
-              10.0,
-          orElse: () => Line(start: Offset.zero, end: Offset.zero),
-        );
 
-    if (lineToRemove.start == Offset.zero &&
-        lineToRemove.end == Offset.zero)
+    final lineToRemove = ref.read(drawProvider).lines.firstWhere(
+          (line) =>
+      distanceToSegment(sceneTap, line.start, line.end) < 10.0,
+      orElse: () => Line(start: Offset.zero, end: Offset.zero),
+    );
+
+    if (lineToRemove.start == Offset.zero && lineToRemove.end == Offset.zero) {
       return;
+    }
 
     final doorsToRemove = ref.read(drawProvider).doors.where((door) {
       return distanceToSegment(
-            door,
-            lineToRemove.start,
-            lineToRemove.end,
-          ) <
+        door,
+        lineToRemove.start,
+        lineToRemove.end,
+      ) <
           5.0;
     }).toSet();
 
     ref.read(drawProvider.notifier).removeLine(lineToRemove);
     ref.read(drawProvider.notifier).removeAllDoors(doorsToRemove);
-    checkBoolChange = checkBoolChange ? false : true;
+    checkBoolChange = !checkBoolChange;
   }
+
+  // ==========================
+  // Geometry helpers
+  // ==========================
 
   Offset snapToGrid(Offset point) {
     final x = (point.dx / _gridSize).round() * _gridSize;
@@ -231,7 +304,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
         closestLine = line;
       }
     }
-
     return closestLine;
   }
 
@@ -259,17 +331,16 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   }
 
   Offset clampPointOnLineSegment(
-    Offset p,
-    Offset a,
-    Offset b,
-    double minMargin,
-  ) {
+      Offset p,
+      Offset a,
+      Offset b,
+      double minMargin,
+      ) {
     final ab = b - a;
     final length = ab.distance;
     if (length == 0) return a;
 
-    final t =
-        ((p - a).dx * ab.dx + (p - a).dy * ab.dy) / (length * length);
+    final t = ((p - a).dx * ab.dx + (p - a).dy * ab.dy) / (length * length);
     final clampedT = t.clamp(
       minMargin / length,
       1.0 - minMargin / length,
@@ -278,20 +349,11 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   }
 
   bool linesIntersectButNotAtEndpoints(Line l1, Line l2) {
-    final intersects = doLinesIntersect(
-      l1.start,
-      l1.end,
-      l2.start,
-      l2.end,
-    );
+    final intersects = doLinesIntersect(l1.start, l1.end, l2.start, l2.end);
     if (!intersects) return false;
 
-    final intersection = getIntersectionPoint(
-      l1.start,
-      l1.end,
-      l2.start,
-      l2.end,
-    );
+    final intersection =
+    getIntersectionPoint(l1.start, l1.end, l2.start, l2.end);
     if (intersection == null) return true;
 
     final endpoints = {l1.start, l1.end, l2.start, l2.end};
@@ -308,12 +370,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
         (ccw(b1, b2, a1) * ccw(b1, b2, a2) <= 0);
   }
 
-  Offset? getIntersectionPoint(
-    Offset p1,
-    Offset p2,
-    Offset p3,
-    Offset p4,
-  ) {
+  Offset? getIntersectionPoint(Offset p1, Offset p2, Offset p3, Offset p4) {
     final a1 = p2.dy - p1.dy;
     final b1 = p1.dx - p2.dx;
     final c1 = a1 * p1.dx + b1 * p1.dy;
@@ -332,19 +389,98 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
 
   void _focus(TapUpDetails details) {
     final location = details.localPosition;
-    final lineToFocus = ref
-        .read(drawProvider)
-        .lines
-        .firstWhere(
-          (line) =>
-              distanceToSegment(location, line.start, line.end) <
-              10.0,
-          orElse: () => Line(start: Offset.zero, end: Offset.zero),
-        );
+
+    final lineToFocus = ref.read(drawProvider).lines.firstWhere(
+          (line) => distanceToSegment(location, line.start, line.end) < 10.0,
+      orElse: () => Line(start: Offset.zero, end: Offset.zero),
+    );
+
     setState(() {
       _focusLine = lineToFocus;
     });
-    return;
+  }
+
+  // ==========================
+  // Zone overlays (diff 적용)
+  // ==========================
+
+  List<Widget> _buildZoneOverlays({
+    required List<Zone> zones,
+    required DrawProviderData drawState,
+  }) {
+    if (zones.isEmpty) return [];
+
+    return zones.map((zone) {
+      final zoneWidth = zone.width * _gridSize;
+      final zoneHeight = zone.height * _gridSize;
+
+      final position = _clampZoneOffset(
+        Offset(zone.x, zone.y),
+        Size(zoneWidth, zoneHeight),
+        Size(drawState.width, drawState.height),
+      );
+
+      if (position.dx != zone.x || position.dy != zone.y) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(zoneProvider.notifier).updateZone(
+            zone.copyWith(x: position.dx, y: position.dy),
+          );
+        });
+      }
+
+      return Positioned(
+        left: position.dx,
+        top: position.dy,
+        child: GestureDetector(
+          onPanUpdate: (details) {
+            final updated = _clampZoneOffset(
+              Offset(zone.x + details.delta.dx, zone.y + details.delta.dy),
+              Size(zoneWidth, zoneHeight),
+              Size(drawState.width, drawState.height),
+            );
+            ref.read(zoneProvider.notifier).updateZone(
+              zone.copyWith(x: updated.dx, y: updated.dy),
+            );
+          },
+          child: Container(
+            width: zoneWidth,
+            height: zoneHeight,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0x336B66FF),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFF6B66FF)),
+            ),
+            child: Text(
+              zone.index,
+              style: const TextStyle(
+                color: Color(0xFF6B66FF),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  Offset _clampZoneOffset(Offset offset, Size zoneSize, Size layoutSize) {
+    final snapped = Offset(
+      _snapToGrid(offset.dx),
+      _snapToGrid(offset.dy),
+    );
+    final maxX = (layoutSize.width - zoneSize.width).clamp(0.0, layoutSize.width);
+    final maxY =
+    (layoutSize.height - zoneSize.height).clamp(0.0, layoutSize.height);
+
+    return Offset(
+      snapped.dx.clamp(0.0, maxX),
+      snapped.dy.clamp(0.0, maxY),
+    );
+  }
+
+  double _snapToGrid(double value) {
+    return (value / _gridSize).round() * _gridSize;
   }
 }
 
@@ -357,7 +493,7 @@ class GridPainter extends CustomPainter {
   final Offset? previewEnd;
   final Set<Offset> doors;
   final Line? lineToFocus;
-  bool transparent;
+  final bool transparent;
 
   GridPainter({
     required this.gridSize,
@@ -383,26 +519,15 @@ class GridPainter extends CustomPainter {
       for (double x = 0; x <= width; x += gridSize) {
         canvas.drawLine(Offset(x, 0), Offset(x, height), gridPaint);
       }
-
       for (double y = 0; y <= height; y += gridSize) {
         canvas.drawLine(Offset(0, y), Offset(width, y), gridPaint);
       }
     } else {
-      // 가로 방향 마지막 수직선 (오른쪽 끝)
       final double lastX = (width / gridSize).floor() * gridSize;
-      canvas.drawLine(
-        Offset(lastX, 0),
-        Offset(lastX, height),
-        gridPaint,
-      );
+      canvas.drawLine(Offset(lastX, 0), Offset(lastX, height), gridPaint);
 
-      // 세로 방향 마지막 수평선 (아래쪽 끝)
       final double lastY = (height / gridSize).floor() * gridSize;
-      canvas.drawLine(
-        Offset(0, lastY),
-        Offset(width, lastY),
-        gridPaint,
-      );
+      canvas.drawLine(Offset(0, lastY), Offset(width, lastY), gridPaint);
     }
 
     final linePaint = Paint()
@@ -421,11 +546,7 @@ class GridPainter extends CustomPainter {
       final previewPaint = Paint()
         ..color = Colors.blue.withAlpha(75)
         ..strokeWidth = 2.0;
-      canvas.drawCircle(
-        previewStart!,
-        5,
-        Paint()..color = Colors.red,
-      );
+      canvas.drawCircle(previewStart!, 5, Paint()..color = Colors.red);
       canvas.drawLine(previewStart!, previewEnd!, previewPaint);
     }
 
@@ -436,11 +557,7 @@ class GridPainter extends CustomPainter {
       double minDistance = double.infinity;
 
       for (final line in lines) {
-        final distance = distanceToSegment(
-          door,
-          line.start,
-          line.end,
-        );
+        final distance = distanceToSegment(door, line.start, line.end);
         if (distance < minDistance) {
           minDistance = distance;
           nearestLine = line;
@@ -467,25 +584,15 @@ class GridPainter extends CustomPainter {
     }
 
     if (lineToFocus != null) {
-      canvas.drawCircle(
-        lineToFocus!.start,
-        5,
-        Paint()..color = Colors.red,
-      );
-      canvas.drawCircle(
-        lineToFocus!.end,
-        5,
-        Paint()..color = Colors.red,
-      );
+      canvas.drawCircle(lineToFocus!.start, 5, Paint()..color = Colors.red);
+      canvas.drawCircle(lineToFocus!.end, 5, Paint()..color = Colors.red);
     }
 
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant GridPainter old) {
-    return true;
-  }
+  bool shouldRepaint(covariant GridPainter oldDelegate) => true;
 
   double distanceToSegment(Offset p, Offset a, Offset b) {
     final ap = p - a;
