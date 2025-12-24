@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../service/auth_providers.dart';
+import 'package:jimiker/services/auth_providers.dart';
 
 class MyInformationScreen extends ConsumerWidget {
   const MyInformationScreen({super.key});

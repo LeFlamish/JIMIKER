@@ -38,7 +38,7 @@ class DrawProviderData {
 }
 
 final drawProvider = NotifierProvider<DrawNotifier, DrawProviderData>(
-  () => DrawNotifier(),
+      () => DrawNotifier(),
 );
 
 class DrawNotifier extends Notifier<DrawProviderData> {
@@ -91,7 +91,7 @@ class DrawNotifier extends Notifier<DrawProviderData> {
         state.lines
             .expand((line) => [line.start, line.end])
             .toList() +
-        state.doors.toList();
+            state.doors.toList();
 
     // 최소/최대 좌표 계산
     final minX = allPoints
@@ -114,16 +114,16 @@ class DrawNotifier extends Notifier<DrawProviderData> {
     final shiftedLines = state.lines
         .map(
           (line) => Line(
-            start: Offset(
-              line.start.dx + dxOffset,
-              line.start.dy + dyOffset,
-            ),
-            end: Offset(
-              line.end.dx + dxOffset,
-              line.end.dy + dyOffset,
-            ),
-          ),
-        )
+        start: Offset(
+          line.start.dx + dxOffset,
+          line.start.dy + dyOffset,
+        ),
+        end: Offset(
+          line.end.dx + dxOffset,
+          line.end.dy + dyOffset,
+        ),
+      ),
+    )
         .toList();
 
     final shiftedDoors = state.doors
@@ -141,8 +141,10 @@ class DrawNotifier extends Notifier<DrawProviderData> {
     );
 
     state = state.copyWith(
-      width: _transformedData!.width,
-      height: _transformedData!.height,
+      lines: shiftedLines,
+      doors: shiftedDoors,
+      width: width,
+      height: height,
     );
   }
 }
