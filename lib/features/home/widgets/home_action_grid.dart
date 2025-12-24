@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/auth_providers.dart';
 import 'package:jimiker/features/home/menu/my_information/my_information_screen.dart';
 import '../menu/find_storage/google_map_screen.dart';
+import '../menu/register_storage/register_storage_screen.dart';
 
 class HomeActionGrid extends ConsumerWidget {
   const HomeActionGrid({super.key});
@@ -27,8 +28,21 @@ class HomeActionGrid extends ConsumerWidget {
       _HomeActionItem(
         icon: Icons.add_business_outlined,
         label: '창고 등록',
-        onTap: () {
-          // TODO: 창고 등록 플로우로 이동
+        onTap: () async {
+          final bool check = await authController.checkSignIn(
+            context,
+          );
+
+          if (!context.mounted) return;
+
+          if (check) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const RegisterStorageScreen(),
+              ),
+            );
+          }
         },
       ),
 
