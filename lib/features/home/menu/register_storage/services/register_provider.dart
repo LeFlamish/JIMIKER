@@ -49,6 +49,10 @@ class RegisterNotifier extends Notifier<RegisterData> {
     return RegisterData();
   }
 
+  void reset() {
+    state = RegisterData();
+  }
+
   Future<void> pickImage() async {
     final picker = ImagePicker();
     final newImages = await picker.pickMultiImage();

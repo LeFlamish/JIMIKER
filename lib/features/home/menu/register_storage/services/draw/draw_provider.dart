@@ -49,6 +49,11 @@ class DrawNotifier extends Notifier<DrawProviderData> {
 
   TransformedData? _transformedData;
 
+  void reset() {
+    _transformedData = null;
+    state = DrawProviderData();
+  }
+
   void drawChange(bool value) {
     state = state.copyWith(isDraw: value);
   }

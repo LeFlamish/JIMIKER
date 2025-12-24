@@ -17,6 +17,7 @@ class DrawScreen extends ConsumerStatefulWidget {
 
 class _DrawScreenState extends ConsumerState<DrawScreen> {
   static const double _gridSize = 30.0;
+  static const double _canvasSize = 1000.0;
 
   bool _isLayoutEditing = true;
 
@@ -32,6 +33,14 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   final Map<String, Offset> _zoneDragStartPointers = {};
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _centerDrawingOnCanvas();
+    });
+  }
+
+  @override
   void dispose() {
     _previewPoint.dispose();
     _transform.dispose();
@@ -44,7 +53,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
     final canDraw = fingerCount <= 1;
 
     final scale = _transform.value.getMaxScaleOnAxis();
-    final scaledSize = 1000 / scale;
+    final scaledSize = _canvasSize / scale;
 
     final zones = ref.watch(zoneProvider);
     final drawState = ref.watch(drawProvider);
@@ -68,8 +77,8 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
             children: [
               Center(
                 child: SizedBox(
-                  width: 1000,
-                  height: 1000,
+                  width: _canvasSize,
+                  height: _canvasSize,
                   child: ClipRect(
                     child: InteractiveViewer(
                       transformationController: _transform,
@@ -98,8 +107,8 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                               CustomPaint(
                                 size: Size(scaledSize, scaledSize),
                                 painter: GridPainter(
-                                  width: 1000,
-                                  height: 1000,
+                                  width: _canvasSize,
+                                  height: _canvasSize,
                                   gridSize: _gridSize,
                                   lines: ref.read(drawProvider).lines,
                                   previewStart: _startPoint,
@@ -173,6 +182,33 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   // ==========================
   // Layout draw handlers
   // ==========================
+
+  void _centerDrawingOnCanvas() {
+    final drawState = ref.read(drawProvider);
+    if (drawState.lines.isEmpty) {
+      return;
+    }
+
+    final points = <Offset>[
+      ...drawState.lines.expand((line) => [line.start, line.end]),
+      ...drawState.doors,
+    ];
+
+    final minX = points.map((point) => point.dx).reduce(min);
+    final minY = points.map((point) => point.dy).reduce(min);
+    final maxX = points.map((point) => point.dx).reduce(max);
+    final maxY = points.map((point) => point.dy).reduce(max);
+
+    final contentCenter = Offset(
+      (minX + maxX) / 2,
+      (minY + maxY) / 2,
+    );
+    final canvasCenter = const Offset(_canvasSize / 2, _canvasSize / 2);
+    final translation = canvasCenter - contentCenter;
+
+    _transform.value =
+    Matrix4.identity()..translate(translation.dx, translation.dy);
+  }
 
   void _onPanStart(DragStartDetails details) {
     final local = details.localPosition;

@@ -9,6 +9,10 @@ class ZoneNotifier extends Notifier<List<Zone>> {
   @override
   List<Zone> build() => [];
 
+  void reset() {
+    state = [];
+  }
+
   String nextIndex() {
     final count = state.length;
     if (count < 26) {

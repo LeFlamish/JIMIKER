@@ -606,6 +606,12 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
                 const SnackBar(content: Text("등록 요청이 완료되었습니다.")),
               );
 
+              ref.read(registerProvider.notifier).reset();
+              ref.read(zoneProvider.notifier).reset();
+              ref.read(drawProvider.notifier).reset();
+              _addressController.clear();
+              _detailAddressController.clear();
+
               if (mounted) {
                 Navigator.of(context).pop();
               }
