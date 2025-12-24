@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/data/model/zone.dart';
+import 'package:jimiker/data/models/zone.dart';
+import 'package:jimiker/data/models/zone_form_data.dart';
+import 'package:jimiker/features/home/menu/register_storage/screens/draw_screen.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
-import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_screen.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/register_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/register_storage_validator.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/zone_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/widgets/photo.dart';
-import 'package:jimiker/features/home/menu/register_storage/widgets/zone_form_dialog.dart';
+import 'package:jimiker/features/home/menu/register_storage/widgets/zone_form_dialog.dart' hide ZoneFormData;
 
 class RegisterStorageScreen extends ConsumerStatefulWidget {
   const RegisterStorageScreen({super.key});
@@ -22,12 +23,14 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
 
   late final TextEditingController _addressController;
   late final TextEditingController _detailAddressController;
+  late final FocusNode _detailAddressFocusNode;
 
   @override
   void initState() {
     super.initState();
     _addressController = TextEditingController();
     _detailAddressController = TextEditingController();
+    _detailAddressFocusNode = FocusNode(canRequestFocus: false);
 
     _addressController.text = ref.read(registerProvider).address ?? '';
     _detailAddressController.text =
@@ -38,6 +41,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
   void dispose() {
     _addressController.dispose();
     _detailAddressController.dispose();
+    _detailAddressFocusNode.dispose();
     super.dispose();
   }
 
@@ -52,7 +56,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
       body: SafeArea(
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onTap: () => FocusScope.of(context).unfocus(),
+          onTap: _clearDetailAddressFocus,
           child: Column(
             children: [
               Expanded(
@@ -111,6 +115,8 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
                         controller: _detailAddressController,
                         hint: "상세 주소를 입력해주세요",
                         icon: Icons.edit_location_alt_outlined,
+                        focusNode: _detailAddressFocusNode,
+                        onTap: _enableDetailAddressFocus,
                         onChanged: (value) {
                           ref
                               .read(registerProvider.notifier)
@@ -123,7 +129,6 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
                       _buildSectionTitle("창고 배치 구성"),
                       const SizedBox(height: 10),
 
-                      // 구조 그리기 (diff 적용: drawState를 인자로 받는 형태)
                       _buildStructureEditorArea(drawState),
 
                       const SizedBox(height: 20),
@@ -213,6 +218,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
                         ..._buildZoneOverlays(
                           drawState: drawState,
                           zones: zones,
+                          enableDrag: false, // ✅ diff 적용
                         ),
                       ],
                     ),
@@ -339,6 +345,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
   List<Widget> _buildZoneOverlays({
     required DrawProviderData drawState,
     required List<Zone> zones,
+    required bool enableDrag, // ✅ diff 적용
   }) {
     if (zones.isEmpty) return [];
 
@@ -365,10 +372,29 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
         });
       }
 
+      final content = Container(
+        width: zoneWidth,
+        height: zoneHeight,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0x336B66FF),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF6B66FF)),
+        ),
+        child: Text(
+          zone.index,
+          style: const TextStyle(
+            color: Color(0xFF6B66FF),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+
       return Positioned(
         left: position.dx,
         top: position.dy,
-        child: GestureDetector(
+        child: enableDrag
+            ? GestureDetector(
           onPanUpdate: (details) {
             final updated = _clampZoneOffset(
               Offset(
@@ -383,23 +409,10 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
               zone.copyWith(x: updated.dx, y: updated.dy),
             );
           },
-          child: Container(
-            width: zoneWidth,
-            height: zoneHeight,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0x336B66FF),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFF6B66FF)),
-            ),
-            child: Text(
-              zone.index,
-              style: const TextStyle(
-                color: Color(0xFF6B66FF),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          child: content,
+        )
+            : IgnorePointer(
+          child: content,
         ),
       );
     }).toList();
@@ -433,10 +446,12 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
   // =========================
 
   void _navigateToEditor() async {
+    _clearDetailAddressFocus();
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const DrawScreen()),
     );
+    _clearDetailAddressFocus();
   }
 
   Future<void> _showAddZoneDialog() async {
@@ -466,14 +481,29 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
     final notifier = ref.read(zoneProvider.notifier);
 
     if (zone == null) {
+      final drawState = ref.read(drawProvider);
+      final zoneSize = Size(
+        result.width * _gridSize,
+        result.height * _gridSize,
+      );
+      final layoutSize = Size(
+        drawState.width.toDouble(),
+        drawState.height.toDouble(),
+      );
+      final position = _findAvailableZonePosition(
+        zoneSize: zoneSize,
+        layoutSize: layoutSize,
+        zones: ref.read(zoneProvider),
+      );
+
       notifier.addZone(
         Zone(
           index: zoneIndex,
           width: result.width,
           height: result.height,
           price: result.price,
-          x: _gridSize,
-          y: _gridSize,
+          x: position.dx,
+          y: position.dy,
           angle: 0,
         ),
       );
@@ -509,10 +539,12 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
     void Function()? onTap,
     bool isReadOnly = false,
     void Function(String value)? onChanged,
+    FocusNode? focusNode, // ✅ diff 적용
   }) {
     return TextField(
       onTap: onTap,
       controller: controller,
+      focusNode: focusNode,
       readOnly: isReadOnly,
       onChanged: onChanged,
       decoration: InputDecoration(
@@ -613,5 +645,56 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
         ),
       ),
     );
+  }
+
+  // =========================
+  // Focus helpers (diff 적용)
+  // =========================
+
+  void _enableDetailAddressFocus() {
+    _detailAddressFocusNode.canRequestFocus = true;
+    _detailAddressFocusNode.requestFocus();
+  }
+
+  void _clearDetailAddressFocus() {
+    _detailAddressFocusNode.unfocus();
+    _detailAddressFocusNode.canRequestFocus = false;
+  }
+
+  // =========================
+  // Zone placement helper (diff 적용)
+  // =========================
+
+  Offset _findAvailableZonePosition({
+    required Size zoneSize,
+    required Size layoutSize,
+    required List<Zone> zones,
+  }) {
+    final maxX =
+    (layoutSize.width - zoneSize.width).clamp(0.0, layoutSize.width).toDouble();
+    final maxY =
+    (layoutSize.height - zoneSize.height).clamp(0.0, layoutSize.height).toDouble();
+
+    for (double y = _gridSize; y <= maxY; y += _gridSize) {
+      for (double x = _gridSize; x <= maxX; x += _gridSize) {
+        final rect = Rect.fromLTWH(x, y, zoneSize.width, zoneSize.height);
+
+        final overlaps = zones.any((zone) {
+          final otherRect = Rect.fromLTWH(
+            zone.x.toDouble(),
+            zone.y.toDouble(),
+            zone.width.toDouble() * _gridSize,
+            zone.height.toDouble() * _gridSize,
+          );
+          return rect.overlaps(otherRect);
+        });
+
+        if (!overlaps) {
+          return Offset(x, y);
+        }
+      }
+    }
+
+    return Offset(_gridSize, _gridSize);
   }
 }

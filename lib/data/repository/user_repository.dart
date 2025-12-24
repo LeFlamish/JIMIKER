@@ -1,5 +1,5 @@
 import '../dataSource/user_source.dart';
-import '../model/user.dart';
+import '../models/user.dart';
 
 abstract class UserRepository {
   Stream<AppUser?> watchUser(String uid);

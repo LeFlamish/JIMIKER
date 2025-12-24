@@ -1,16 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:jimiker/data/models/zone_form_data.dart';
 
-class ZoneFormData {
-  final double width;
-  final double height;
-  final int price;
-
-  const ZoneFormData({
-    required this.width,
-    required this.height,
-    required this.price,
-  });
-}
 
 class ZoneFormDialog extends StatefulWidget {
   final ZoneFormData? zone;

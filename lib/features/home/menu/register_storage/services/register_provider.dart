@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../../data/model/storage.dart';
-import '../../../../../data/model/zone.dart';
+import '../../../../../data/models/storage.dart';
+import '../../../../../data/models/zone.dart';
 import '../../../../../services/auth_providers.dart';
 import '../../../../search/search_screen.dart';
 import 'draw/draw_provider.dart';

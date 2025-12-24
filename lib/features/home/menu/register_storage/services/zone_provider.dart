@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/data/model/zone.dart';
+import 'package:jimiker/data/models/zone.dart';
 
 final zoneProvider = NotifierProvider<ZoneNotifier, List<Zone>>(
       () => ZoneNotifier(),

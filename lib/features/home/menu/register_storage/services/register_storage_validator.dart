@@ -1,4 +1,4 @@
-import 'package:jimiker/data/model/zone.dart';
+import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/register_provider.dart';
 

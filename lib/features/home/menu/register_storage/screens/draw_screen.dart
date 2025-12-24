@@ -2,12 +2,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/data/model/storage.dart';
-import 'package:jimiker/data/model/zone.dart';
+import 'package:jimiker/data/models/storage.dart';
+import 'package:jimiker/data/models/zone.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/draw/touch_counter.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/zone_provider.dart';
-
-import 'draw_provider.dart';
 
 class DrawScreen extends ConsumerStatefulWidget {
   const DrawScreen({super.key});
@@ -27,6 +26,10 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
 
   Line? _focusLine;
   bool checkBoolChange = false;
+
+  // ✅ diff 적용: 드래그 시작 기준(포인터/오프셋) 저장해서 튐/누적 오차 방지
+  final Map<String, Offset> _zoneDragStartOffsets = {};
+  final Map<String, Offset> _zoneDragStartPointers = {};
 
   @override
   void dispose() {
@@ -83,8 +86,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                         _isLayoutEditing && canDraw ? _onPanStart : null,
                         onPanUpdate:
                         _isLayoutEditing && canDraw ? _onPanUpdate : null,
-                        onPanEnd:
-                        _isLayoutEditing && canDraw ? _onPanEnd : null,
+                        onPanEnd: _isLayoutEditing && canDraw ? _onPanEnd : null,
                         onDoubleTapDown:
                         _isLayoutEditing ? _handleDoubleTap : null,
                         onLongPressStart:
@@ -195,7 +197,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
           _startPoint = _focusLine!.start;
         }
 
-        // NOTE: 원 코드 그대로 유지(직접 remove). 가능하면 notifier로 통일하는 게 좋음.
+        // NOTE: 원 코드 그대로 유지(직접 remove). 가능하면 notifier로 통일 권장.
         ref.read(drawProvider).lines.remove(_focusLine);
         _focusLine = null;
       }
@@ -260,8 +262,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
     final sceneTap = details.localPosition;
 
     final lineToRemove = ref.read(drawProvider).lines.firstWhere(
-          (line) =>
-      distanceToSegment(sceneTap, line.start, line.end) < 10.0,
+          (line) => distanceToSegment(sceneTap, line.start, line.end) < 10.0,
       orElse: () => Line(start: Offset.zero, end: Offset.zero),
     );
 
@@ -432,15 +433,42 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
         left: position.dx,
         top: position.dy,
         child: GestureDetector(
+          // ✅ diff 적용: globalPosition 기준으로 드래그(줌/팬 상태에서도 안정적)
+          onPanStart: (details) {
+            _zoneDragStartOffsets[zone.index] = Offset(zone.x, zone.y);
+            _zoneDragStartPointers[zone.index] = details.globalPosition;
+          },
           onPanUpdate: (details) {
+            final startOffset =
+                _zoneDragStartOffsets[zone.index] ?? Offset(zone.x, zone.y);
+            final startPointer =
+                _zoneDragStartPointers[zone.index] ?? details.globalPosition;
+
+            final delta = details.globalPosition - startPointer;
+
             final updated = _clampZoneOffset(
-              Offset(zone.x + details.delta.dx, zone.y + details.delta.dy),
+              Offset(startOffset.dx + delta.dx, startOffset.dy + delta.dy),
               Size(zoneWidth, zoneHeight),
               Size(drawState.width, drawState.height),
             );
+
+            // ✅ diff 적용: 다른 구역과 겹치면 이동 막기
+            if (_isOverlappingZone(
+              movingZone: zone,
+              proposedOffset: updated,
+              zoneSize: Size(zoneWidth, zoneHeight),
+              zones: zones,
+            )) {
+              return;
+            }
+
             ref.read(zoneProvider.notifier).updateZone(
               zone.copyWith(x: updated.dx, y: updated.dy),
             );
+          },
+          onPanEnd: (_) {
+            _zoneDragStartOffsets.remove(zone.index);
+            _zoneDragStartPointers.remove(zone.index);
           },
           child: Container(
             width: zoneWidth,
@@ -469,7 +497,8 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
       _snapToGrid(offset.dx),
       _snapToGrid(offset.dy),
     );
-    final maxX = (layoutSize.width - zoneSize.width).clamp(0.0, layoutSize.width);
+    final maxX =
+    (layoutSize.width - zoneSize.width).clamp(0.0, layoutSize.width);
     final maxY =
     (layoutSize.height - zoneSize.height).clamp(0.0, layoutSize.height);
 
@@ -481,6 +510,37 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
 
   double _snapToGrid(double value) {
     return (value / _gridSize).round() * _gridSize;
+  }
+
+  // ✅ diff 적용: 겹침 검사
+  bool _isOverlappingZone({
+    required Zone movingZone,
+    required Offset proposedOffset,
+    required Size zoneSize,
+    required List<Zone> zones,
+  }) {
+    final proposedRect = Rect.fromLTWH(
+      proposedOffset.dx,
+      proposedOffset.dy,
+      zoneSize.width,
+      zoneSize.height,
+    );
+
+    for (final zone in zones) {
+      if (zone.index == movingZone.index) continue;
+
+      final otherRect = Rect.fromLTWH(
+        zone.x,
+        zone.y,
+        zone.width * _gridSize,
+        zone.height * _gridSize,
+      );
+
+      if (proposedRect.overlaps(otherRect)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 

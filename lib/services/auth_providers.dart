@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../data/dataSource/user_source.dart';
-import '../data/model/user.dart';
+import '../data/models/user.dart';
 import '../data/repository/user_repository.dart';
 import '../features/auth/sign_in_screen.dart';
 
