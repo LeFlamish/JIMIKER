@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/data/models/zone.dart';
 
@@ -36,5 +38,19 @@ class ZoneNotifier extends Notifier<List<Zone>> {
 
   void removeZone(String index) {
     state = state.where((zone) => zone.index != index).toList();
+  }
+
+  void shiftZones(Offset offset) {
+    if (offset == Offset.zero) {
+      return;
+    }
+
+    state = [
+      for (final zone in state)
+        zone.copyWith(
+          x: zone.x + offset.dx,
+          y: zone.y + offset.dy,
+        ),
+    ];
   }
 }

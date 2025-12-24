@@ -103,7 +103,7 @@ class DrawNotifier extends Notifier<DrawProviderData> {
     );
   }
 
-  void getTransformedDataWithMargin(double margin) {
+  Offset getTransformedDataWithMargin(double margin) {
     if (state.lines.isEmpty) {
       _transformedData = TransformedData(
         shiftedLines: [],
@@ -111,7 +111,7 @@ class DrawNotifier extends Notifier<DrawProviderData> {
         width: 0,
         height: 0,
       );
-      return;
+      return Offset.zero;
     }
 
     // 모든 점 수집
@@ -174,6 +174,8 @@ class DrawNotifier extends Notifier<DrawProviderData> {
       width: width,
       height: height,
     );
+
+    return Offset(dxOffset, dyOffset);
   }
 }
 

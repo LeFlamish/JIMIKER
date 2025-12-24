@@ -60,7 +60,10 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
 
     return WillPopScope(
       onWillPop: () async {
-        ref.read(drawProvider.notifier).getTransformedDataWithMargin(_gridSize);
+        final offset = ref
+            .read(drawProvider.notifier)
+            .getTransformedDataWithMargin(_gridSize);
+        ref.read(zoneProvider.notifier).shiftZones(offset);
         ref.read(drawProvider.notifier).drawChange(false);
         return true;
       },
@@ -211,6 +214,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
     );
 
     ref.read(drawProvider.notifier).shiftDrawing(translation);
+    ref.read(zoneProvider.notifier).shiftZones(translation);
     if (!mounted) {
       return;
     }
