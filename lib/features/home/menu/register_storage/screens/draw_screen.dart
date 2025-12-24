@@ -56,7 +56,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
     final scaledSize = _canvasSize / scale;
 
     final zones = ref.watch(zoneProvider);
-    final drawState = ref.watch(drawProvider);
 
     return WillPopScope(
       onWillPop: () async {
@@ -123,7 +122,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                               if (!_isLayoutEditing)
                                 ..._buildZoneOverlays(
                                   zones: zones,
-                                  drawState: drawState,
                                 ),
                             ],
                           ),
@@ -466,9 +464,10 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
 
   List<Widget> _buildZoneOverlays({
     required List<Zone> zones,
-    required DrawProviderData drawState,
   }) {
     if (zones.isEmpty) return [];
+
+    const layoutSize = Size(_canvasSize, _canvasSize);
 
     return zones.map((zone) {
       final zoneWidth = zone.width * _gridSize;
@@ -477,7 +476,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
       final position = _clampZoneOffset(
         Offset(zone.x, zone.y),
         Size(zoneWidth, zoneHeight),
-        Size(drawState.width, drawState.height),
+        layoutSize,
       );
 
       if (position.dx != zone.x || position.dy != zone.y) {
@@ -508,7 +507,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
             final updated = _clampZoneOffset(
               Offset(startOffset.dx + delta.dx, startOffset.dy + delta.dy),
               Size(zoneWidth, zoneHeight),
-              Size(drawState.width, drawState.height),
+              layoutSize,
             );
 
             ref.read(zoneProvider.notifier).updateZone(
@@ -517,8 +516,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
           },
           onPanEnd: (_) {
             final startOffset = _zoneDragStartOffsets[zone.index];
-            final layoutSize =
-            Size(drawState.width, drawState.height);
             final currentZones = ref.read(zoneProvider);
             final currentZone = currentZones.firstWhere(
                   (current) => current.index == zone.index,
