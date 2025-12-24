@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../../data/models/location.dart';
 import '../../../../../data/models/storage.dart';
 import '../../../../../data/models/zone.dart';
 import '../../../../../services/auth_providers.dart';
@@ -114,9 +115,20 @@ class RegisterNotifier extends Notifier<RegisterData> {
     final address = state.address ?? '';
     final latLng = state.latLng;
     final storageRef = firestore.collection('storages').doc();
+    final locationsRef = firestore.collection('locations');
+
+    final existingLocation =
+    await locationsRef.where('address', isEqualTo: address).limit(1).get();
+    late final DocumentReference locationRef;
+
+    if (existingLocation.docs.isNotEmpty) {
+      locationRef = existingLocation.docs.first.reference;
+    } else {
+      locationRef = locationsRef.doc();
+    }
 
     final storage = Storage(
-      locationId: storageRef.id,
+      locationId: locationRef.id,
       lat: latLng?.latitude ?? 0,
       lng: latLng?.longitude ?? 0,
       address: address,
@@ -131,9 +143,24 @@ class RegisterNotifier extends Notifier<RegisterData> {
       approved: true, // 나중에 승인 받는다면 false로 수정
     );
 
-    await storageRef.set(storage.toMap());
-
     final batch = firestore.batch();
+    batch.set(storageRef, storage.toMap());
+
+    if (existingLocation.docs.isNotEmpty) {
+      batch.update(locationRef, {
+        'storages': FieldValue.arrayUnion([storageRef.id]),
+      });
+    } else {
+      final location = Location(
+        id: locationRef.id,
+        address: address,
+        lat: latLng?.latitude ?? 0,
+        lng: latLng?.longitude ?? 0,
+        storages: [storageRef.id],
+      );
+      batch.set(locationRef, location.toMap());
+    }
+
     for (final zone in zones) {
       final zoneRef = storageRef.collection('zones').doc(zone.index);
       batch.set(zoneRef, zone.toMap());

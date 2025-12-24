@@ -30,7 +30,22 @@ class ChatScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final rooms = snapshot.data?.docs ?? [];
+          final rooms = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+            snapshot.data?.docs ?? [],
+          )..sort((a, b) {
+            final aData = a.data();
+            final bData = b.data();
+            final aUpdatedAt = aData['updatedAt'] as Timestamp?;
+            final bUpdatedAt = bData['updatedAt'] as Timestamp?;
+            final aCreatedAt = aData['createdAt'] as Timestamp?;
+            final bCreatedAt = bData['createdAt'] as Timestamp?;
+            final aTime =
+                (aUpdatedAt ?? aCreatedAt)?.millisecondsSinceEpoch ?? 0;
+            final bTime =
+                (bUpdatedAt ?? bCreatedAt)?.millisecondsSinceEpoch ?? 0;
+            return bTime.compareTo(aTime);
+          });
+
           if (rooms.isEmpty) {
             return const Center(
               child: Text('열려있는 채팅방이 없습니다.'),
