@@ -1,10 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/features/home/menu/chat/chat_screen.dart';
+import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 import 'package:jimiker/features/home/menu/my_information/my_information_screen.dart';
-import '../menu/find_storage/google_map_screen.dart';
+import '../menu/find_storage/find_storage_screen.dart';
 import '../menu/register_storage/register_storage_screen.dart';
 
 class HomeActionGrid extends ConsumerWidget {

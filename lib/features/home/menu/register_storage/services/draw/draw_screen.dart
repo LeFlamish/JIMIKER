@@ -2,8 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/features/home/menu/register_storage/draw/touch_counter.dart';
-import '../../../../../data/model/storage.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/draw/touch_counter.dart';
+import 'package:jimiker/data/model/storage.dart';
 import 'draw_provider.dart';
 
 class DrawScreen extends ConsumerStatefulWidget {

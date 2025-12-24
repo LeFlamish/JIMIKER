@@ -1,10 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:jimiker/features/home/menu/chat/screens/chat_room_screen.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 import 'package:jimiker/features/home/menu/chat/widgets/chat_room_list_tile.dart';
-
-import 'chat_room_screen.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key});

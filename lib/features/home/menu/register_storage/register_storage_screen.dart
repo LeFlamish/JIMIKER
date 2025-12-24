@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:jimiker/features/home/menu/register_storage/draw/draw_provider.dart';
-import 'package:jimiker/features/home/menu/register_storage/draw/draw_screen.dart';
-import 'package:jimiker/features/home/menu/register_storage/register_provider.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_screen.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/register_provider.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_screen.dart';
 import 'package:jimiker/features/home/menu/register_storage/widgets/photo.dart';
 
 // 구역 데이터 모델

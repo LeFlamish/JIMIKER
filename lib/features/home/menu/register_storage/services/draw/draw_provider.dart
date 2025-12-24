@@ -1,9 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/features/home/menu/register_storage/register_provider.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/register_provider.dart';
 
-import '../../../../../data/model/storage.dart';
+import 'package:jimiker/data/model/storage.dart';
 
 class DrawProviderData {
   final List<Line> lines;

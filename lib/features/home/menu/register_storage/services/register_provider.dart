@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../data/model/storage.dart';
-import '../../../search/search_screen.dart';
+import '../../../../../data/model/storage.dart';
+import '../../../../search/search_screen.dart';
 
 class RegisterData {
   final String? address;
