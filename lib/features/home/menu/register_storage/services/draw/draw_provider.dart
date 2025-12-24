@@ -80,6 +80,29 @@ class DrawNotifier extends Notifier<DrawProviderData> {
     );
   }
 
+  void shiftDrawing(Offset offset) {
+    if (offset == Offset.zero) {
+      return;
+    }
+
+    final shiftedLines =
+    state.lines
+        .map(
+          (line) => Line(
+        start: line.start + offset,
+        end: line.end + offset,
+      ),
+    )
+        .toList();
+    final shiftedDoors =
+    state.doors.map((door) => door + offset).toSet();
+
+    state = state.copyWith(
+      lines: shiftedLines,
+      doors: shiftedDoors,
+    );
+  }
+
   void getTransformedDataWithMargin(double margin) {
     if (state.lines.isEmpty) {
       _transformedData = TransformedData(

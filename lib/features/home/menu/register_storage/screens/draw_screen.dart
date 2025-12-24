@@ -204,10 +204,29 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
       (minY + maxY) / 2,
     );
     final canvasCenter = const Offset(_canvasSize / 2, _canvasSize / 2);
-    final translation = canvasCenter - contentCenter;
+    final rawTranslation = canvasCenter - contentCenter;
+    final translation = Offset(
+      (rawTranslation.dx / _gridSize).round() * _gridSize,
+      (rawTranslation.dy / _gridSize).round() * _gridSize,
+    );
 
-    _transform.value =
-    Matrix4.identity()..translate(translation.dx, translation.dy);
+    ref.read(drawProvider.notifier).shiftDrawing(translation);
+    if (!mounted) {
+      return;
+    }
+
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final viewportSize = renderBox?.size;
+    if (viewportSize == null) {
+      _transform.value = Matrix4.identity();
+      return;
+    }
+
+    final viewportCenter =
+    Offset(viewportSize.width / 2, viewportSize.height / 2);
+    final viewportTranslation = viewportCenter - canvasCenter;
+    _transform.value = Matrix4.identity()
+      ..translate(viewportTranslation.dx, viewportTranslation.dy);
   }
 
   void _onPanStart(DragStartDetails details) {
