@@ -511,21 +511,43 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
               Size(drawState.width, drawState.height),
             );
 
-            // ✅ diff 적용: 다른 구역과 겹치면 이동 막기
-            if (_isOverlappingZone(
-              movingZone: zone,
-              proposedOffset: updated,
-              zoneSize: Size(zoneWidth, zoneHeight),
-              zones: zones,
-            )) {
-              return;
-            }
-
             ref.read(zoneProvider.notifier).updateZone(
               zone.copyWith(x: updated.dx, y: updated.dy),
             );
           },
           onPanEnd: (_) {
+            final startOffset = _zoneDragStartOffsets[zone.index];
+            final layoutSize =
+            Size(drawState.width, drawState.height);
+            final currentZones = ref.read(zoneProvider);
+            final currentZone = currentZones.firstWhere(
+                  (current) => current.index == zone.index,
+              orElse: () => zone,
+            );
+            final currentOffset = Offset(
+              currentZone.x,
+              currentZone.y,
+            );
+
+            if (startOffset != null &&
+                _isOverlappingZone(
+                  movingZone: currentZone,
+                  proposedOffset: currentOffset,
+                  zoneSize: Size(zoneWidth, zoneHeight),
+                  zones: currentZones,
+                )) {
+              final resetOffset = _clampZoneOffset(
+                startOffset,
+                Size(zoneWidth, zoneHeight),
+                layoutSize,
+              );
+              ref.read(zoneProvider.notifier).updateZone(
+                currentZone.copyWith(
+                  x: resetOffset.dx,
+                  y: resetOffset.dy,
+                ),
+              );
+            }
             _zoneDragStartOffsets.remove(zone.index);
             _zoneDragStartPointers.remove(zone.index);
           },
