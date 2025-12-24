@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
+import 'package:jimiker/features/home/menu/chat/widgets/chat_message_bubble.dart';
+
 
 class ChatRoomScreen extends StatefulWidget {
   final String roomId;
@@ -27,7 +30,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     super.dispose();
   }
 
-  Future<void> _sendMessage() async {
+  Future<void> _sendMessage(ChatService chatService) async {
     final message = _messageController.text.trim();
     if (message.isEmpty) return;
 
@@ -40,25 +43,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       return;
     }
 
-    final roomRef = FirebaseFirestore.instance
-        .collection('chat_rooms')
-        .doc(widget.roomId);
-    final messageRef = roomRef.collection('messages').doc();
-
-    final messagePayload = {
-      'uid': user.uid,
-      'displayName': user.displayName ?? user.email ?? '사용자',
-      'message': message,
-      'createdAt': FieldValue.serverTimestamp(),
-    };
-
-    await FirebaseFirestore.instance.runTransaction((transaction) async {
-      transaction.set(messageRef, messagePayload);
-      transaction.set(roomRef, {
-        'lastMessage': message,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    });
+    await chatService.sendMessage(
+      roomId: widget.roomId,
+      message: message,
+      user: user,
+    );
 
     _messageController.clear();
     _focusNode.requestFocus();
@@ -73,6 +62,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final chatService = ChatService(FirebaseFirestore.instance);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.roomName),
@@ -80,14 +71,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       body: Column(
         children: [
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('chat_rooms')
-                  .doc(widget.roomId)
-                  .collection('messages')
-                  .orderBy('createdAt', descending: false)
-                  .limit(200)
-                  .snapshots(),
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: chatService.streamMessages(widget.roomId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -110,14 +95,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
+                    final data = docs[index].data();
                     final isMine = data['uid'] == currentUser?.uid;
 
                     return Align(
                       alignment: isMine
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
-                      child: _ChatBubble(
+                      child: ChatMessageBubble(
                         isMine: isMine,
                         displayName:
                         data['displayName']?.toString() ?? '사용자',
@@ -143,7 +128,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       minLines: 1,
                       maxLines: 4,
                       textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _sendMessage(),
+                      onSubmitted: (_) => _sendMessage(chatService),
                       decoration: InputDecoration(
                         hintText: '메시지를 입력하세요',
                         contentPadding: const EdgeInsets.symmetric(
@@ -158,7 +143,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed: _sendMessage,
+                    onPressed: () => _sendMessage(chatService),
                     icon: const Icon(Icons.send),
                     color: Theme.of(context).colorScheme.primary,
                   ),
@@ -166,64 +151,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChatBubble extends StatelessWidget {
-  final bool isMine;
-  final String displayName;
-  final String message;
-  final String timeLabel;
-
-  const _ChatBubble({
-    required this.isMine,
-    required this.displayName,
-    required this.message,
-    required this.timeLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final backgroundColor = isMine
-        ? theme.colorScheme.primary.withValues(alpha: 0.12)
-        : Colors.grey.shade200;
-
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 280),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment:
-        isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Text(
-            displayName,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            message,
-            style: theme.textTheme.bodyMedium,
-          ),
-          if (timeLabel.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              timeLabel,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
         ],
       ),
     );

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
+import 'package:jimiker/features/home/menu/chat/widgets/chat_room_list_tile.dart';
 
 import 'chat_room_screen.dart';
 
@@ -16,16 +18,14 @@ class ChatScreen extends StatelessWidget {
       );
     }
 
+    final chatService = ChatService(FirebaseFirestore.instance);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('채팅'),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('chat_rooms')
-            .where('participantUids', arrayContains: user.uid)
-            .orderBy('updatedAt', descending: true)
-            .snapshots(),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: chatService.streamChatRooms(user.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -44,25 +44,16 @@ class ChatScreen extends StatelessWidget {
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final doc = rooms[index];
-              final data = doc.data() as Map<String, dynamic>;
+              final data = doc.data();
               final roomName = data['roomName']?.toString() ?? '채팅방';
               final lastMessage =
                   data['lastMessage']?.toString() ?? '메시지가 없습니다.';
               final updatedAt = data['updatedAt'] as Timestamp?;
 
-              return ListTile(
-                title: Text(roomName),
-                subtitle: Text(
-                  lastMessage,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: Text(
-                  _formatTime(context, updatedAt),
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.grey.shade600,
-                  ),
-                ),
+              return ChatRoomListTile(
+                roomName: roomName,
+                lastMessage: lastMessage,
+                updatedAt: updatedAt,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -80,12 +71,5 @@ class ChatScreen extends StatelessWidget {
         },
       ),
     );
-  }
-
-  String _formatTime(BuildContext context, Timestamp? timestamp) {
-    if (timestamp == null) return '';
-    final dateTime = timestamp.toDate();
-    final time = TimeOfDay.fromDateTime(dateTime);
-    return time.format(context);
   }
 }
