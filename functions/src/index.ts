@@ -44,6 +44,7 @@ export const onStorageApproved = onDocumentUpdated(
         transaction.set(roomRef, {
           roomName: "지미커(시스템)",
           participantUids: [ownerId, "system"],
+          participantUids: ["system", ownerId],
           createdAt: FieldValue.serverTimestamp(),
         });
       }

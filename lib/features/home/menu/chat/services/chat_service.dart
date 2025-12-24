@@ -102,7 +102,7 @@ class ChatService {
       });
 
       transaction.set(roomRef, {
-        'particippantUids': participantUids,
+        'participantUids': participantUids,
         'lastMessage': message,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

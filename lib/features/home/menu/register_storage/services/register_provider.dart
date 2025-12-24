@@ -140,7 +140,7 @@ class RegisterNotifier extends Notifier<RegisterData> {
       width: drawState.width,
       height: drawState.height,
       layout: {'lines': drawState.lines, 'doors': drawState.doors},
-      approved: true, // 나중에 승인 받는다면 false로 수정
+      approved: false, // 나중에 승인 받는다면 false로 수정
     );
 
     final batch = firestore.batch();
