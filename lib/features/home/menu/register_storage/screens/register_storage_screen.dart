@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/data/models/zone.dart';
@@ -8,7 +10,8 @@ import 'package:jimiker/features/home/menu/register_storage/services/register_pr
 import 'package:jimiker/features/home/menu/register_storage/services/register_storage_validator.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/zone_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/widgets/photo.dart';
-import 'package:jimiker/features/home/menu/register_storage/widgets/zone_form_dialog.dart' hide ZoneFormData;
+import 'package:jimiker/features/home/menu/register_storage/widgets/zone_form_dialog.dart'
+    hide ZoneFormData;
 
 class RegisterStorageScreen extends ConsumerStatefulWidget {
   const RegisterStorageScreen({super.key});
@@ -20,10 +23,15 @@ class RegisterStorageScreen extends ConsumerStatefulWidget {
 
 class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
   static const double _gridSize = 30.0;
+  static const double _editorCanvasSize = 1000.0;
 
   late final TextEditingController _addressController;
   late final TextEditingController _detailAddressController;
   late final FocusNode _detailAddressFocusNode;
+
+  // ✅ 편집 화면 진입 직전 provider를 1000 캔버스 기준으로 shift할 때,
+  // 프리뷰(작은 레이아웃)가 clamp로 zone을 다시 “잘라서” 옮기지 않게 막는 플래그
+  bool _suspendPreviewZoneClamp = false;
 
   @override
   void initState() {
@@ -75,9 +83,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
                             const SizedBox(height: 10),
                             PhotoButton(
                               onTap: () {
-                                ref
-                                    .read(registerProvider.notifier)
-                                    .pickImage();
+                                ref.read(registerProvider.notifier).pickImage();
                               },
                               pickedCount:
                               ref.watch(registerProvider).images.length,
@@ -128,9 +134,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
                       // 3) 구조/구역
                       _buildSectionTitle("창고 배치 구성"),
                       const SizedBox(height: 10),
-
                       _buildStructureEditorArea(drawState),
-
                       const SizedBox(height: 20),
 
                       if (isStructureDrawn) ...[
@@ -146,7 +150,10 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
                             ),
                             TextButton.icon(
                               onPressed: _showAddZoneDialog,
-                              icon: const Icon(Icons.add_box_outlined, size: 18),
+                              icon: const Icon(
+                                Icons.add_box_outlined,
+                                size: 18,
+                              ),
                               label: const Text("구역 추가"),
                               style: TextButton.styleFrom(
                                 foregroundColor: const Color(0xFF6B66FF),
@@ -218,7 +225,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
                         ..._buildZoneOverlays(
                           drawState: drawState,
                           zones: zones,
-                          enableDrag: false, // ✅ diff 적용
+                          enableDrag: false,
                         ),
                       ],
                     ),
@@ -345,7 +352,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
   List<Widget> _buildZoneOverlays({
     required DrawProviderData drawState,
     required List<Zone> zones,
-    required bool enableDrag, // ✅ diff 적용
+    required bool enableDrag,
   }) {
     if (zones.isEmpty) return [];
 
@@ -358,13 +365,19 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
       final zoneWidth = zone.width.toDouble() * _gridSize;
       final zoneHeight = zone.height.toDouble() * _gridSize;
 
-      final position = _clampZoneOffset(
+      // ✅ 편집 진입 직전에는 provider 좌표가 1000 기준으로 shift되므로
+      // 프리뷰에서 clamp+update가 돌면 zone이 “잘려서” 한 곳에 모임.
+      // 그래서 그 순간만 clamp/update를 잠깐 멈춤.
+      final Offset position = _suspendPreviewZoneClamp
+          ? Offset(zone.x.toDouble(), zone.y.toDouble())
+          : _clampZoneOffset(
         Offset(zone.x.toDouble(), zone.y.toDouble()),
         Size(zoneWidth, zoneHeight),
         layoutSize,
       );
 
-      if (position.dx != zone.x || position.dy != zone.y) {
+      if (!_suspendPreviewZoneClamp &&
+          (position.dx != zone.x || position.dy != zone.y)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ref.read(zoneProvider.notifier).updateZone(
             zone.copyWith(x: position.dx, y: position.dy),
@@ -411,9 +424,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
           },
           child: content,
         )
-            : IgnorePointer(
-          child: content,
-        ),
+            : IgnorePointer(child: content),
       );
     }).toList();
   }
@@ -447,10 +458,18 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
 
   void _navigateToEditor() async {
     _clearDetailAddressFocus();
+
+    setState(() => _suspendPreviewZoneClamp = true);
+    _prepareForEditorCanvas(); // ✅ B안 핵심: 편집 진입 직전에 1000 캔버스 기준으로 이동
+
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const DrawScreen()),
     );
+
+    if (mounted) {
+      setState(() => _suspendPreviewZoneClamp = false);
+    }
     _clearDetailAddressFocus();
   }
 
@@ -519,6 +538,48 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
   }
 
   // =========================
+  // B안 핵심: 편집(1000x1000) 진입 직전 좌표계 변환
+  // =========================
+
+  void _prepareForEditorCanvas() {
+    final drawState = ref.read(drawProvider);
+    final zones = ref.read(zoneProvider);
+
+    final points = <Offset>[
+      ...drawState.lines.expand((l) => [l.start, l.end]),
+      ...drawState.doors,
+      ...zones.expand((z) => [
+        Offset(z.x.toDouble(), z.y.toDouble()),
+        Offset(
+          z.x.toDouble() + (z.width.toDouble() * _gridSize),
+          z.y.toDouble() + (z.height.toDouble() * _gridSize),
+        ),
+      ]),
+    ];
+
+    if (points.isEmpty) return;
+
+    final minX = points.map((p) => p.dx).reduce(min);
+    final minY = points.map((p) => p.dy).reduce(min);
+    final maxX = points.map((p) => p.dx).reduce(max);
+    final maxY = points.map((p) => p.dy).reduce(max);
+
+    final contentCenter = Offset((minX + maxX) / 2, (minY + maxY) / 2);
+    const canvasCenter = Offset(_editorCanvasSize / 2, _editorCanvasSize / 2);
+
+    final rawTranslation = canvasCenter - contentCenter;
+
+    // 격자 단위로 스냅 (선/문/구역이 동일 delta로 움직여야 함)
+    final translation = Offset(
+      _snapToGrid(rawTranslation.dx),
+      _snapToGrid(rawTranslation.dy),
+    );
+
+    ref.read(drawProvider.notifier).shiftDrawing(translation);
+    ref.read(zoneProvider.notifier).shiftZones(translation);
+  }
+
+  // =========================
   // Small UI helpers
   // =========================
 
@@ -539,7 +600,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
     void Function()? onTap,
     bool isReadOnly = false,
     void Function(String value)? onChanged,
-    FocusNode? focusNode, // ✅ diff 적용
+    FocusNode? focusNode,
   }) {
     return TextField(
       onTap: onTap,
@@ -654,7 +715,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
   }
 
   // =========================
-  // Focus helpers (diff 적용)
+  // Focus helpers
   // =========================
 
   void _enableDetailAddressFocus() {
@@ -668,7 +729,7 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
   }
 
   // =========================
-  // Zone placement helper (diff 적용)
+  // Zone placement helper
   // =========================
 
   Offset _findAvailableZonePosition({
@@ -676,10 +737,12 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
     required Size layoutSize,
     required List<Zone> zones,
   }) {
-    final maxX =
-    (layoutSize.width - zoneSize.width).clamp(0.0, layoutSize.width).toDouble();
-    final maxY =
-    (layoutSize.height - zoneSize.height).clamp(0.0, layoutSize.height).toDouble();
+    final maxX = (layoutSize.width - zoneSize.width)
+        .clamp(0.0, layoutSize.width)
+        .toDouble();
+    final maxY = (layoutSize.height - zoneSize.height)
+        .clamp(0.0, layoutSize.height)
+        .toDouble();
 
     for (double y = _gridSize; y <= maxY; y += _gridSize) {
       for (double x = _gridSize; x <= maxX; x += _gridSize) {

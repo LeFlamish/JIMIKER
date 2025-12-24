@@ -28,7 +28,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   Line? _focusLine;
   bool checkBoolChange = false;
 
-  // ✅ diff 적용: 드래그 시작 기준(포인터/오프셋) 저장해서 튐/누적 오차 방지
+  // ✅ 드래그 시작 기준(포인터/오프셋) 저장해서 튐/누적 오차 방지
   final Map<String, Offset> _zoneDragStartOffsets = {};
   final Map<String, Offset> _zoneDragStartPointers = {};
 
@@ -50,7 +50,12 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   @override
   Widget build(BuildContext context) {
     final fingerCount = ref.watch(touchCounterNotifier);
-    final canDraw = fingerCount <= 1;
+
+    // ✅ 1손가락: 그리기/구역 드래그
+    final canOneFingerAction = fingerCount <= 1;
+
+    // ✅ 2손가락: 이동/확대(InteractiveViewer)
+    final canPanZoomWithTwoFingers = fingerCount >= 2;
 
     final scale = _transform.value.getMaxScaleOnAxis();
     final scaledSize = _canvasSize / scale;
@@ -59,9 +64,8 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
 
     return WillPopScope(
       onWillPop: () async {
-        final offset = ref
-            .read(drawProvider.notifier)
-            .getTransformedDataWithMargin(_gridSize);
+        final offset =
+        ref.read(drawProvider.notifier).getTransformedDataWithMargin(_gridSize);
         ref.read(zoneProvider.notifier).shiftZones(offset);
         ref.read(drawProvider.notifier).drawChange(false);
         return true;
@@ -84,8 +88,11 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                   child: ClipRect(
                     child: InteractiveViewer(
                       transformationController: _transform,
-                      panEnabled: _isLayoutEditing ? !canDraw : false,
-                      scaleEnabled: _isLayoutEditing ? !canDraw : false,
+
+                      // ✅ 핵심: 구역 수정 모드에서도 2손가락이면 pan/zoom 허용
+                      panEnabled: canPanZoomWithTwoFingers,
+                      scaleEnabled: canPanZoomWithTwoFingers,
+
                       minScale: 0.5,
                       maxScale: 3.0,
                       constrained: false,
@@ -93,15 +100,17 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                       child: GestureDetector(
                         behavior: HitTestBehavior.translucent,
                         onTapUp: _isLayoutEditing ? _focus : null,
+
+                        // ✅ 도면 수정 모드 + 1손가락일 때만 선 그리기
                         onPanStart:
-                        _isLayoutEditing && canDraw ? _onPanStart : null,
+                        _isLayoutEditing && canOneFingerAction ? _onPanStart : null,
                         onPanUpdate:
-                        _isLayoutEditing && canDraw ? _onPanUpdate : null,
-                        onPanEnd: _isLayoutEditing && canDraw ? _onPanEnd : null,
-                        onDoubleTapDown:
-                        _isLayoutEditing ? _handleDoubleTap : null,
-                        onLongPressStart:
-                        _isLayoutEditing ? _handleLongPress : null,
+                        _isLayoutEditing && canOneFingerAction ? _onPanUpdate : null,
+                        onPanEnd:
+                        _isLayoutEditing && canOneFingerAction ? _onPanEnd : null,
+
+                        onDoubleTapDown: _isLayoutEditing ? _handleDoubleTap : null,
+                        onLongPressStart: _isLayoutEditing ? _handleLongPress : null,
                         child: ValueListenableBuilder<Offset?>(
                           valueListenable: _previewPoint,
                           builder: (context, preview, _) => Stack(
@@ -119,9 +128,14 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                                   lineToFocus: _focusLine,
                                 ),
                               ),
+
+                              // ✅ 구역 수정 모드에서만 구역 표시
                               if (!_isLayoutEditing)
                                 ..._buildZoneOverlays(
                                   zones: zones,
+                                  // ✅ 핵심: 1손가락일 때만 드래그 가능
+                                  // 2손가락이면 IgnorePointer로 터치 통과 -> InteractiveViewer가 받음
+                                  enableDrag: canOneFingerAction,
                                 ),
                             ],
                           ),
@@ -145,9 +159,8 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                   icon: const Icon(Icons.draw_outlined),
                   label: const Text("도면 수정"),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isLayoutEditing
-                        ? const Color(0xFF6B66FF)
-                        : Colors.grey.shade400,
+                    backgroundColor:
+                    _isLayoutEditing ? const Color(0xFF6B66FF) : Colors.grey.shade400,
                     foregroundColor: Colors.white,
                   ),
                 ),
@@ -166,9 +179,8 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                   icon: const Icon(Icons.dashboard_customize),
                   label: const Text("구역 수정"),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: !_isLayoutEditing
-                        ? const Color(0xFF6B66FF)
-                        : Colors.grey.shade400,
+                    backgroundColor:
+                    !_isLayoutEditing ? const Color(0xFF6B66FF) : Colors.grey.shade400,
                     foregroundColor: Colors.white,
                   ),
                 ),
@@ -190,9 +202,19 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
       return;
     }
 
+    final zones = ref.read(zoneProvider);
     final points = <Offset>[
       ...drawState.lines.expand((line) => [line.start, line.end]),
       ...drawState.doors,
+      ...zones.expand(
+            (zone) => [
+          Offset(zone.x, zone.y),
+          Offset(
+            zone.x + (zone.width * _gridSize),
+            zone.y + (zone.height * _gridSize),
+          ),
+        ],
+      ),
     ];
 
     final minX = points.map((point) => point.dx).reduce(min);
@@ -224,8 +246,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
       return;
     }
 
-    final viewportCenter =
-    Offset(viewportSize.width / 2, viewportSize.height / 2);
+    final viewportCenter = Offset(viewportSize.width / 2, viewportSize.height / 2);
     final viewportTranslation = viewportCenter - canvasCenter;
     _transform.value = Matrix4.identity()
       ..translate(viewportTranslation.dx, viewportTranslation.dy);
@@ -254,7 +275,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
           _startPoint = _focusLine!.start;
         }
 
-        // NOTE: 원 코드 그대로 유지(직접 remove). 가능하면 notifier로 통일 권장.
+        // NOTE: 원 코드 유지(직접 remove). 가능하면 notifier로 통일 권장.
         ref.read(drawProvider).lines.remove(_focusLine);
         _focusLine = null;
       }
@@ -406,28 +427,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
     return a + ab * clampedT;
   }
 
-  bool linesIntersectButNotAtEndpoints(Line l1, Line l2) {
-    final intersects = doLinesIntersect(l1.start, l1.end, l2.start, l2.end);
-    if (!intersects) return false;
-
-    final intersection =
-    getIntersectionPoint(l1.start, l1.end, l2.start, l2.end);
-    if (intersection == null) return true;
-
-    final endpoints = {l1.start, l1.end, l2.start, l2.end};
-    return !endpoints.any((e) => (e - intersection).distance < 0.001);
-  }
-
-  bool doLinesIntersect(Offset a1, Offset a2, Offset b1, Offset b2) {
-    double ccw(Offset p1, Offset p2, Offset p3) {
-      return (p2.dx - p1.dx) * (p3.dy - p1.dy) -
-          (p2.dy - p1.dy) * (p3.dx - p1.dx);
-    }
-
-    return (ccw(a1, a2, b1) * ccw(a1, a2, b2) <= 0) &&
-        (ccw(b1, b2, a1) * ccw(b1, b2, a2) <= 0);
-  }
-
   Offset? getIntersectionPoint(Offset p1, Offset p2, Offset p3, Offset p4) {
     final a1 = p2.dy - p1.dy;
     final b1 = p1.dx - p2.dx;
@@ -459,11 +458,12 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   }
 
   // ==========================
-  // Zone overlays (diff 적용)
+  // Zone overlays
   // ==========================
 
   List<Widget> _buildZoneOverlays({
     required List<Zone> zones,
+    required bool enableDrag,
   }) {
     if (zones.isEmpty) return [];
 
@@ -487,11 +487,30 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
         });
       }
 
+      final content = Container(
+        width: zoneWidth,
+        height: zoneHeight,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0x336B66FF),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF6B66FF)),
+        ),
+        child: Text(
+          zone.index,
+          style: const TextStyle(
+            color: Color(0xFF6B66FF),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+
       return Positioned(
         left: position.dx,
         top: position.dy,
-        child: GestureDetector(
-          // ✅ diff 적용: globalPosition 기준으로 드래그(줌/팬 상태에서도 안정적)
+        child: enableDrag
+            ? GestureDetector(
+          // ✅ globalPosition 기준으로 드래그(줌/팬 상태에서도 안정적)
           onPanStart: (details) {
             _zoneDragStartOffsets[zone.index] = Offset(zone.x, zone.y);
             _zoneDragStartPointers[zone.index] = details.globalPosition;
@@ -515,57 +534,13 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
             );
           },
           onPanEnd: (_) {
-            final startOffset = _zoneDragStartOffsets[zone.index];
-            final currentZones = ref.read(zoneProvider);
-            final currentZone = currentZones.firstWhere(
-                  (current) => current.index == zone.index,
-              orElse: () => zone,
-            );
-            final currentOffset = Offset(
-              currentZone.x,
-              currentZone.y,
-            );
-
-            if (startOffset != null &&
-                _isOverlappingZone(
-                  movingZone: currentZone,
-                  proposedOffset: currentOffset,
-                  zoneSize: Size(zoneWidth, zoneHeight),
-                  zones: currentZones,
-                )) {
-              final resetOffset = _clampZoneOffset(
-                startOffset,
-                Size(zoneWidth, zoneHeight),
-                layoutSize,
-              );
-              ref.read(zoneProvider.notifier).updateZone(
-                currentZone.copyWith(
-                  x: resetOffset.dx,
-                  y: resetOffset.dy,
-                ),
-              );
-            }
             _zoneDragStartOffsets.remove(zone.index);
             _zoneDragStartPointers.remove(zone.index);
           },
-          child: Container(
-            width: zoneWidth,
-            height: zoneHeight,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0x336B66FF),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFF6B66FF)),
-            ),
-            child: Text(
-              zone.index,
-              style: const TextStyle(
-                color: Color(0xFF6B66FF),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
+          child: content,
+        )
+        // ✅ 핵심: 2손가락이면 구역이 터치를 먹지 않게 통과시켜서 InteractiveViewer가 받게 함
+            : IgnorePointer(ignoring: true, child: content),
       );
     }).toList();
   }
@@ -575,10 +550,9 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
       _snapToGrid(offset.dx),
       _snapToGrid(offset.dy),
     );
-    final maxX =
-    (layoutSize.width - zoneSize.width).clamp(0.0, layoutSize.width);
-    final maxY =
-    (layoutSize.height - zoneSize.height).clamp(0.0, layoutSize.height);
+
+    final maxX = (layoutSize.width - zoneSize.width).clamp(0.0, layoutSize.width);
+    final maxY = (layoutSize.height - zoneSize.height).clamp(0.0, layoutSize.height);
 
     return Offset(
       snapped.dx.clamp(0.0, maxX),
@@ -588,37 +562,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
 
   double _snapToGrid(double value) {
     return (value / _gridSize).round() * _gridSize;
-  }
-
-  // ✅ diff 적용: 겹침 검사
-  bool _isOverlappingZone({
-    required Zone movingZone,
-    required Offset proposedOffset,
-    required Size zoneSize,
-    required List<Zone> zones,
-  }) {
-    final proposedRect = Rect.fromLTWH(
-      proposedOffset.dx,
-      proposedOffset.dy,
-      zoneSize.width,
-      zoneSize.height,
-    );
-
-    for (final zone in zones) {
-      if (zone.index == movingZone.index) continue;
-
-      final otherRect = Rect.fromLTWH(
-        zone.x,
-        zone.y,
-        zone.width * _gridSize,
-        zone.height * _gridSize,
-      );
-
-      if (proposedRect.overlaps(otherRect)) {
-        return true;
-      }
-    }
-    return false;
   }
 }
 
