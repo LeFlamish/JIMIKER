@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class Container {
+class Zone {
   final String index;
   final double x, y, angle, width, height;
   final int price;
 
-  Container({
+  Zone({
     required this.index,
     required this.x,
     required this.y,
@@ -15,10 +15,10 @@ class Container {
     required this.price,
   });
 
-  factory Container.fromDoc(DocumentSnapshot doc) {
+  factory Zone.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
-    return Container(
+    return Zone(
       index: doc.id,
       x: data['x'],
       y: data['y'],

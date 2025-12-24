@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 import 'package:jimiker/features/home/menu/chat/widgets/chat_message_bubble.dart';
 
-
 class ChatRoomScreen extends StatefulWidget {
   final String roomId;
   final String roomName;
