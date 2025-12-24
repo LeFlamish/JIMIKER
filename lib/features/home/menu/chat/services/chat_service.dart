@@ -10,7 +10,6 @@ class ChatService {
     return _firestore
         .collection('chat_rooms')
         .where('participantUids', arrayContains: uid)
-        .orderBy('updatedAt', descending: true)
         .snapshots();
   }
 
@@ -19,7 +18,6 @@ class ChatService {
         .collection('chat_rooms')
         .doc(roomId)
         .collection('messages')
-        .orderBy('createdAt', descending: false)
         .limit(200)
         .snapshots();
   }
@@ -40,11 +38,32 @@ class ChatService {
     };
 
     await _firestore.runTransaction((transaction) async {
+      final roomSnapshot = await transaction.get(roomRef);
+      final existingParticipants =
+          (roomSnapshot.data()?['participantUids'] as List<dynamic>?)
+              ?.cast<String>() ??
+              [];
+      final participantUids = {
+        ...existingParticipants,
+        user.uid,
+      }.toList();
+
+      if (!roomSnapshot.exists) {
+        transaction.set(roomRef, {
+          'roomName': '채팅방',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
       transaction.set(messageRef, payload);
-      transaction.set(roomRef, {
-        'lastMessage': message,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      transaction.set(
+        roomRef,
+        {
+          'participantUids': participantUids,
+          'lastMessage': message,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
     });
   }
 
@@ -58,11 +77,19 @@ class ChatService {
 
     await _firestore.runTransaction((transaction) async {
       final roomSnapshot = await transaction.get(roomRef);
+      final existingParticipants =
+          (roomSnapshot.data()?['participantUids'] as List<dynamic>?)
+              ?.cast<String>() ??
+              [];
+      final participantUids = {
+        ...existingParticipants,
+        user.uid,
+        'system',
+      }.toList();
 
       if (!roomSnapshot.exists) {
         transaction.set(roomRef, {
           'roomName': '지미커(시스템)',
-          'participantUids': [user.uid, 'system'],
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -75,6 +102,7 @@ class ChatService {
       });
 
       transaction.set(roomRef, {
+        'particippantUids': participantUids,
         'lastMessage': message,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

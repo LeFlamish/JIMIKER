@@ -7,7 +7,10 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-import {onDocumentUpdated} from "firebase-functions/v2/firestore";
+import {
+  onDocumentCreated,
+  onDocumentUpdated,
+} from "firebase-functions/v2/firestore";
 import {initializeApp} from "firebase-admin/app";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 
@@ -30,38 +33,68 @@ export const onStorageApproved = onDocumentUpdated(
     const ownerId = after.ownerId as string;
 
     const roomId = `system_${ownerId}`;
-        const roomRef = db.collection("chat_rooms").doc(roomId);
-        const messageRef = roomRef.collection("messages").doc();
-        const message = `등록하신 창고(${locationId})가 승인되었습니다.`;
+    const roomRef = db.collection("chat_rooms").doc(roomId);
+    const messageRef = roomRef.collection("messages").doc();
+    const message = `등록하신 창고(${locationId})가 승인되었습니다.`;
 
-        await db.runTransaction(async (transaction) => {
-          const roomSnapshot = await transaction.get(roomRef);
+    await db.runTransaction(async (transaction) => {
+      const roomSnapshot = await transaction.get(roomRef);
 
-          if (!roomSnapshot.exists) {
-            transaction.set(roomRef, {
-              roomName: "지미커(시스템)",
-              participantUids: [ownerId, "system"],
-              createdAt: FieldValue.serverTimestamp(),
-            });
-          }
-
-          transaction.set(messageRef, {
-            uid: "system",
-            displayName: "지미커(시스템)",
-            message,
-            createdAt: FieldValue.serverTimestamp(),
-            read: false,
-          });
-
-          transaction.set(
-            roomRef,
-            {
-              lastMessage: message,
-              updatedAt: FieldValue.serverTimestamp(),
-            },
-            {merge: true},
-          );
+      if (!roomSnapshot.exists) {
+        transaction.set(roomRef, {
+          roomName: "지미커(시스템)",
+          participantUids: [ownerId, "system"],
+          createdAt: FieldValue.serverTimestamp(),
         });
+      }
+
+      transaction.set(messageRef, {
+        uid: "system",
+        displayName: "지미커(시스템)",
+        message,
+        createdAt: FieldValue.serverTimestamp(),
+        read: false,
+      });
+
+      transaction.set(
+        roomRef,
+        {
+          lastMessage: message,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    });
+  },
+);
+
+export const onChatMessageCreated = onDocumentCreated(
+  "chat_rooms/{roomId}/messages/{messageId}",
+  async (event) => {
+    const messageData = event.data?.data();
+    if (!messageData) return;
+
+    const updates: Record<string, unknown> = {};
+    if (messageData.read === undefined) {
+      updates.read = false;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await event.data?.ref.set(updates, {merge: true});
+    }
+
+    if (typeof messageData.message === "string") {
+      const roomRef = db.collection("chat_rooms").doc(event.params.roomId);
+      await roomRef.set(
+        {
+          lastMessage: messageData.message,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+    }
+  },
+);
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript

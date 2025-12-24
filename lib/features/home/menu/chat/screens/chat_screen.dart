@@ -26,6 +26,11 @@ class ChatScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: chatService.streamChatRooms(user.uid),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            // 콘솔에서 에러 메시지 확인
+            debugPrint('chat rooms error: ${snapshot.error}');
+            return Center(child: Text('에러: ${snapshot.error}'));
+          }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
