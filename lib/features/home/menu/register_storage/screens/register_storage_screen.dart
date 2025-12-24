@@ -13,8 +13,7 @@ import 'package:jimiker/features/home/menu/register_storage/services/register_pr
 import 'package:jimiker/features/home/menu/register_storage/services/register_storage_validator.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/zone_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/widgets/photo.dart';
-import 'package:jimiker/features/home/menu/register_storage/widgets/zone_form_dialog.dart'
-    hide ZoneFormData;
+import 'package:jimiker/features/home/menu/register_storage/widgets/zone_form_dialog.dart';
 
 class RegisterStorageScreen extends ConsumerStatefulWidget {
   const RegisterStorageScreen({super.key});
