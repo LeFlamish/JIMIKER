@@ -1,7 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/auth_providers.dart';
+import 'package:jimiker/features/home/menu/chat/chat_screen.dart';
+import 'package:jimiker/service/auth_providers.dart';
 import 'package:jimiker/features/home/menu/my_information/my_information_screen.dart';
 import '../menu/find_storage/google_map_screen.dart';
 import '../menu/register_storage/register_storage_screen.dart';
@@ -82,8 +83,21 @@ class HomeActionGrid extends ConsumerWidget {
       _HomeActionItem(
         icon: Icons.chat_bubble_outline,
         label: '채팅',
-        onTap: () {
-          // TODO: 채팅 화면으로 이동
+        onTap: () async {
+          final bool check = await authController.checkSignIn(
+            context,
+          );
+
+          if (!context.mounted) return;
+
+          if (check) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ChatScreen(),
+              ),
+            );
+          }
         },
       ),
       _HomeActionItem(
