@@ -47,4 +47,37 @@ class ChatService {
       }, SetOptions(merge: true));
     });
   }
+
+  Future<void> sendSystemMessageToUser({
+    required User user,
+    required String message,
+  }) async {
+    final roomId = 'system_${user.uid}';
+    final roomRef = _firestore.collection('chat_rooms').doc(roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    await _firestore.runTransaction((transaction) async {
+      final roomSnapshot = await transaction.get(roomRef);
+
+      if (!roomSnapshot.exists) {
+        transaction.set(roomRef, {
+          'roomName': '지미커(시스템)',
+          'participantUids': [user.uid, 'system'],
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      transaction.set(messageRef, {
+        'uid': 'system',
+        'displayName': '지미커(시스템)',
+        'message': message,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      transaction.set(roomRef, {
+        'lastMessage': message,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
 }

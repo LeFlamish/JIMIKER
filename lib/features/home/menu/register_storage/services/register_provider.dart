@@ -128,7 +128,7 @@ class RegisterNotifier extends Notifier<RegisterData> {
       width: drawState.width,
       height: drawState.height,
       layout: {'lines': drawState.lines, 'doors': drawState.doors},
-      approved: false,
+      approved: true, // 나중에 승인 받는다면 false로 수정
     );
 
     await storageRef.set(storage.toMap());

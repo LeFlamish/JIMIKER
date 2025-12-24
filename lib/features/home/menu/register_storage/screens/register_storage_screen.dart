@@ -1,9 +1,12 @@
 import 'dart:math';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/data/models/zone_form_data.dart';
+import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 import 'package:jimiker/features/home/menu/register_storage/screens/draw_screen.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/register_provider.dart';
@@ -662,6 +665,15 @@ class _RegisterStorageScreenState extends ConsumerState<RegisterStorageScreen> {
               );
 
               if (!mounted) return;
+
+              final user = FirebaseAuth.instance.currentUser;
+              if (user != null) {
+                final chatService = ChatService(FirebaseFirestore.instance);
+                await chatService.sendSystemMessageToUser(
+                  user: user,
+                  message: '창고 등록 신청이 완료되었습니다.',
+                );
+              }
 
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("등록 요청이 완료되었습니다.")),
