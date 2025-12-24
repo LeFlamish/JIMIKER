@@ -15,6 +15,26 @@ class Zone {
     required this.price,
   });
 
+  Zone copyWith({
+    String? index,
+    double? x,
+    double? y,
+    double? angle,
+    double? width,
+    double? height,
+    int? price,
+  }) {
+    return Zone(
+      index: index ?? this.index,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      angle: angle ?? this.angle,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      price: price ?? this.price,
+    );
+  }
+
   factory Zone.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 

@@ -42,7 +42,6 @@ dependencies:
   cloud_firestore: ^6.1.0
   firebase_storage: ^13.0.4
 
-
   google_sign_in: ^7.2.0
   google_maps_flutter: ^2.12.0
   flutter_google_places_hoc081098: ^2.0.0

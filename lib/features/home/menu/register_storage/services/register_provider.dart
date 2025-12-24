@@ -36,9 +36,9 @@ class RegisterData {
 }
 
 final registerProvider =
-    NotifierProvider<RegisterNotifier, RegisterData>(
+NotifierProvider<RegisterNotifier, RegisterData>(
       () => RegisterNotifier(),
-    );
+);
 
 class RegisterNotifier extends Notifier<RegisterData> {
   @override
@@ -69,9 +69,9 @@ class RegisterNotifier extends Notifier<RegisterData> {
   }
 
   void addressTap(
-    BuildContext context,
-    TextEditingController controller,
-  ) async {
+      BuildContext context,
+      TextEditingController controller,
+      ) async {
     final result = await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
@@ -83,5 +83,9 @@ class RegisterNotifier extends Notifier<RegisterData> {
       );
     }
     controller.text = state.address ?? "";
+  }
+
+  void updateDetailAddress(String detailAddress) {
+    state = state.copyWith(detailAddress: detailAddress);
   }
 }
