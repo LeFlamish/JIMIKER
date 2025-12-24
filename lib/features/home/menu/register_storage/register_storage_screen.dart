@@ -19,6 +19,8 @@ class RegisterStorageScreen extends ConsumerStatefulWidget {
 
 class _RegisterStorageScreenState
     extends ConsumerState<RegisterStorageScreen> {
+  static const double _gridSize = 30.0;
+
   late TextEditingController _addressController;
   late TextEditingController _detailAddressController;
   @override
@@ -113,7 +115,7 @@ class _RegisterStorageScreenState
                         ref
                             .read(registerProvider.notifier)
                             .updateDetailAddress(value);
-                      }
+                      },
                     ),
                     const SizedBox(height: 30),
 
@@ -123,7 +125,7 @@ class _RegisterStorageScreenState
                     const SizedBox(height: 10),
 
                     // 3-1. 구조 그리기 버튼 또는 결과 화면
-                    _buildStructureEditorArea(),
+                    _buildStructureEditorArea(drawState, zones),
 
                     const SizedBox(height: 20),
 
@@ -131,7 +133,7 @@ class _RegisterStorageScreenState
                     if (isStructureDrawn) ...[
                       Row(
                         mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                          MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
                             "등록된 구역 목록",
@@ -157,7 +159,6 @@ class _RegisterStorageScreenState
                       ),
                       _buildZoneList(zones),
                       const SizedBox(height: 20),
-                      _buildZonePlacementSection(zones),
                     ],
                   ],
                 ),
@@ -173,8 +174,7 @@ class _RegisterStorageScreenState
   // --- 위젯 빌더 메서드 ---
 
   // 내부 구조 그리기 영역 (핵심 수정 부분)
-  Widget _buildStructureEditorArea() {
-    final drawState = ref.watch(drawProvider);
+  Widget _buildStructureEditorArea(DrawProviderData drawState, List<Zone> zones,) {
     return Container(
       width: double.infinity,
       height: drawState.height + 100,
@@ -186,7 +186,6 @@ class _RegisterStorageScreenState
       child: drawState.lines.isNotEmpty
           ? Stack(
         children: [
-          // 도면 이미지 (예시)
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Container(
@@ -212,13 +211,17 @@ class _RegisterStorageScreenState
                           children: [
                             CustomPaint(
                               painter: GridPainter(
-                                gridSize: 30,
+                                gridSize: _gridSize,
                                 width: drawState.width,
                                 height: drawState.height,
                                 lines: drawState.lines,
                                 doors: drawState.doors,
                               ),
                             ),
+                            ..._buildZoneOverlays(
+                              drawState: drawState,
+                              zones: zones,
+                            )
                           ],
                         ),
                       ),
@@ -228,7 +231,6 @@ class _RegisterStorageScreenState
               ),
             ),
           ),
-          // 수정 버튼
           Positioned(
             top: 10,
             right: 10,
@@ -242,7 +244,7 @@ class _RegisterStorageScreenState
                   size: 20,
                 ),
               ),
-            ),
+            )
           ),
         ],
       )
@@ -283,8 +285,7 @@ class _RegisterStorageScreenState
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: zones.length,
-      separatorBuilder: (context, index) =>
-      const SizedBox(height: 10),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final zone = zones[index];
         return InkWell(
@@ -322,6 +323,14 @@ class _RegisterStorageScreenState
                           fontSize: 15,
                         ),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "크기 ${zone.width}m * ${zone.height}m, ${zone.price}원",
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -338,72 +347,86 @@ class _RegisterStorageScreenState
                   },
                 ),
               ],
-            )
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildZonePlacementSection(List<Zone> zones) {
+  List<Widget> _buildZoneOverlays({required DrawProviderData drawState, required List<Zone> zones}) {
     if (zones.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: const Center(
-          child: Text(
-            "구역 배치를 설정할 구역이 없습니다.",
-            style: TextStyle(color: Colors.grey),
+      return [];
+    }
+    return zones.map((zone) {
+      final zoneWidth = zone.width * _gridSize;
+      final zoneHeight = zone.height * _gridSize;
+      final position = _clampZoneOffset(
+        Offset(zone.x, zone.y),
+        Size(zoneWidth, zoneHeight),
+        Size(drawState.width, drawState.height),
+      );
+
+      if (position.dx != zone.x || position.dy != zone.y) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(zoneProvider.notifier).updateZone(
+            zone.copyWith(x: position.dx, y: position.dy),
+          );
+        });
+      }
+
+      return Positioned(
+        left: position.dx,
+        top: position.dy,
+        child: GestureDetector(
+          onPanUpdate: (details) {
+            final updated = _clampZoneOffset(
+              Offset(zone.x + details.delta.dx, zone.y + details.delta.dy),
+              Size(zoneWidth, zoneHeight),
+              Size(drawState.width, drawState.height),
+            );
+            ref.read(zoneProvider.notifier).updateZone(
+              zone.copyWith(x: updated.dx, y: updated.dy),
+            );
+          },
+          child: Container(
+            width: zoneWidth,
+            height: zoneHeight,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0x336B66FF),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFF6B66FF)),
+            ),
+            child: Text(
+              zone.index,
+              style: const TextStyle(
+                color: Color(0xFF6B66FF),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ),
       );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle("구역 배치"),
-        const SizedBox(height: 10),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: zones.length,
-          separatorBuilder: (context, index) =>
-          const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final zone = zones[index];
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      "구역 ${zone.index} • 위치 (${zone.x}, ${zone.y}) • 각도 ${zone.angle}°",
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => _showZoneDialog(zone: zone),
-                    child: const Text("배치 수정"),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ],
+    }).toList();
+  }
+
+  Offset _clampZoneOffset(Offset offset, Size zoneSize, Size layoutSize) {
+    final snapped = Offset(
+      _snapToGrid(offset.dx),
+      _snapToGrid(offset.dy),
     );
+    final maxX = (layoutSize.width - zoneSize.width).clamp(0.0, layoutSize.width);
+    final maxY = (layoutSize.height - zoneSize.height).clamp(0.0, layoutSize.height);
+
+    return Offset(
+      snapped.dx.clamp(0, maxX),
+      snapped.dy.clamp(0, maxY),
+    );
+  }
+
+  double _snapToGrid(double value) {
+    return (value / _gridSize).round() * _gridSize;
   }
 
   // 화면 이동 시뮬레이션 (구조 그리기 화면)
@@ -423,20 +446,42 @@ class _RegisterStorageScreenState
 
   Future<void> _showZoneDialog({Zone? zone, String? index}) async {
     final zoneIndex = index ?? zone?.index ?? '';
-    final result = await showDialog<Zone>(
+    final result = await showDialog<ZoneFormData>(
       context: context,
       builder: (context) => ZoneFormDialog(
         index: zoneIndex,
-        zone: zone,
+        zone: zone == null
+            ? null
+            : ZoneFormData(
+          width: zone.width,
+          height: zone.height,
+          price: zone.price,
+        ),
       ),
     );
 
     if (result != null) {
       final notifier = ref.read(zoneProvider.notifier);
       if (zone == null) {
-        notifier.addZone(result);
+        notifier.addZone(
+          Zone(
+            index: zoneIndex,
+            width: result.width,
+            height: result.height,
+            price: result.price,
+            x: _gridSize,
+            y: _gridSize,
+            angle: 0,
+          ),
+        );
       } else {
-        notifier.updateZone(result);
+        notifier.updateZone(
+          zone.copyWith(
+            width: result.width,
+            height: result.height,
+            price: result.price,
+          ),
+        );
       }
     }
   }
@@ -492,11 +537,9 @@ class _RegisterStorageScreenState
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
-            final detailAddress =
-            _detailAddressController.text.trim();
-            final validationResult =
-            RegisterStorageValidator.validate(
+          onPressed: () async {
+            final detailAddress = _detailAddressController.text.trim();
+            final validationResult = RegisterStorageValidator.validate(
               registerData: registerRef,
               drawState: drawState,
               zones: zones,
@@ -510,9 +553,24 @@ class _RegisterStorageScreenState
               return;
             }
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("등록 요청이 완료되었습니다.")),
-            );
+            try {
+              await ref
+                  .read(registerProvider.notifier)
+                  .registerStorage(
+                drawState: drawState,
+                zones: zones,
+                detailAddress: detailAddress,
+              );
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("등록 요청이 완료되었습니다.")),
+              );
+            } catch (error) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("등록 중 오류가 발생했습니다: $error")),
+              );
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,

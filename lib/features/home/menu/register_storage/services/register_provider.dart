@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:jimiker/data/model/zone.dart';
+import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
+import 'package:jimiker/services/auth_providers.dart';
 
 import '../../../../../data/model/storage.dart';
 import '../../../../search/search_screen.dart';
@@ -35,8 +38,7 @@ class RegisterData {
   }
 }
 
-final registerProvider =
-NotifierProvider<RegisterNotifier, RegisterData>(
+final registerProvider = NotifierProvider<RegisterNotifier, RegisterData>(
       () => RegisterNotifier(),
 );
 
@@ -68,10 +70,7 @@ class RegisterNotifier extends Notifier<RegisterData> {
     state = state.copyWith(images: newState);
   }
 
-  void addressTap(
-      BuildContext context,
-      TextEditingController controller,
-      ) async {
+  void addressTap(BuildContext context, TextEditingController controller) async {
     final result = await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
@@ -87,5 +86,48 @@ class RegisterNotifier extends Notifier<RegisterData> {
 
   void updateDetailAddress(String detailAddress) {
     state = state.copyWith(detailAddress: detailAddress);
+  }
+
+  Future<void> registerStorage({
+    required DrawProviderData drawState,
+    required List<Zone> zones,
+    required String detailAddress,
+  }) async {
+    final firestore = ref.read(firestoreProvider);
+    final auth = ref.read(firebaseAuthProvider);
+    final user = auth.currentUser;
+
+    if (user == null) {
+      throw Exception('로그인이 필요합니다.');
+    }
+
+    final address = state.address ?? '';
+    final latLng = state.latLng;
+    final storageRef = firestore.collection('storages').doc();
+
+    final storage = Storage(
+      locationId: storageRef.id,
+      lat: latLng?.latitude ?? 0,
+      lng: latLng?.longitude ?? 0,
+      address: address,
+      detailAddress: detailAddress,
+      count: zones.length,
+      createdAt: DateTime.now(),
+      images: state.images.map((image) => image.path).toList(),
+      ownerId: user.uid,
+      width: drawState.width,
+      height: drawState.height,
+      layout: {'lines': drawState.lines, 'doors': drawState.doors},
+      approved: false,
+    );
+
+    await storageRef.set(storage.toMap());
+
+    final batch = firestore.batch();
+    for (final zone in zones) {
+      final zoneRef = storageRef.collection('zones').doc(zone.index);
+      batch.set(zoneRef, zone.toMap());
+    }
+    await batch.commit();
   }
 }

@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:jimiker/data/model/zone.dart';
 
+class ZoneFormData {
+  final double width;
+  final double height;
+  final int price;
+
+  const ZoneFormData({
+    required this.width,
+    required this.height,
+    required this.price,
+  });
+}
+
 class ZoneFormDialog extends StatefulWidget {
-  final Zone? zone;
+  final ZoneFormData? zone;
   final String index;
 
   const ZoneFormDialog({
@@ -20,9 +32,6 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
   late final TextEditingController _widthController;
   late final TextEditingController _heightController;
   late final TextEditingController _priceController;
-  late final TextEditingController _xController;
-  late final TextEditingController _yController;
-  late final TextEditingController _angleController;
 
   @override
   void initState() {
@@ -37,15 +46,6 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
     _priceController = TextEditingController(
       text: zone?.price.toString() ?? '',
     );
-    _xController = TextEditingController(
-      text: zone?.x.toString() ?? '',
-    );
-    _yController = TextEditingController(
-      text: zone?.y.toString() ?? '',
-    );
-    _angleController = TextEditingController(
-      text: zone?.angle.toString() ?? '',
-    );
   }
 
   @override
@@ -53,9 +53,6 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
     _widthController.dispose();
     _heightController.dispose();
     _priceController.dispose();
-    _xController.dispose();
-    _yController.dispose();
-    _angleController.dispose();
     super.dispose();
   }
 
@@ -84,19 +81,6 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
                 controller: _priceController,
                 label: '구역 임대료 (원)',
                 isInteger: true,
-              ),
-              const SizedBox(height: 8),
-              _buildNumberField(
-                controller: _xController,
-                label: '배치 X 좌표',
-              ),
-              _buildNumberField(
-                controller: _yController,
-                label: '배치 Y 좌표',
-              ),
-              _buildNumberField(
-                controller: _angleController,
-                label: '배치 각도',
               ),
             ],
           ),
@@ -128,8 +112,7 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
   }) {
     return TextFormField(
       controller: controller,
-      keyboardType:
-      TextInputType.numberWithOptions(decimal: !isInteger),
+      keyboardType: TextInputType.numberWithOptions(decimal: !isInteger),
       decoration: InputDecoration(labelText: label),
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
@@ -153,19 +136,9 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
     final width = double.parse(_widthController.text);
     final height = double.parse(_heightController.text);
     final price = int.parse(_priceController.text);
-    final x = double.parse(_xController.text);
-    final y = double.parse(_yController.text);
-    final angle = double.parse(_angleController.text);
-
-    final zone = Zone(
-      index: widget.index,
-      width: width,
-      height: height,
-      price: price,
-      x: x,
-      y: y,
-      angle: angle,
+    Navigator.pop(
+      context,
+      ZoneFormData(width: width, height: height, price: price),
     );
-    Navigator.pop(context, zone);
   }
 }
