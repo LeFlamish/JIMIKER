@@ -169,6 +169,8 @@ class _CurrentLocationMapState
   void _showStorageBottomSheet(Storage storage) {
     showModalBottomSheet<void>(
       context: context,
+      enableDrag: false,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -176,86 +178,194 @@ class _CurrentLocationMapState
         final imageUrl = storage.images.isNotEmpty
             ? storage.images.first
             : null;
-        return Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+        return _StorageBottomSheet(
+          imageUrl: imageUrl,
+          storage: storage,
+        );
+      },
+    );
+  }
+}
+
+class _StorageBottomSheet extends StatefulWidget {
+  final String? imageUrl;
+  final Storage storage;
+
+  const _StorageBottomSheet({
+    required this.imageUrl,
+    required this.storage,
+  });
+
+  @override
+  State<_StorageBottomSheet> createState() =>
+      _StorageBottomSheetState();
+}
+
+class _StorageBottomSheetState extends State<_StorageBottomSheet> {
+  static const double _minExtent = 0.2;
+  static const double _initialExtent = 0.35;
+  static const double _maxExtent = 0.75;
+  static const List<double> _snapPoints = <double>[
+    _minExtent,
+    _initialExtent,
+    _maxExtent,
+  ];
+
+  double _currentExtent = _initialExtent;
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    final double dragDelta = (details.primaryDelta ?? 0) * -1;
+    final double screenHeight = MediaQuery.of(context).size.height;
+    if (screenHeight == 0) return;
+
+    final double deltaExtent = dragDelta / screenHeight;
+    setState(() {
+      _currentExtent = (_currentExtent + deltaExtent).clamp(
+        _minExtent,
+        _maxExtent,
+      );
+    });
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    const double snapTolerance = 0.07;
+
+    final bool isNearInitial =
+        (_currentExtent - _initialExtent).abs() <= snapTolerance;
+
+    final double target = isNearInitial
+        ? _initialExtent
+        : _snapPoints.reduce(
+            (a, b) =>
+                (a - _currentExtent).abs() <
+                    (b - _currentExtent).abs()
+                ? a
+                : b,
+          );
+
+    setState(() {
+      _currentExtent = target;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final storage = widget.storage;
+
+    return FractionallySizedBox(
+      heightFactor: _currentExtent,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 16,
+          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.max,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragUpdate: _onDragUpdate,
+              onVerticalDragEnd: _onDragEnd,
+              child: Column(
                 children: [
-                  Expanded(
-                    child: Text(
-                      storage.address,
-                      style: Theme.of(context).textTheme.titleMedium,
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          storage.address,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.titleMedium,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              if (storage.detailAddress.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    storage.detailAddress,
-                    style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(color: Colors.grey[700]),
-                  ),
+            ),
+            if (storage.detailAddress.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  storage.detailAddress,
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: Colors.grey[700]),
                 ),
-              if (imageUrl != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: Colors.grey[200],
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.image_not_supported,
-                          ),
-                        ),
+              ),
+            if (widget.imageUrl != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.network(
+                      widget.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey[200],
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.image_not_supported),
                       ),
                     ),
                   ),
                 ),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  _StorageInfoChip(
-                    icon: Icons.meeting_room_outlined,
-                    label: '보관구역',
-                    value: '${storage.count}개',
-                  ),
-                  _StorageInfoChip(
-                    icon: Icons.straighten,
-                    label: '가로',
-                    value: '${storage.width.toStringAsFixed(1)}m',
-                  ),
-                  _StorageInfoChip(
-                    icon: Icons.height,
-                    label: '세로',
-                    value: '${storage.height.toStringAsFixed(1)}m',
-                  ),
-                ],
               ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-      },
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        _StorageInfoChip(
+                          icon: Icons.meeting_room_outlined,
+                          label: '보관구역',
+                          value: '${storage.count}개',
+                        ),
+                        _StorageInfoChip(
+                          icon: Icons.straighten,
+                          label: '가로',
+                          value:
+                              '${storage.width.toStringAsFixed(1)}m',
+                        ),
+                        _StorageInfoChip(
+                          icon: Icons.height,
+                          label: '세로',
+                          value:
+                              '${storage.height.toStringAsFixed(1)}m',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
