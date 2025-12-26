@@ -1,26 +1,68 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:jimiker/features/search/search_screen.dart';
 
+import '../../../../../services/auth_providers.dart';
 import '../services/location_service.dart';
 
-class CurrentLocationMap extends StatefulWidget {
+class CurrentLocationMap extends ConsumerStatefulWidget {
   const CurrentLocationMap({super.key});
 
   @override
-  State<CurrentLocationMap> createState() =>
+  ConsumerState<CurrentLocationMap> createState() =>
       _CurrentLocationMapState();
 }
 
-class _CurrentLocationMapState extends State<CurrentLocationMap> {
+class _CurrentLocationMapState
+    extends ConsumerState<CurrentLocationMap> {
   static const LatLng _fallbackLocation = LatLng(37.5665, 126.9780);
 
   final LocationService _locationService = const LocationService();
   GoogleMapController? _controller;
+  final Set<Marker> _storageMarkers = {};
 
   @override
   void initState() {
     super.initState();
+  }
+
+  Future<void> _loadStorageMarkers() async {
+    final firestore = ref.read(firestoreProvider);
+
+    try {
+      final snapshot = await firestore.collection('storages').get();
+
+      final markers = snapshot.docs
+          .map((doc) {
+            final data = doc.data();
+            final lat = (data['lat'] as num?)?.toDouble();
+            final lng = (data['lng'] as num?)?.toDouble();
+
+            if (lat == null || lng == null) return null;
+
+            return Marker(
+              markerId: MarkerId(doc.id),
+              position: LatLng(lat, lng),
+              infoWindow: InfoWindow(
+                title: data['address'] as String? ?? '창고',
+                snippet: data['detailAddress'] as String?,
+              ),
+            );
+          })
+          .whereType<Marker>()
+          .toSet();
+
+      if (!mounted) return;
+
+      setState(() {
+        _storageMarkers
+          ..clear()
+          ..addAll(markers);
+      });
+    } catch (error) {
+      debugPrint('Failed to load storage markers: $error');
+    }
   }
 
   Future<void> _moveToCurrentLocation() async {
@@ -71,9 +113,11 @@ class _CurrentLocationMapState extends State<CurrentLocationMap> {
           ),
           myLocationEnabled: true,
           myLocationButtonEnabled: true,
+          markers: _storageMarkers,
           onMapCreated: (controller) {
             _controller = controller;
             _moveToCurrentLocation();
+            _loadStorageMarkers();
           },
         ),
         SafeArea(
