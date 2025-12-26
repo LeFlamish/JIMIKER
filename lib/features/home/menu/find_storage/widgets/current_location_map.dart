@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:jimiker/features/search/search_screen.dart';
 
+import '../../../../../data/models/storage.dart';
 import '../../../../../services/auth_providers.dart';
+import '../services/find_storage_provider.dart';
 import '../services/location_service.dart';
 
 class CurrentLocationMap extends ConsumerStatefulWidget {
@@ -20,49 +22,13 @@ class _CurrentLocationMapState
 
   final LocationService _locationService = const LocationService();
   GoogleMapController? _controller;
-  final Set<Marker> _storageMarkers = {};
 
   @override
   void initState() {
     super.initState();
-  }
-
-  Future<void> _loadStorageMarkers() async {
-    final firestore = ref.read(firestoreProvider);
-
-    try {
-      final snapshot = await firestore.collection('storages').get();
-
-      final markers = snapshot.docs
-          .map((doc) {
-            final data = doc.data();
-            final lat = (data['lat'] as num?)?.toDouble();
-            final lng = (data['lng'] as num?)?.toDouble();
-
-            if (lat == null || lng == null) return null;
-
-            return Marker(
-              markerId: MarkerId(doc.id),
-              position: LatLng(lat, lng),
-              infoWindow: InfoWindow(
-                title: data['address'] as String? ?? '창고',
-                snippet: data['detailAddress'] as String?,
-              ),
-            );
-          })
-          .whereType<Marker>()
-          .toSet();
-
-      if (!mounted) return;
-
-      setState(() {
-        _storageMarkers
-          ..clear()
-          ..addAll(markers);
-      });
-    } catch (error) {
-      debugPrint('Failed to load storage markers: $error');
-    }
+    Future.microtask(
+      () => ref.read(findStorageProvider.notifier).loadStorages(),
+    );
   }
 
   Future<void> _moveToCurrentLocation() async {
@@ -104,6 +70,22 @@ class _CurrentLocationMapState
 
   @override
   Widget build(BuildContext context) {
+    final findStorageState = ref.watch(findStorageProvider);
+
+    final markers = findStorageState.storages.entries.map((entry) {
+      final storage = entry.value;
+      return Marker(
+        markerId: MarkerId(entry.key),
+        position: LatLng(storage.lat, storage.lng),
+        infoWindow: InfoWindow(
+          title: storage.address,
+          snippet: storage.detailAddress,
+        ),
+        onTap: () =>
+            _onMarkerTap(storageId: entry.key, storage: storage),
+      );
+    }).toSet();
+
     return Stack(
       children: [
         GoogleMap(
@@ -113,11 +95,10 @@ class _CurrentLocationMapState
           ),
           myLocationEnabled: true,
           myLocationButtonEnabled: true,
-          markers: _storageMarkers,
+          markers: markers,
           onMapCreated: (controller) {
             _controller = controller;
             _moveToCurrentLocation();
-            _loadStorageMarkers();
           },
         ),
         SafeArea(
@@ -174,6 +155,148 @@ class _CurrentLocationMapState
           ),
         ),
       ],
+    );
+  }
+
+  void _onMarkerTap({
+    required String storageId,
+    required Storage storage,
+  }) {
+    ref.read(findStorageProvider.notifier).selectStorage(storageId);
+    _showStorageBottomSheet(storage);
+  }
+
+  void _showStorageBottomSheet(Storage storage) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        final imageUrl = storage.images.isNotEmpty
+            ? storage.images.first
+            : null;
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      storage.address,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              if (storage.detailAddress.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    storage.detailAddress,
+                    style: Theme.of(context).textTheme.bodyMedium
+                        ?.copyWith(color: Colors.grey[700]),
+                  ),
+                ),
+              if (imageUrl != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: Colors.grey[200],
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.image_not_supported,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  _StorageInfoChip(
+                    icon: Icons.meeting_room_outlined,
+                    label: '보관구역',
+                    value: '${storage.count}개',
+                  ),
+                  _StorageInfoChip(
+                    icon: Icons.straighten,
+                    label: '가로',
+                    value: '${storage.width.toStringAsFixed(1)}m',
+                  ),
+                  _StorageInfoChip(
+                    icon: Icons.height,
+                    label: '세로',
+                    value: '${storage.height.toStringAsFixed(1)}m',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StorageInfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _StorageInfoChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: Icon(
+        icon,
+        size: 18,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      label: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
+      backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
     );
   }
 }

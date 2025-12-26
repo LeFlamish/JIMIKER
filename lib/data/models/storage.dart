@@ -33,8 +33,20 @@ class Storage {
   });
 
   factory Storage.fromDoc(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
     final layoutMap = Map<String, dynamic>.from(data['layout'] ?? {});
+
+    final lat = (data['lat'] as num?)?.toDouble();
+    final lng = (data['lng'] as num?)?.toDouble();
+    if (lat == null || lng == null) {
+      throw const FormatException('lat/lng is missing or invalid');
+    }
+
+    final width = (data['width'] as num?)?.toDouble() ?? 0;
+    final height = (data['height'] as num?)?.toDouble() ?? 0;
+    final count = (data['count'] as num?)?.toInt() ?? 0;
+    final createdAt =
+        (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
 
     final lines =
         (layoutMap['lines'] as List<dynamic>?)
@@ -54,18 +66,18 @@ class Storage {
 
     return Storage(
       locationId: data['locationId'],
-      lat: data['lat'],
-      lng: data['lng'],
-      address: data['address'],
-      detailAddress: data['detailAddress'],
-      count: data['count'],
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      images: List<String>.from(data['images']),
-      ownerId: data['ownerId'],
-      width: data['width'],
-      height: data['height'],
+      lat: lat,
+      lng: lng,
+      address: data['address'] ?? '',
+      detailAddress: data['detailAddress'] ?? '',
+      count: count,
+      createdAt: createdAt,
+      images: List<String>.from(data['images'] ?? const []),
+      ownerId: data['ownerId'] ?? '',
+      width: width,
+      height: height,
       layout: {'lines': lines, 'doors': doors},
-      approved: data['approved'],
+      approved: data['approved'] ?? false,
     );
   }
 
@@ -139,8 +151,14 @@ class Line {
 
   factory Line.fromMap(Map<String, dynamic> map) {
     return Line(
-      start: Offset(map['start']['x'], map['start']['y']),
-      end: Offset(map['end']['x'], map['end']['y']),
+      start: Offset(
+        (map['start']['x'] as num).toDouble(),
+        (map['start']['y'] as num).toDouble(),
+      ),
+      end: Offset(
+        (map['end']['x'] as num).toDouble(),
+        (map['end']['y'] as num).toDouble(),
+      ),
     );
   }
 }
