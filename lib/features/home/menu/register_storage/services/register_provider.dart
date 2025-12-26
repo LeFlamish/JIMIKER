@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,12 +19,14 @@ class RegisterData {
   final String? detailAddress;
   final LatLng? latLng;
   final List<XFile> images;
+  final bool isSubmitting;
 
   RegisterData({
     this.address,
     this.detailAddress,
     this.latLng,
     this.images = const [],
+    this.isSubmitting = false,
   });
 
   RegisterData copyWith({
@@ -30,19 +34,22 @@ class RegisterData {
     String? detailAddress,
     LatLng? latLng,
     List<XFile>? images,
+    bool? isSubmitting,
   }) {
     return RegisterData(
       address: address ?? this.address,
       detailAddress: detailAddress ?? this.detailAddress,
       latLng: latLng ?? this.latLng,
       images: images ?? this.images,
+      isSubmitting: isSubmitting ?? this.isSubmitting,
     );
   }
 }
 
-final registerProvider = NotifierProvider<RegisterNotifier, RegisterData>(
+final registerProvider =
+    NotifierProvider<RegisterNotifier, RegisterData>(
       () => RegisterNotifier(),
-);
+    );
 
 class RegisterNotifier extends Notifier<RegisterData> {
   @override
@@ -77,9 +84,9 @@ class RegisterNotifier extends Notifier<RegisterData> {
   }
 
   void addressTap(
-      BuildContext context,
-      TextEditingController controller,
-      ) async {
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
     final result = await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const SearchScreen()));
@@ -105,6 +112,7 @@ class RegisterNotifier extends Notifier<RegisterData> {
     required String detailAddress,
   }) async {
     final firestore = ref.read(firestoreProvider);
+    final storage = ref.read(firebaseStorageProvider);
     final auth = ref.read(firebaseAuthProvider);
     final user = auth.currentUser;
 
@@ -117,54 +125,87 @@ class RegisterNotifier extends Notifier<RegisterData> {
     final storageRef = firestore.collection('storages').doc();
     final locationsRef = firestore.collection('locations');
 
-    final existingLocation =
-    await locationsRef.where('address', isEqualTo: address).limit(1).get();
+    state = state.copyWith(isSubmitting: true);
+
     late final DocumentReference locationRef;
 
-    if (existingLocation.docs.isNotEmpty) {
-      locationRef = existingLocation.docs.first.reference;
-    } else {
-      locationRef = locationsRef.doc();
-    }
+    try {
+      final downloadUrls = <String>[];
 
-    final storage = Storage(
-      locationId: locationRef.id,
-      lat: latLng?.latitude ?? 0,
-      lng: latLng?.longitude ?? 0,
-      address: address,
-      detailAddress: detailAddress,
-      count: zones.length,
-      createdAt: DateTime.now(),
-      images: state.images.map((image) => image.path).toList(),
-      ownerId: user.uid,
-      width: drawState.width,
-      height: drawState.height,
-      layout: {'lines': drawState.lines, 'doors': drawState.doors},
-      approved: false, // 나중에 승인 받는다면 false로 수정
-    );
+      for (final image in state.images) {
+        final file = File(image.path);
+        if (!file.existsSync()) {
+          throw Exception('이미지 파일을 찾을 수 없습니다.');
+        }
 
-    final batch = firestore.batch();
-    batch.set(storageRef, storage.toMap());
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final path =
+            'images/${user.uid}/'
+            '${timestamp}_${image.name}';
+        final reference = storage.ref(path);
 
-    if (existingLocation.docs.isNotEmpty) {
-      batch.update(locationRef, {
-        'storages': FieldValue.arrayUnion([storageRef.id]),
-      });
-    } else {
-      final location = Location(
-        id: locationRef.id,
-        address: address,
+        final uploadTask = reference.putFile(file);
+        await uploadTask.whenComplete(() {});
+        final downloadUrl = await reference.getDownloadURL();
+        downloadUrls.add(downloadUrl);
+      }
+
+      final existingLocation = await locationsRef
+          .where('address', isEqualTo: address)
+          .limit(1)
+          .get();
+      late final DocumentReference locationRef;
+
+      if (existingLocation.docs.isNotEmpty) {
+        locationRef = existingLocation.docs.first.reference;
+      } else {
+        locationRef = locationsRef.doc();
+      }
+
+      final storageData = Storage(
+        locationId: locationRef.id,
         lat: latLng?.latitude ?? 0,
         lng: latLng?.longitude ?? 0,
-        storages: [storageRef.id],
+        address: address,
+        detailAddress: detailAddress,
+        count: zones.length,
+        createdAt: DateTime.now(),
+        images: downloadUrls,
+        ownerId: user.uid,
+        width: drawState.width,
+        height: drawState.height,
+        layout: {'lines': drawState.lines, 'doors': drawState.doors},
+        approved: false, // 나중에 승인 받는다면 false로 수정
       );
-      batch.set(locationRef, location.toMap());
-    }
+      final batch = firestore.batch();
+      batch.set(storageRef, storageData.toMap());
 
-    for (final zone in zones) {
-      final zoneRef = storageRef.collection('zones').doc(zone.index);
-      batch.set(zoneRef, zone.toMap());
+      if (existingLocation.docs.isNotEmpty) {
+        batch.update(locationRef, {
+          'storages': FieldValue.arrayUnion([storageRef.id]),
+        });
+      } else {
+        final location = Location(
+          id: locationRef.id,
+          address: address,
+          lat: latLng?.latitude ?? 0,
+          lng: latLng?.longitude ?? 0,
+          storages: [storageRef.id],
+        );
+        batch.set(locationRef, location.toMap());
+      }
+
+      for (final zone in zones) {
+        final zoneRef = storageRef
+            .collection('zones')
+            .doc(zone.index);
+        batch.set(zoneRef, zone.toMap());
+      }
+      await batch.commit();
+    } catch (error) {
+      state = state.copyWith(isSubmitting: false);
+      rethrow;
     }
-    await batch.commit();
+    state = state.copyWith(isSubmitting: false);
   }
 }
