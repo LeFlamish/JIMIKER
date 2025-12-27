@@ -1,9 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
+import 'package:jimiker/features/home/menu/my_storages/screens/my_storages_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
-import 'package:jimiker/features/home/menu/my_information/my_information_screen.dart';
+import 'package:jimiker/features/home/menu/my_information/screens/my_information_screen.dart';
 import '../menu/find_storage/screens/find_storage_screen.dart';
 import '../menu/register_storage/screens/register_storage_screen.dart';
 
@@ -51,8 +51,21 @@ class HomeActionGrid extends ConsumerWidget {
       _HomeActionItem(
         icon: Icons.store_mall_directory_outlined,
         label: '내 창고 관리',
-        onTap: () {
-          // TODO: 내 창고 관리 화면으로 이동
+        onTap: () async {
+          final bool check = await authController.checkSignIn(
+            context,
+          );
+
+          if (!context.mounted) return;
+
+          if (check) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const MyStoragesScreen(),
+              ),
+            );
+          }
         },
       ),
       _HomeActionItem(

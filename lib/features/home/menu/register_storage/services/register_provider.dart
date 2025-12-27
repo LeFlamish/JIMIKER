@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../../../../data/models/location.dart';
 import '../../../../../data/models/storage.dart';
@@ -130,25 +130,31 @@ class RegisterNotifier extends Notifier<RegisterData> {
     late final DocumentReference locationRef;
 
     try {
-      final downloadUrls = <String>[];
+      final downloadUrls = await Future.wait(
+        state.images.asMap().entries.map((entry) async {
+          final index = entry.key;
+          final image = entry.value;
+          final file = File(image.path);
+          if (!file.existsSync()) {
+            throw Exception('이미지 파일을 찾을 수 없습니다.');
+          }
 
-      for (final image in state.images) {
-        final file = File(image.path);
-        if (!file.existsSync()) {
-          throw Exception('이미지 파일을 찾을 수 없습니다.');
-        }
+          final timestamp = DateTime.now().microsecondsSinceEpoch;
+          final path =
+              'storages/${storageRef.id}/'
+              '${timestamp}_${index}_${image.name}';
+          final reference = storage.ref(path);
 
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final path =
-            'images/${user.uid}/'
-            '${timestamp}_${image.name}';
-        final reference = storage.ref(path);
-
-        final uploadTask = reference.putFile(file);
-        await uploadTask.whenComplete(() {});
-        final downloadUrl = await reference.getDownloadURL();
-        downloadUrls.add(downloadUrl);
-      }
+          final metadata = SettableMetadata(
+            customMetadata: {
+              'ownerId': user.uid,
+              'storageId': storageRef.id,
+            },
+          );
+          await reference.putFile(file, metadata);
+          return reference.getDownloadURL();
+        }),
+      );
 
       final existingLocation = await locationsRef
           .where('address', isEqualTo: address)

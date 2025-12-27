@@ -6,14 +6,14 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum Status { waiting, rejected }
+enum Status { waiting, approved, rejected }
 
 class Reservation {
   final String id;
   final String userId;
   final String ownerId;
-  final int storageId;
-  final int containerIndex;
+  final String storageId;
+  final int zoneIndex;
   final DateTime createdAt;
   final DateTime startAt;
   final DateTime endAt;
@@ -24,7 +24,7 @@ class Reservation {
     required this.userId,
     required this.ownerId,
     required this.storageId,
-    required this.containerIndex,
+    required this.zoneIndex,
     required this.createdAt,
     required this.startAt,
     required this.endAt,
@@ -33,18 +33,20 @@ class Reservation {
 
   factory Reservation.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final statusName = data['status']?.toString() ?? Status.waiting.name;
 
     return Reservation(
       id: doc.id,
       userId: data['userId'],
       ownerId: data['ownerId'],
-      storageId: data['storageId'],
-      containerIndex: data['containerIndex'],
+      storageId: data['storageId']?.toString() ?? '',
+      zoneIndex: (data['containerIndex'] as num?)?.toInt() ?? 0,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       startAt: (data['startAt'] as Timestamp).toDate(),
       endAt: (data['endAt'] as Timestamp).toDate(),
       status: Status.values.firstWhere(
-        (status) => status.name == data['status'],
+        (status) => status.name == statusName,
+        orElse: () => Status.waiting,
       ),
     );
   }
@@ -54,11 +56,35 @@ class Reservation {
       'userId': userId,
       'ownerId': ownerId,
       'storageId': storageId,
-      'containerIndex': containerIndex,
+      'containerIndex': zoneIndex,
       'createdAt': createdAt,
       'startAt': startAt,
       'endAt': endAt,
       'status': status.name,
     };
+  }
+
+  Reservation copyWith({
+    String? id,
+    String? userId,
+    String? ownerId,
+    String? storageId,
+    int? zoneIndex,
+    DateTime? createdAt,
+    DateTime? startAt,
+    DateTime? endAt,
+    Status? status,
+  }) {
+    return Reservation(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      ownerId: ownerId ?? this.ownerId,
+      storageId: storageId ?? this.storageId,
+      zoneIndex: zoneIndex ?? this.zoneIndex,
+      createdAt: createdAt ?? this.createdAt,
+      startAt: startAt ?? this.startAt,
+      endAt: endAt ?? this.endAt,
+      status: status ?? this.status,
+    );
   }
 }
