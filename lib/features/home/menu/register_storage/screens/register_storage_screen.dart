@@ -55,23 +55,28 @@ class _RegisterStorageScreenState
     _detailAddressController = TextEditingController();
     _detailAddressFocusNode = FocusNode(canRequestFocus: false);
 
-    final editConfig = widget.editConfig;
-    if (editConfig != null) {
-      _hydrateEditData(editConfig);
-    } else {
-      _addressController.text =
-          ref.read(registerProvider).address ?? '';
-      _detailAddressController.text =
-          ref.read(registerProvider).detailAddress ?? '';
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final editConfig = widget.editConfig;
+      if (editConfig != null) {
+        _hydrateEditData(editConfig);
+      } else {
+        final registerState = ref.read(registerProvider);
+        _addressController.text = registerState.address ?? '';
+        _detailAddressController.text =
+            registerState.detailAddress ?? '';
+      }
+    });
   }
 
   @override
   void dispose() {
     if (widget.editConfig != null) {
-      ref.read(registerProvider.notifier).reset();
-      ref.read(zoneProvider.notifier).reset();
-      ref.read(drawProvider.notifier).reset();
+      Future.microtask(() {
+        ref.read(registerProvider.notifier).reset();
+        ref.read(zoneProvider.notifier).reset();
+        ref.read(drawProvider.notifier).reset();
+      });
     }
     _addressController.dispose();
     _detailAddressController.dispose();
