@@ -18,6 +18,7 @@ class ChatService {
         .collection('chat_rooms')
         .doc(roomId)
         .collection('messages')
+        .orderBy('createdAt')
         .limit(200)
         .snapshots();
   }
