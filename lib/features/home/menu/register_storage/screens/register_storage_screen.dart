@@ -273,7 +273,7 @@ class _RegisterStorageScreenState
               child: ElevatedButton.icon(
                 onPressed: _navigateToEditor,
                 icon: const Icon(Icons.draw_outlined),
-                label: const Text("건물 부 구조 그리기"),
+                label: const Text("건물 내부 구조 그리기"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6B66FF),
                   foregroundColor: Colors.white,
