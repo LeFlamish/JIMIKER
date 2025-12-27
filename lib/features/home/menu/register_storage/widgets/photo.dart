@@ -97,3 +97,99 @@ class PhotoList extends StatelessWidget {
     );
   }
 }
+
+class StoragePhotoList extends StatelessWidget {
+  final List<String> existingImages;
+  final List<XFile> newImages;
+  final void Function(int)? onDeleteExisting;
+  final void Function(int)? onDeleteNew;
+
+  const StoragePhotoList({
+    super.key,
+    required this.existingImages,
+    required this.newImages,
+    required this.onDeleteExisting,
+    required this.onDeleteNew,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final totalCount = existingImages.length + newImages.length;
+    if (totalCount == 0) {
+      return const SizedBox.shrink();
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          ...existingImages.asMap().entries.map((entry) {
+            final index = entry.key;
+            final url = entry.value;
+            return _PhotoThumbnail(
+              imageProvider: NetworkImage(url),
+              onDelete: () => onDeleteExisting?.call(index),
+            );
+          }),
+          ...newImages.asMap().entries.map((entry) {
+            final index = entry.key;
+            final image = entry.value;
+            return _PhotoThumbnail(
+              imageProvider: FileImage(File(image.path)),
+              onDelete: () => onDeleteNew?.call(index),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhotoThumbnail extends StatelessWidget {
+  final ImageProvider imageProvider;
+  final VoidCallback? onDelete;
+
+  const _PhotoThumbnail({
+    required this.imageProvider,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Container(
+          margin: const EdgeInsets.only(left: 8),
+          height: 60,
+          width: 60,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            image: DecorationImage(
+              image: imageProvider,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        Positioned(
+          top: 2,
+          right: 2,
+          child: GestureDetector(
+            onTap: onDelete,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close,
+                size: 14,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

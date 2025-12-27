@@ -54,6 +54,21 @@ class DrawNotifier extends Notifier<DrawProviderData> {
     state = DrawProviderData();
   }
 
+  void setDrawing({
+    required List<Line> lines,
+    required Set<Offset> doors,
+    required double width,
+    required double height,
+  }) {
+    _transformedData = null;
+    state = state.copyWith(
+      lines: lines,
+      doors: doors,
+      width: width,
+      height: height,
+    );
+  }
+
   void drawChange(bool value) {
     state = state.copyWith(isDraw: value);
   }

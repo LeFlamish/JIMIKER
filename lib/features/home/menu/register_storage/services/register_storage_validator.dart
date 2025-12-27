@@ -21,7 +21,9 @@ class RegisterStorageValidator {
   }) {
     final errors = <String>[];
 
-    if (registerData.images.isEmpty) {
+    final totalImages =
+        registerData.images.length + registerData.existingImageUrls.length;
+    if (totalImages == 0) {
       errors.add('사진을 최소 1장 등록해주세요.');
     }
 

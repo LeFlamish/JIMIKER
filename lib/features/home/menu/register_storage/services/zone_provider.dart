@@ -15,6 +15,10 @@ class ZoneNotifier extends Notifier<List<Zone>> {
     state = [];
   }
 
+  void setZones(List<Zone> zones) {
+    state = List<Zone>.from(zones);
+  }
+
   String nextIndex() {
     final count = state.length;
     if (count < 26) {

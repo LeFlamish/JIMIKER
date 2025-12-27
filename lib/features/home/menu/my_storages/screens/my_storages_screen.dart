@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/features/home/menu/my_storages/services/my_storages_provider.dart';
+import 'package:jimiker/features/home/menu/my_storages/services/storage_edit_config.dart';
 import 'package:jimiker/features/home/menu/my_storages/widgets/my_storage_card.dart';
+import 'package:jimiker/features/home/menu/register_storage/screens/register_storage_screen.dart';
 
 class MyStoragesScreen extends ConsumerStatefulWidget {
   const MyStoragesScreen({super.key});
@@ -82,7 +84,7 @@ class _MyStoragesScreenState extends ConsumerState<MyStoragesScreen> {
                 storage: storage,
               ),
               onReservationAction: (reservation, status) {
-                _confirmReservationAction(
+                _updateReservationStatus(
                   context: context,
                   reservation: reservation,
                   status: status,
@@ -109,66 +111,19 @@ class _MyStoragesScreenState extends ConsumerState<MyStoragesScreen> {
     required String storageId,
     required Storage storage,
   }) async {
-    final detailController = TextEditingController(
-      text: storage.detailAddress,
-    );
-    final countController = TextEditingController(
-      text: storage.count.toString(),
-    );
-
-    try {
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('창고 정보 수정'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: detailController,
-                decoration: const InputDecoration(
-                  labelText: '상세 주소',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: countController,
-                decoration: const InputDecoration(
-                  labelText: '보관함 개수',
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ],
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => RegisterStorageScreen(
+          editConfig: StorageEditConfig(
+            storageId: storageId,
+            storage: storage,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('취소'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('저장'),
-            ),
-          ],
         ),
-      );
-
-      if (result != true) return;
-
-      final parsedCount = int.tryParse(countController.text) ?? storage.count;
-
-      await ref.read(myStoragesProvider.notifier).updateStorage(
-        storageId: storageId,
-        detailAddress: detailController.text.trim(),
-        count: parsedCount,
-      );
-    } finally {
-      detailController.dispose();
-      countController.dispose();
-    }
+      ),
+    );
   }
 
-  Future<void> _confirmReservationAction({
+  Future<void> _updateReservationStatus({
     required BuildContext context,
     required Reservation reservation,
     required Status status,

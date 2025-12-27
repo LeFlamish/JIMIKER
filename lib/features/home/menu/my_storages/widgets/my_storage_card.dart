@@ -183,80 +183,121 @@ class _ReservationTile extends StatelessWidget {
     final statusLabel = _statusLabel(reservation.status);
     final statusColor = _statusColor(reservation.status);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade200),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '보관함 ${reservation.zoneIndex + 1}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  statusLabel,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${_formatDate(reservation.startAt)} ~ ${_formatDate(reservation.endAt)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (reservation.status == Status.waiting)
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _showReservationDialog(context),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => onAction(reservation, Status.rejected),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.redAccent,
+                  child: Text(
+                    '보관함 ${reservation.zoneIndex + 1}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
-                    child: const Text('거절'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => onAction(reservation, Status.approved),
-                    child: const Text('승인'),
+                Container(
+                  padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
+                  child: Text(
+                    statusLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w700,
+                    )
+                  )
                 ),
               ],
-            )
-          else
+            ),
+            const SizedBox(height: 6),
             Text(
-              '처리 완료',
+              '${_formatDate(reservation.startAt)} ~ ${_formatDate(reservation.endAt)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.grey.shade700,
+              ),
+            ),
+            Text(
+              reservation.status == Status.waiting
+                  ? '탭해서 승인 또는 거절할 수 있어요.'
+                  : '탭해서 예약 정보를 확인할 수 있어요.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: Colors.grey.shade500,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showReservationDialog(BuildContext context) async {
+    final statusLabel = _statusLabel(reservation.status);
+    final statusColor = _statusColor(reservation.status);
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('예약 요청 상세'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('보관함 ${reservation.zoneIndex + 1}'),
+            const SizedBox(height: 8),
+            Text(
+              '${_formatDate(reservation.startAt)} ~ ${_formatDate(reservation.endAt)}',
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('상태: '),
+                Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('닫기'),
+          ),
+          if (reservation.status == Status.waiting) ...[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onAction(reservation, Status.rejected);
+              },
+              child: const Text('거절'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onAction(reservation, Status.approved);
+              },
+              child: const Text('승인'),
+            ),
+          ],
         ],
       ),
     );

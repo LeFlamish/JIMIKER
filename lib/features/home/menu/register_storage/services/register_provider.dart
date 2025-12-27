@@ -19,6 +19,7 @@ class RegisterData {
   final String? detailAddress;
   final LatLng? latLng;
   final List<XFile> images;
+  final List<String> existingImageUrls;
   final bool isSubmitting;
 
   RegisterData({
@@ -26,6 +27,7 @@ class RegisterData {
     this.detailAddress,
     this.latLng,
     this.images = const [],
+    this.existingImageUrls = const [],
     this.isSubmitting = false,
   });
 
@@ -34,6 +36,7 @@ class RegisterData {
     String? detailAddress,
     LatLng? latLng,
     List<XFile>? images,
+    List<String>? existingImageUrls,
     bool? isSubmitting,
   }) {
     return RegisterData(
@@ -41,6 +44,7 @@ class RegisterData {
       detailAddress: detailAddress ?? this.detailAddress,
       latLng: latLng ?? this.latLng,
       images: images ?? this.images,
+      existingImageUrls: existingImageUrls ?? this.existingImageUrls,
       isSubmitting: isSubmitting ?? this.isSubmitting,
     );
   }
@@ -65,8 +69,14 @@ class RegisterNotifier extends Notifier<RegisterData> {
     final picker = ImagePicker();
     final newImages = await picker.pickMultiImage();
     if (newImages.isNotEmpty) {
+      final remainingSlots = 10 - state.existingImageUrls.length;
+      if (remainingSlots <= 0) {
+        return;
+      }
+
+      final mergedImages = [...state.images, ...newImages];
       state = state.copyWith(
-        images: (state.images + newImages).take(10).toList(),
+        images: mergedImages.take(remainingSlots).toList(),
       );
     }
   }
@@ -81,6 +91,27 @@ class RegisterNotifier extends Notifier<RegisterData> {
 
     // 3. 새로운 리스트를 state에 할당 (이때 UI가 갱신됨)
     state = state.copyWith(images: newState);
+  }
+
+  void setInitialData({
+    required String address,
+    required String detailAddress,
+    required LatLng latLng,
+    required List<String> existingImageUrls,
+  }) {
+    state = state.copyWith(
+      address: address,
+      detailAddress: detailAddress,
+      latLng: latLng,
+      existingImageUrls: existingImageUrls,
+    );
+  }
+
+  void removeExistingImage(int index) {
+    final updatedImages = List<String>.from(state.existingImageUrls);
+    if (index < 0 || index >= updatedImages.length) return;
+    updatedImages.removeAt(index);
+    state = state.copyWith(existingImageUrls: updatedImages);
   }
 
   void addressTap(

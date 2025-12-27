@@ -4,9 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/data/models/zone_form_data.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
+import 'package:jimiker/features/home/menu/my_storages/services/my_storages_provider.dart';
+import 'package:jimiker/features/home/menu/my_storages/services/storage_edit_config.dart';
 import 'package:jimiker/features/home/menu/register_storage/screens/draw_screen.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/register_provider.dart';
@@ -18,7 +22,12 @@ import 'package:jimiker/features/home/menu/register_storage/widgets/zone_form_di
 import '../../../../../services/auth_providers.dart';
 
 class RegisterStorageScreen extends ConsumerStatefulWidget {
-  const RegisterStorageScreen({super.key});
+  const RegisterStorageScreen({
+    super.key,
+    this.editConfig,
+  });
+
+  final StorageEditConfig? editConfig;
 
   @override
   ConsumerState<RegisterStorageScreen> createState() =>
@@ -37,6 +46,7 @@ class _RegisterStorageScreenState
   // ✅ 편집 화면 진입 직전 provider를 1000 캔버스 기준으로 shift할 때,
   // 프리뷰(작은 레이아웃)가 clamp로 zone을 다시 “잘라서” 옮기지 않게 막는 플래그
   bool _suspendPreviewZoneClamp = false;
+  bool _isLoadingEditData = false;
 
   @override
   void initState() {
@@ -45,14 +55,24 @@ class _RegisterStorageScreenState
     _detailAddressController = TextEditingController();
     _detailAddressFocusNode = FocusNode(canRequestFocus: false);
 
-    _addressController.text =
-        ref.read(registerProvider).address ?? '';
-    _detailAddressController.text =
-        ref.read(registerProvider).detailAddress ?? '';
+    final editConfig = widget.editConfig;
+    if (editConfig != null) {
+      _hydrateEditData(editConfig);
+    } else {
+      _addressController.text =
+          ref.read(registerProvider).address ?? '';
+      _detailAddressController.text =
+          ref.read(registerProvider).detailAddress ?? '';
+    }
   }
 
   @override
   void dispose() {
+    if (widget.editConfig != null) {
+      ref.read(registerProvider.notifier).reset();
+      ref.read(zoneProvider.notifier).reset();
+      ref.read(drawProvider.notifier).reset();
+    }
     _addressController.dispose();
     _detailAddressController.dispose();
     _detailAddressFocusNode.dispose();
@@ -64,6 +84,7 @@ class _RegisterStorageScreenState
     final drawState = ref.watch(drawProvider);
     final zones = ref.watch(zoneProvider);
     final isStructureDrawn = drawState.lines.isNotEmpty;
+    final isEditMode = widget.editConfig != null;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -96,18 +117,30 @@ class _RegisterStorageScreenState
                               pickedCount: ref
                                   .watch(registerProvider)
                                   .images
-                                  .length,
+                                  .length +
+                                  ref
+                                      .watch(registerProvider)
+                                      .existingImageUrls
+                                      .length,
                             ),
                             const SizedBox(width: 30),
-                            PhotoList(
-                              delete: (index) {
+                            StoragePhotoList(
+                              existingImages: ref
+                                  .watch(registerProvider)
+                                  .existingImageUrls,
+                              newImages: ref
+                                  .watch(registerProvider)
+                                  .images,
+                              onDeleteExisting: (index) {
+                                ref
+                                    .read(registerProvider.notifier)
+                                    .removeExistingImage(index);
+                              },
+                              onDeleteNew: (index) {
                                 ref
                                     .read(registerProvider.notifier)
                                     .deletePhoto(index);
                               },
-                              pickedImages: ref
-                                  .watch(registerProvider)
-                                  .images,
                             ),
                           ],
                         ),
@@ -186,11 +219,14 @@ class _RegisterStorageScreenState
                   ),
                 ),
               ),
-              _buildBottomRegisterButton(),
+              _buildBottomRegisterButton(isEditMode: isEditMode),
             ],
           ),
         ),
       ),
+      bottomNavigationBar: _isLoadingEditData
+          ? const LinearProgressIndicator(minHeight: 2)
+          : null,
     );
   }
 
@@ -490,6 +526,143 @@ class _RegisterStorageScreenState
   // Actions
   // =========================
 
+  void _hydrateEditData(StorageEditConfig editConfig) {
+    final storage = editConfig.storage;
+    ref.read(registerProvider.notifier).setInitialData(
+      address: storage.address,
+      detailAddress: storage.detailAddress,
+      latLng: LatLng(storage.lat, storage.lng),
+      existingImageUrls: storage.images,
+    );
+
+    _addressController.text = storage.address;
+    _detailAddressController.text = storage.detailAddress;
+
+    final layoutLines = storage.layout['lines'];
+    final layoutDoors = storage.layout['doors'];
+    final lines = layoutLines is List<Line> ? layoutLines : <Line>[];
+    final doors = layoutDoors is Set<Offset> ? layoutDoors : <Offset>{};
+
+    ref.read(drawProvider.notifier).setDrawing(
+      lines: lines,
+      doors: doors,
+      width: storage.width,
+      height: storage.height,
+    );
+
+    _loadEditZones(editConfig.storageId);
+  }
+
+  Future<void> _loadEditZones(String storageId) async {
+    setState(() => _isLoadingEditData = true);
+
+    try {
+      final firestore = ref.read(firestoreProvider);
+      final zonesSnapshot = await firestore
+          .collection('storages')
+          .doc(storageId)
+          .collection('zones')
+          .get();
+      final zones = zonesSnapshot.docs.map(Zone.fromDoc).toList();
+      ref.read(zoneProvider.notifier).setZones(zones);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('구역 정보를 불러오지 못했어요: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingEditData = false);
+      }
+    }
+  }
+
+  Future<void> _submitRegister({
+    required String detailAddress,
+    required DrawProviderData drawState,
+    required List<Zone> zones,
+  }) async {
+    try {
+      await ref.read(registerProvider.notifier).registerStorage(
+        drawState: drawState,
+        zones: zones,
+        detailAddress: detailAddress,
+      );
+
+      if (!mounted) return;
+
+      final user = ref.read(firebaseAuthProvider).currentUser;
+      if (user != null) {
+        final chatService = ChatService(ref.read(firestoreProvider));
+        await chatService.sendSystemMessageToUser(
+          user: user,
+          message: '창고 등록 신청이 완료되었습니다.',
+        );
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("등록 요청이 완료되었습니다."),
+        ),
+      );
+
+      ref.read(registerProvider.notifier).reset();
+      ref.read(zoneProvider.notifier).reset();
+      ref.read(drawProvider.notifier).reset();
+      _addressController.clear();
+      _detailAddressController.clear();
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("등록 중 오류가 발생했습니다: $error"),
+        ),
+      );
+    }
+  }
+
+  Future<void> _submitEdit({
+    required String detailAddress,
+    required DrawProviderData drawState,
+    required List<Zone> zones,
+  }) async {
+    final editConfig = widget.editConfig;
+    if (editConfig == null) return;
+
+    try {
+      final registerState = ref.read(registerProvider);
+      await ref.read(myStoragesProvider.notifier).updateStorage(
+        storageId: editConfig.storageId,
+        currentStorage: editConfig.storage,
+        address: registerState.address ?? editConfig.storage.address,
+        detailAddress: detailAddress,
+        latLng: registerState.latLng,
+        drawState: drawState,
+        zones: zones,
+        existingImageUrls: registerState.existingImageUrls,
+        newImages: registerState.images,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('창고 정보가 수정되었습니다.')),
+      );
+      ref.read(registerProvider.notifier).reset();
+      ref.read(zoneProvider.notifier).reset();
+      ref.read(drawProvider.notifier).reset();
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('수정 중 오류가 발생했습니다: $error')),
+      );
+    }
+  }
+
   void _navigateToEditor() async {
     _clearDetailAddressFocus();
 
@@ -667,10 +840,13 @@ class _RegisterStorageScreenState
     );
   }
 
-  Widget _buildBottomRegisterButton() {
+  Widget _buildBottomRegisterButton({required bool isEditMode}) {
     final registerRef = ref.watch(registerProvider);
     final drawState = ref.watch(drawProvider);
     final zones = ref.watch(zoneProvider);
+    final isBusy = isEditMode
+        ? ref.watch(myStoragesProvider).isUpdating
+        : registerRef.isSubmitting;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -679,7 +855,7 @@ class _RegisterStorageScreenState
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: registerRef.isSubmitting
+          onPressed: isBusy
               ? null
               : () async {
                   final detailAddress = _detailAddressController.text
@@ -702,51 +878,17 @@ class _RegisterStorageScreenState
                     return;
                   }
 
-                  try {
-                    await ref
-                        .read(registerProvider.notifier)
-                        .registerStorage(
-                          drawState: drawState,
-                          zones: zones,
-                          detailAddress: detailAddress,
-                        );
-
-                    if (!mounted) return;
-
-                    final user = ref
-                        .read(firebaseAuthProvider)
-                        .currentUser;
-                    if (user != null) {
-                      final chatService = ChatService(
-                        ref.read(firestoreProvider),
-                      );
-                      await chatService.sendSystemMessageToUser(
-                        user: user,
-                        message: '창고 등록 신청이 완료되었습니다.',
-                      );
-                    }
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("등록 요청이 완료되었습니다."),
-                      ),
+                  if (isEditMode) {
+                    await _submitEdit(
+                      detailAddress: detailAddress,
+                      drawState: drawState,
+                      zones: zones,
                     );
-
-                    ref.read(registerProvider.notifier).reset();
-                    ref.read(zoneProvider.notifier).reset();
-                    ref.read(drawProvider.notifier).reset();
-                    _addressController.clear();
-                    _detailAddressController.clear();
-
-                    if (mounted) {
-                      Navigator.of(context).pop();
-                    }
-                  } catch (error) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text("등록 중 오류가 발생했습니다: $error"),
-                      ),
+                  } else {
+                    await _submitRegister(
+                      detailAddress: detailAddress,
+                      drawState: drawState,
+                      zones: zones,
                     );
                   }
                 },
@@ -766,7 +908,7 @@ class _RegisterStorageScreenState
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
-              child: registerRef.isSubmitting
+              child: isBusy
                   ? const SizedBox(
                       width: 20,
                       height: 20,
@@ -777,9 +919,9 @@ class _RegisterStorageScreenState
                         ),
                       ),
                     )
-                  : const Text(
-                      "등록하기",
-                      style: TextStyle(
+                  : Text(
+                      isEditMode ? "수정하기" : "등록하기",
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
