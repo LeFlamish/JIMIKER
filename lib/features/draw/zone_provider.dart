@@ -1,11 +1,14 @@
 import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:jimiker/data/models/zone.dart';
 
 final zoneProvider = NotifierProvider<ZoneNotifier, List<Zone>>(
-      () => ZoneNotifier(),
+  () => ZoneNotifier(),
 );
+
+final selectedZoneProvider = StateProvider<String?>((ref) => null);
 
 class ZoneNotifier extends Notifier<List<Zone>> {
   @override
@@ -51,10 +54,7 @@ class ZoneNotifier extends Notifier<List<Zone>> {
 
     state = [
       for (final zone in state)
-        zone.copyWith(
-          x: zone.x + offset.dx,
-          y: zone.y + offset.dy,
-        ),
+        zone.copyWith(x: zone.x + offset.dx, y: zone.y + offset.dy),
     ];
   }
 }

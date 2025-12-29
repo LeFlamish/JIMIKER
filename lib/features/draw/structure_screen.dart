@@ -31,7 +31,7 @@ class StructureScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final zones = ref.watch(zoneProvider);
-
+    final selectedZone = ref.watch(selectedZoneProvider);
     final double layoutW = drawState.width.toDouble();
     final double layoutH = drawState.height.toDouble();
 
@@ -74,6 +74,7 @@ class StructureScreen extends ConsumerWidget {
                           ref: ref,
                           drawState: drawState,
                           zones: zones,
+                          selectedZone: selectedZone,
                           enableDrag: enableDrag,
                           gridSize: gridSize,
                           suspendPreviewZoneClamp:
@@ -95,6 +96,7 @@ class StructureScreen extends ConsumerWidget {
     required WidgetRef ref,
     required DrawProviderData drawState,
     required List<Zone> zones,
+    required String? selectedZone,
     required bool enableDrag,
     required double gridSize,
     required bool suspendPreviewZoneClamp,
@@ -138,9 +140,16 @@ class StructureScreen extends ConsumerWidget {
         height: zoneHeight,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: const Color(0x336B66FF),
+          color: zone.index == selectedZone
+              ? const Color(0xFF48CAE4).withOpacity(0.25)
+              : const Color(0x336B66FF),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: const Color(0xFF6B66FF)),
+          border: Border.all(
+            color: zone.index == selectedZone
+                ? const Color(0xFF6B66FF)
+                : const Color(0xFF6B66FF),
+            width: zone.index == selectedZone ? 2 : 1,
+          ),
         ),
         child: Text(
           zone.index,
@@ -154,9 +163,14 @@ class StructureScreen extends ConsumerWidget {
       return Positioned(
         left: position.dx,
         top: position.dy,
-        child: enableDrag
-            ? GestureDetector(
-                onPanUpdate: (details) {
+        child: GestureDetector(
+          onTap: () {
+            ref.read(selectedZoneProvider.notifier).state =
+                zone.index;
+            onZoneTap?.call();
+          },
+          onPanUpdate: enableDrag
+              ? (details) {
                   final updated = _clampZoneOffset(
                     Offset(
                       zone.x.toDouble() + details.delta.dx,
@@ -172,10 +186,10 @@ class StructureScreen extends ConsumerWidget {
                       .updateZone(
                         zone.copyWith(x: updated.dx, y: updated.dy),
                       );
-                },
-                child: content,
-              )
-            : IgnorePointer(child: content),
+                }
+              : null,
+          child: content,
+        ),
       );
     }).toList();
   }

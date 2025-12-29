@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:jimiker/features/draw/structure.dart';
 import 'package:jimiker/features/home/menu/find_storage/widgets/reservation_card.dart';
 import 'package:jimiker/features/search/search_screen.dart';
 
@@ -9,6 +8,7 @@ import '../../../../../data/models/storage.dart';
 import '../../../../../data/models/zone.dart';
 import '../../../../../services/auth_providers.dart';
 import '../../../../draw/draw_provider.dart';
+import '../../../../draw/structure_screen.dart';
 import '../../../../draw/zone_provider.dart';
 import '../services/find_storage_provider.dart';
 import '../services/location_service.dart';
@@ -181,6 +181,7 @@ class _CurrentLocationMapState
           .get();
       final zones = zonesSnapshot.docs.map(Zone.fromDoc).toList();
       ref.read(zoneProvider.notifier).setZones(zones);
+      ref.read(selectedZoneProvider.notifier).state = null;
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -209,7 +210,7 @@ class _CurrentLocationMapState
   }
 }
 
-class _StorageBottomSheet extends StatefulWidget {
+class _StorageBottomSheet extends ConsumerStatefulWidget {
   final String? imageUrl;
   final Storage storage;
 
@@ -219,11 +220,12 @@ class _StorageBottomSheet extends StatefulWidget {
   });
 
   @override
-  State<_StorageBottomSheet> createState() =>
+  ConsumerState<_StorageBottomSheet> createState() =>
       _StorageBottomSheetState();
 }
 
-class _StorageBottomSheetState extends State<_StorageBottomSheet> {
+class _StorageBottomSheetState
+    extends ConsumerState<_StorageBottomSheet> {
   static const double _minExtent = 0.2;
   static const double _initialExtent = 0.35;
   static const double _maxExtent = 0.75;
@@ -299,6 +301,7 @@ class _StorageBottomSheetState extends State<_StorageBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final storage = widget.storage;
+    final selectedZone = ref.watch(selectedZoneProvider);
     return AnimatedFractionallySizedBox(
       heightFactor: _currentExtent,
       duration: _isDragging
@@ -427,8 +430,20 @@ class _StorageBottomSheetState extends State<_StorageBottomSheet> {
                           height: storage.height,
                           isDraw: false,
                         ),
+                        onZoneTap: () {
+                          setState(() {});
+                        },
                       ),
-                      ReservationCard(),
+                      const SizedBox(height: 12),
+                      if (selectedZone == null)
+                        const Text(
+                          '예약할 구역을 선택해주세요.',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      else
+                        ReservationCard(storage: storage),
                     ],
                   ),
                 ),
