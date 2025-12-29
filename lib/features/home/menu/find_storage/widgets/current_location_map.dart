@@ -1,14 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:jimiker/features/search/search_screen.dart';
 
 import '../../../../../data/models/storage.dart';
-import '../../../../../data/models/zone.dart';
-import '../../../../../services/auth_providers.dart';
-import '../../register_storage/screens/draw_screen.dart';
 import '../services/find_storage_provider.dart';
 import '../services/location_service.dart';
 
@@ -167,13 +162,10 @@ class _CurrentLocationMapState
     required Storage storage,
   }) {
     ref.read(findStorageProvider.notifier).selectStorage(storageId);
-    _showStorageBottomSheet(storageId: storageId, storage: storage);
+    _showStorageBottomSheet(storage);
   }
 
-  void _showStorageBottomSheet({
-    required String storageId,
-    required Storage storage,
-  }) {
+  void _showStorageBottomSheet(Storage storage) {
     showModalBottomSheet<void>(
       context: context,
       enableDrag: false,
@@ -190,31 +182,27 @@ class _CurrentLocationMapState
         return _StorageBottomSheet(
           imageUrl: imageUrl,
           storage: storage,
-          storageId: storageId,
         );
       },
     );
   }
 }
 
-class _StorageBottomSheet extends ConsumerStatefulWidget {
+class _StorageBottomSheet extends StatefulWidget {
   final String? imageUrl;
   final Storage storage;
-  final String storageId;
 
   const _StorageBottomSheet({
     required this.imageUrl,
     required this.storage,
-    required this.storageId,
   });
 
   @override
-  ConsumerState<_StorageBottomSheet> createState() =>
+  State<_StorageBottomSheet> createState() =>
       _StorageBottomSheetState();
 }
 
-class _StorageBottomSheetState
-    extends ConsumerState<_StorageBottomSheet> {
+class _StorageBottomSheetState extends State<_StorageBottomSheet> {
   static const double _minExtent = 0.2;
   static const double _initialExtent = 0.35;
   static const double _maxExtent = 0.75;
@@ -226,24 +214,6 @@ class _StorageBottomSheetState
 
   double _currentExtent = _initialExtent;
   bool _isDragging = false;
-  late Future<List<Zone>> _zonesFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _zonesFuture = _loadZones();
-  }
-
-  Future<List<Zone>> _loadZones() async {
-    final firestore = ref.read(firestoreProvider);
-    final snapshot = await firestore
-        .collection('storages')
-        .doc(widget.storageId)
-        .collection('zones')
-        .get();
-
-    return snapshot.docs.map(Zone.fromDoc).toList();
-  }
 
   void _onDragStart(DragStartDetails details) {
     setState(() {
@@ -429,10 +399,6 @@ class _StorageBottomSheetState
                         ],
                       ),
                       const SizedBox(height: 12),
-                      _StorageLayoutPreview(
-                        storage: storage,
-                        zonesFuture: _zonesFuture,
-                      ),
                     ],
                   ),
                 ),
@@ -482,227 +448,6 @@ class _StorageInfoChip extends StatelessWidget {
         vertical: 6,
       ),
       backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
-    );
-  }
-}
-
-class _StorageLayoutPreview extends StatelessWidget {
-  const _StorageLayoutPreview({
-    required this.storage,
-    required this.zonesFuture,
-  });
-
-  final Storage storage;
-  final Future<List<Zone>> zonesFuture;
-
-  static const double _gridSize = 30.0;
-  static const double _maxPreviewHeight = 320.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final layoutLines = storage.layout['lines'];
-    final layoutDoors = storage.layout['doors'];
-    final lines = layoutLines is List<Line> ? layoutLines : <Line>[];
-    final doors = layoutDoors is Set<Offset>
-        ? layoutDoors
-        : <Offset>{};
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('구조도', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        FutureBuilder<List<Zone>>(
-          future: zonesFuture,
-          builder: (context, snapshot) {
-            final zones = snapshot.data ?? const <Zone>[];
-            final hasLayout = lines.isNotEmpty || doors.isNotEmpty;
-            final hasZones = zones.isNotEmpty;
-            final shouldShowPreview = hasLayout || hasZones;
-
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _SkeletonBox(
-                height: 200,
-                borderRadius: BorderRadius.circular(12),
-              );
-            }
-
-            if (snapshot.hasError) {
-              return _InfoBox(
-                message: '구조도를 불러오지 못했어요.',
-                icon: Icons.error_outline,
-              );
-            }
-
-            if (!shouldShowPreview) {
-              return _InfoBox(message: '등록된 구조도가 없습니다.');
-            }
-
-            return ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxHeight: _maxPreviewHeight,
-              ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final baseSize = Size(
-                    storage.width > 0 ? storage.width : 240,
-                    storage.height > 0 ? storage.height : 240,
-                  );
-
-                  final scaleX =
-                      constraints.maxWidth / baseSize.width;
-                  final scaleY = _maxPreviewHeight / baseSize.height;
-                  final scaleCandidates = <double>[
-                    if (scaleX.isFinite && scaleX > 0) scaleX,
-                    if (scaleY.isFinite && scaleY > 0) scaleY,
-                  ];
-
-                  final scale = scaleCandidates.isNotEmpty
-                      ? scaleCandidates.reduce(math.min)
-                      : 1.0;
-
-                  final displayHeight = (baseSize.height * scale)
-                      .clamp(0.0, _maxPreviewHeight);
-
-                  return Container(
-                    width: double.infinity,
-                    height: displayHeight,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blueGrey[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Center(
-                      child: SizedBox(
-                        width: baseSize.width,
-                        height: baseSize.height,
-                        child: Transform.scale(
-                          scale: scale,
-                          alignment: Alignment.topLeft,
-                          child: Stack(
-                            children: [
-                              CustomPaint(
-                                size: baseSize,
-                                painter: GridPainter(
-                                  gridSize: _gridSize,
-                                  width: baseSize.width,
-                                  height: baseSize.height,
-                                  lines: lines,
-                                  doors: doors,
-                                  transparent: true,
-                                ),
-                              ),
-                              ...zones.map(
-                                (zone) => Positioned(
-                                  left: zone.x,
-                                  top: zone.y,
-                                  child: _ZonePreviewChip(zone: zone),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _InfoBox extends StatelessWidget {
-  const _InfoBox({
-    required this.message,
-    this.icon = Icons.info_outline,
-  });
-
-  final String message;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.grey[600]),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SkeletonBox extends StatelessWidget {
-  const _SkeletonBox({
-    required this.height,
-    required this.borderRadius,
-  });
-
-  final double height;
-  final BorderRadius borderRadius;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: borderRadius,
-      ),
-    );
-  }
-}
-
-class _ZonePreviewChip extends StatelessWidget {
-  const _ZonePreviewChip({required this.zone});
-
-  final Zone zone;
-
-  static const double _gridSize = 30.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final zoneWidth = zone.width * _gridSize;
-    final zoneHeight = zone.height * _gridSize;
-
-    return Container(
-      width: zoneWidth,
-      height: zoneHeight,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: const Color(0x336B66FF),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF6B66FF)),
-      ),
-      child: Text(
-        zone.index,
-        style: const TextStyle(
-          color: Color(0xFF6B66FF),
-          fontWeight: FontWeight.bold,
-        ),
-      ),
     );
   }
 }
