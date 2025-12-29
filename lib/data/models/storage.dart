@@ -92,6 +92,8 @@ class Storage {
       'createdAt': createdAt,
       'images': images,
       'ownerId': ownerId,
+      'width': width,
+      'height': height,
       'layout': {
         'lines': (layout['lines'] as List<Line>)
             .map((line) => line.toMap())
