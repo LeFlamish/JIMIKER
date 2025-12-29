@@ -8,8 +8,8 @@ class Usage {
   final String ownerId;
 
   // 대상
-  final int storageId;
-  final int containerIndex;
+  final String storageId;
+  final String zoneIndex;
 
   // 기간(계약/합의된 사용 기간)
   final DateTime startAt;
@@ -23,7 +23,7 @@ class Usage {
     required this.userId,
     required this.ownerId,
     required this.storageId,
-    required this.containerIndex,
+    required this.zoneIndex,
     required this.startAt,
     required this.endAt,
     required this.createdAt,
@@ -36,7 +36,7 @@ class Usage {
       userId: data['userId'],
       ownerId: data['ownerId'],
       storageId: data['storageId'],
-      containerIndex: data['containerIndex'],
+      zoneIndex: data['containerIndex'],
       startAt: (data['startAt'] as Timestamp).toDate(),
       endAt: (data['endAt'] as Timestamp).toDate(),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
@@ -48,7 +48,7 @@ class Usage {
       'userId': userId,
       'ownerId': ownerId,
       'storageId': storageId,
-      'containerIndex': containerIndex,
+      'containerIndex': zoneIndex,
       'startAt': startAt,
       'endAt': endAt,
       'createdAt': createdAt,

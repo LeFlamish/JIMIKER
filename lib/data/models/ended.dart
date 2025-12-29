@@ -8,8 +8,8 @@ class Ended {
   final String ownerId;
 
   // 대상
-  final int storageId;
-  final int containerIndex;
+  final String storageId;
+  final String containerIndex;
 
   // 기간(계약/합의된 사용 기간)
   final DateTime startAt;

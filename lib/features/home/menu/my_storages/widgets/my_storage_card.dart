@@ -6,7 +6,8 @@ class MyStorageCard extends StatelessWidget {
   final Storage storage;
   final List<Reservation> reservations;
   final VoidCallback onEdit;
-  final void Function(Reservation reservation, Status status) onReservationAction;
+  final void Function(Reservation reservation, Status status)
+  onReservationAction;
 
   const MyStorageCard({
     super.key,
@@ -22,7 +23,9 @@ class MyStorageCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -56,14 +59,19 @@ class MyStorageCard extends StatelessWidget {
                         spacing: 8,
                         runSpacing: 6,
                         children: [
-                          _InfoChip(label: '보관함', value: '${storage.count}개'),
+                          _InfoChip(
+                            label: '보관함',
+                            value: '${storage.count}개',
+                          ),
                           _InfoChip(
                             label: '가로',
-                            value: '${storage.width.toStringAsFixed(1)}m',
+                            value:
+                                '${storage.width.toStringAsFixed(1)}m',
                           ),
                           _InfoChip(
                             label: '세로',
-                            value: '${storage.height.toStringAsFixed(1)}m',
+                            value:
+                                '${storage.height.toStringAsFixed(1)}m',
                           ),
                         ],
                       ),
@@ -103,10 +111,10 @@ class MyStorageCard extends StatelessWidget {
                 children: reservations
                     .map(
                       (reservation) => _ReservationTile(
-                    reservation: reservation,
-                    onAction: onReservationAction,
-                  ),
-                )
+                        reservation: reservation,
+                        onAction: onReservationAction,
+                      ),
+                    )
                     .toList(),
               ),
           ],
@@ -125,17 +133,19 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         '$label $value',
-        style: Theme.of(context)
-            .textTheme
-            .bodySmall
-            ?.copyWith(fontWeight: FontWeight.w600),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -152,7 +162,10 @@ class _StatusBadge extends StatelessWidget {
     final label = isApproved ? '승인 완료' : '승인 대기';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
@@ -170,7 +183,8 @@ class _StatusBadge extends StatelessWidget {
 
 class _ReservationTile extends StatelessWidget {
   final Reservation reservation;
-  final void Function(Reservation reservation, Status status) onAction;
+  final void Function(Reservation reservation, Status status)
+  onAction;
 
   const _ReservationTile({
     required this.reservation,
@@ -201,15 +215,17 @@ class _ReservationTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '보관함 ${reservation.zoneIndex + 1}',
+                    '보관함 ${reservation.zoneIndex}',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
                 Container(
-                  padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
@@ -219,8 +235,8 @@ class _ReservationTile extends StatelessWidget {
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: statusColor,
                       fontWeight: FontWeight.w700,
-                    )
-                  )
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -257,7 +273,7 @@ class _ReservationTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('보관함 ${reservation.zoneIndex + 1}'),
+            Text('보관함 ${reservation.zoneIndex}'),
             const SizedBox(height: 8),
             Text(
               '${_formatDate(reservation.startAt)} ~ ${_formatDate(reservation.endAt)}',

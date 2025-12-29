@@ -13,7 +13,7 @@ class Reservation {
   final String userId;
   final String ownerId;
   final String storageId;
-  final int zoneIndex;
+  final String zoneIndex;
   final DateTime createdAt;
   final DateTime startAt;
   final DateTime endAt;
@@ -33,14 +33,15 @@ class Reservation {
 
   factory Reservation.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    final statusName = data['status']?.toString() ?? Status.waiting.name;
+    final statusName =
+        data['status']?.toString() ?? Status.waiting.name;
 
     return Reservation(
       id: doc.id,
       userId: data['userId'],
       ownerId: data['ownerId'],
       storageId: data['storageId']?.toString() ?? '',
-      zoneIndex: (data['containerIndex'] as num?)?.toInt() ?? 0,
+      zoneIndex: data['zoneIndex']?.toString() ?? '',
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       startAt: (data['startAt'] as Timestamp).toDate(),
       endAt: (data['endAt'] as Timestamp).toDate(),
@@ -69,7 +70,7 @@ class Reservation {
     String? userId,
     String? ownerId,
     String? storageId,
-    int? zoneIndex,
+    String? zoneIndex,
     DateTime? createdAt,
     DateTime? startAt,
     DateTime? endAt,
