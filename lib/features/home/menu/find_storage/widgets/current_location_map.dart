@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:jimiker/features/draw/structure.dart';
+import 'package:jimiker/features/home/menu/find_storage/widgets/reservation_card.dart';
 import 'package:jimiker/features/search/search_screen.dart';
 
 import '../../../../../data/models/storage.dart';
+import '../../../../../data/models/zone.dart';
+import '../../../../../services/auth_providers.dart';
+import '../../../../draw/draw_provider.dart';
+import '../../../../draw/zone_provider.dart';
 import '../services/find_storage_provider.dart';
 import '../services/location_service.dart';
 
@@ -165,7 +171,22 @@ class _CurrentLocationMapState
     _showStorageBottomSheet(storage);
   }
 
-  void _showStorageBottomSheet(Storage storage) {
+  void _showStorageBottomSheet(Storage storage) async {
+    try {
+      final firestore = ref.read(firestoreProvider);
+      final zonesSnapshot = await firestore
+          .collection('storages')
+          .doc(storage.id)
+          .collection('zones')
+          .get();
+      final zones = zonesSnapshot.docs.map(Zone.fromDoc).toList();
+      ref.read(zoneProvider.notifier).setZones(zones);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('구역 정보를 불러오지 못했어요: $error')),
+      );
+    }
     showModalBottomSheet<void>(
       context: context,
       enableDrag: false,
@@ -278,7 +299,6 @@ class _StorageBottomSheetState extends State<_StorageBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final storage = widget.storage;
-
     return AnimatedFractionallySizedBox(
       heightFactor: _currentExtent,
       duration: _isDragging
@@ -399,6 +419,16 @@ class _StorageBottomSheetState extends State<_StorageBottomSheet> {
                         ],
                       ),
                       const SizedBox(height: 12),
+                      StructureScreen(
+                        drawState: DrawProviderData(
+                          lines: storage.layout['lines'],
+                          doors: storage.layout['doors'],
+                          width: storage.width,
+                          height: storage.height,
+                          isDraw: false,
+                        ),
+                      ),
+                      ReservationCard(),
                     ],
                   ),
                 ),

@@ -10,7 +10,7 @@ import 'package:jimiker/data/models/location.dart';
 import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/zone.dart';
-import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
+import 'package:jimiker/features/draw/draw_provider.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
 class MyStoragesState {
@@ -37,7 +37,8 @@ class MyStoragesState {
   }) {
     return MyStoragesState(
       storages: storages ?? this.storages,
-      reservationsByStorage: reservationsByStorage ?? this.reservationsByStorage,
+      reservationsByStorage:
+          reservationsByStorage ?? this.reservationsByStorage,
       isLoading: isLoading ?? this.isLoading,
       isUpdating: isUpdating ?? this.isUpdating,
       errorMessage: errorMessage,
@@ -46,9 +47,9 @@ class MyStoragesState {
 }
 
 final myStoragesProvider =
-NotifierProvider<MyStoragesNotifier, MyStoragesState>(
-  MyStoragesNotifier.new,
-);
+    NotifierProvider<MyStoragesNotifier, MyStoragesState>(
+      MyStoragesNotifier.new,
+    );
 
 class MyStoragesNotifier extends Notifier<MyStoragesState> {
   @override
@@ -138,7 +139,9 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
         throw Exception('로그인이 필요합니다.');
       }
 
-      final storageRef = firestore.collection('storages').doc(storageId);
+      final storageRef = firestore
+          .collection('storages')
+          .doc(storageId);
       final zonesRef = storageRef.collection('zones');
       final locationsRef = firestore.collection('locations');
 
@@ -153,7 +156,8 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
 
           final timestamp = DateTime.now().microsecondsSinceEpoch;
           final path =
-              'storages/$storageId/' '${timestamp}_${index}_${image.name}';
+              'storages/$storageId/'
+              '${timestamp}_${index}_${image.name}';
           final reference = storageService.ref(path);
 
           final metadata = SettableMetadata(
@@ -172,10 +176,12 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
       final updatedLng = latLng?.longitude ?? currentStorage.lng;
 
       final shouldUpdateLocation =
-          updatedAddress.isNotEmpty && updatedAddress != currentStorage.address;
+          updatedAddress.isNotEmpty &&
+          updatedAddress != currentStorage.address;
 
-      DocumentReference updatedLocationRef =
-      locationsRef.doc(currentStorage.locationId);
+      DocumentReference updatedLocationRef = locationsRef.doc(
+        currentStorage.locationId,
+      );
       DocumentSnapshot? existingLocationSnapshot;
 
       if (shouldUpdateLocation) {
@@ -198,12 +204,9 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
 
       if (shouldUpdateLocation &&
           updatedLocationRef.id != currentStorage.locationId) {
-        batch.update(
-          locationsRef.doc(currentStorage.locationId),
-          {
-            'storages': FieldValue.arrayRemove([storageId]),
-          },
-        );
+        batch.update(locationsRef.doc(currentStorage.locationId), {
+          'storages': FieldValue.arrayRemove([storageId]),
+        });
 
         if (existingLocationSnapshot != null) {
           batch.update(updatedLocationRef, {
@@ -231,9 +234,12 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
         'width': drawState.width,
         'height': drawState.height,
         'layout': {
-          'lines': drawState.lines.map((line) => line.toMap()).toList(),
-          'doors':
-          drawState.doors.map((door) => {'x': door.dx, 'y': door.dy}).toList(),
+          'lines': drawState.lines
+              .map((line) => line.toMap())
+              .toList(),
+          'doors': drawState.doors
+              .map((door) => {'x': door.dx, 'y': door.dy})
+              .toList(),
         },
         'images': updatedImages,
       });
@@ -257,17 +263,19 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
         lng: updatedLng,
         width: drawState.width,
         height: drawState.height,
-        layout: {
-          'lines': drawState.lines,
-          'doors': drawState.doors,
-        },
+        layout: {'lines': drawState.lines, 'doors': drawState.doors},
         images: updatedImages,
       );
 
       if (updatedStorage != null) {
-        final updatedStorages = Map<String, Storage>.from(state.storages);
+        final updatedStorages = Map<String, Storage>.from(
+          state.storages,
+        );
         updatedStorages[storageId] = updatedStorage;
-        state = state.copyWith(storages: updatedStorages, isUpdating: false);
+        state = state.copyWith(
+          storages: updatedStorages,
+          isUpdating: false,
+        );
       } else {
         state = state.copyWith(isUpdating: false);
       }
@@ -288,22 +296,26 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
 
     try {
       final firestore = ref.read(firestoreProvider);
-      await firestore.collection('reservations').doc(reservation.id).update({
-        'status': status.name,
-      });
+      await firestore
+          .collection('reservations')
+          .doc(reservation.id)
+          .update({'status': status.name});
 
       final updatedReservation = reservation.copyWith(status: status);
       final reservations = List<Reservation>.from(
-        state.reservationsByStorage[reservation.storageId] ?? const [],
+        state.reservationsByStorage[reservation.storageId] ??
+            const [],
       );
-      final index =
-      reservations.indexWhere((item) => item.id == reservation.id);
+      final index = reservations.indexWhere(
+        (item) => item.id == reservation.id,
+      );
       if (index != -1) {
         reservations[index] = updatedReservation;
       }
 
-      final updatedMap =
-      Map<String, List<Reservation>>.from(state.reservationsByStorage);
+      final updatedMap = Map<String, List<Reservation>>.from(
+        state.reservationsByStorage,
+      );
       updatedMap[reservation.storageId] = reservations;
       state = state.copyWith(
         reservationsByStorage: updatedMap,

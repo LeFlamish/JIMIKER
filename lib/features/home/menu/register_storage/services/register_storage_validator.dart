@@ -1,5 +1,5 @@
 import 'package:jimiker/data/models/zone.dart';
-import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
+import 'package:jimiker/features/draw/draw_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/register_provider.dart';
 
 class RegisterStorageValidationResult {
@@ -22,7 +22,8 @@ class RegisterStorageValidator {
     final errors = <String>[];
 
     final totalImages =
-        registerData.images.length + registerData.existingImageUrls.length;
+        registerData.images.length +
+        registerData.existingImageUrls.length;
     if (totalImages == 0) {
       errors.add('사진을 최소 1장 등록해주세요.');
     }
@@ -44,10 +45,8 @@ class RegisterStorageValidator {
     }
 
     final invalidZone = zones.firstWhere(
-          (zone) =>
-      zone.width <= 0 ||
-          zone.height <= 0 ||
-          zone.price <= 0,
+      (zone) =>
+          zone.width <= 0 || zone.height <= 0 || zone.price <= 0,
       orElse: () => Zone(
         index: '',
         x: 0,

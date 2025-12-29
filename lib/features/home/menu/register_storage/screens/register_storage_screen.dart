@@ -11,21 +11,18 @@ import 'package:jimiker/data/models/zone_form_data.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 import 'package:jimiker/features/home/menu/my_storages/services/my_storages_provider.dart';
 import 'package:jimiker/features/home/menu/my_storages/services/storage_edit_config.dart';
-import 'package:jimiker/features/home/menu/register_storage/screens/draw_screen.dart';
-import 'package:jimiker/features/home/menu/register_storage/services/draw/draw_provider.dart';
+import 'package:jimiker/features/draw/draw_screen.dart';
+import 'package:jimiker/features/draw/draw_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/register_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/register_storage_validator.dart';
-import 'package:jimiker/features/home/menu/register_storage/services/zone_provider.dart';
+import 'package:jimiker/features/draw/zone_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/widgets/photo.dart';
 import 'package:jimiker/features/home/menu/register_storage/widgets/zone_form_dialog.dart';
 
 import '../../../../../services/auth_providers.dart';
 
 class RegisterStorageScreen extends ConsumerStatefulWidget {
-  const RegisterStorageScreen({
-    super.key,
-    this.editConfig,
-  });
+  const RegisterStorageScreen({super.key, this.editConfig});
 
   final StorageEditConfig? editConfig;
 
@@ -119,10 +116,11 @@ class _RegisterStorageScreenState
                                     .read(registerProvider.notifier)
                                     .pickImage();
                               },
-                              pickedCount: ref
-                                  .watch(registerProvider)
-                                  .images
-                                  .length +
+                              pickedCount:
+                                  ref
+                                      .watch(registerProvider)
+                                      .images
+                                      .length +
                                   ref
                                       .watch(registerProvider)
                                       .existingImageUrls
@@ -533,12 +531,14 @@ class _RegisterStorageScreenState
 
   void _hydrateEditData(StorageEditConfig editConfig) {
     final storage = editConfig.storage;
-    ref.read(registerProvider.notifier).setInitialData(
-      address: storage.address,
-      detailAddress: storage.detailAddress,
-      latLng: LatLng(storage.lat, storage.lng),
-      existingImageUrls: storage.images,
-    );
+    ref
+        .read(registerProvider.notifier)
+        .setInitialData(
+          address: storage.address,
+          detailAddress: storage.detailAddress,
+          latLng: LatLng(storage.lat, storage.lng),
+          existingImageUrls: storage.images,
+        );
 
     _addressController.text = storage.address;
     _detailAddressController.text = storage.detailAddress;
@@ -546,14 +546,18 @@ class _RegisterStorageScreenState
     final layoutLines = storage.layout['lines'];
     final layoutDoors = storage.layout['doors'];
     final lines = layoutLines is List<Line> ? layoutLines : <Line>[];
-    final doors = layoutDoors is Set<Offset> ? layoutDoors : <Offset>{};
+    final doors = layoutDoors is Set<Offset>
+        ? layoutDoors
+        : <Offset>{};
 
-    ref.read(drawProvider.notifier).setDrawing(
-      lines: lines,
-      doors: doors,
-      width: storage.width,
-      height: storage.height,
-    );
+    ref
+        .read(drawProvider.notifier)
+        .setDrawing(
+          lines: lines,
+          doors: doors,
+          width: storage.width,
+          height: storage.height,
+        );
 
     _loadEditZones(editConfig.storageId);
   }
@@ -588,11 +592,13 @@ class _RegisterStorageScreenState
     required List<Zone> zones,
   }) async {
     try {
-      await ref.read(registerProvider.notifier).registerStorage(
-        drawState: drawState,
-        zones: zones,
-        detailAddress: detailAddress,
-      );
+      await ref
+          .read(registerProvider.notifier)
+          .registerStorage(
+            drawState: drawState,
+            zones: zones,
+            detailAddress: detailAddress,
+          );
 
       if (!mounted) return;
 
@@ -606,9 +612,7 @@ class _RegisterStorageScreenState
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("등록 요청이 완료되었습니다."),
-        ),
+        const SnackBar(content: Text("등록 요청이 완료되었습니다.")),
       );
 
       ref.read(registerProvider.notifier).reset();
@@ -623,9 +627,7 @@ class _RegisterStorageScreenState
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("등록 중 오류가 발생했습니다: $error"),
-        ),
+        SnackBar(content: Text("등록 중 오류가 발생했습니다: $error")),
       );
     }
   }
@@ -640,17 +642,20 @@ class _RegisterStorageScreenState
 
     try {
       final registerState = ref.read(registerProvider);
-      await ref.read(myStoragesProvider.notifier).updateStorage(
-        storageId: editConfig.storageId,
-        currentStorage: editConfig.storage,
-        address: registerState.address ?? editConfig.storage.address,
-        detailAddress: detailAddress,
-        latLng: registerState.latLng,
-        drawState: drawState,
-        zones: zones,
-        existingImageUrls: registerState.existingImageUrls,
-        newImages: registerState.images,
-      );
+      await ref
+          .read(myStoragesProvider.notifier)
+          .updateStorage(
+            storageId: editConfig.storageId,
+            currentStorage: editConfig.storage,
+            address:
+                registerState.address ?? editConfig.storage.address,
+            detailAddress: detailAddress,
+            latLng: registerState.latLng,
+            drawState: drawState,
+            zones: zones,
+            existingImageUrls: registerState.existingImageUrls,
+            newImages: registerState.images,
+          );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

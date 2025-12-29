@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Storage {
+  final String? id;
   final String locationId;
   final double lat;
   final double lng;
@@ -17,6 +18,7 @@ class Storage {
   final bool approved;
 
   Storage({
+    this.id,
     required this.locationId,
     required this.lat,
     required this.lng,
@@ -65,6 +67,7 @@ class Storage {
         {};
 
     return Storage(
+      id: doc.id,
       locationId: data['locationId'],
       lat: lat,
       lng: lng,
@@ -121,6 +124,7 @@ class Storage {
     Map<String, dynamic>? layout,
   }) {
     return Storage(
+      id: id,
       locationId: locationId ?? this.locationId,
       lat: lat ?? this.lat,
       lng: lng ?? this.lng,

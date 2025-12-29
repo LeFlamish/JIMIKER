@@ -12,7 +12,7 @@ import '../../../../../data/models/storage.dart';
 import '../../../../../data/models/zone.dart';
 import '../../../../../services/auth_providers.dart';
 import '../../../../search/search_screen.dart';
-import 'draw/draw_provider.dart';
+import '../../../../draw/draw_provider.dart';
 
 class RegisterData {
   final String? address;
