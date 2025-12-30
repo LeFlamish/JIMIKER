@@ -1,350 +1,312 @@
 import 'package:flutter/material.dart';
-import 'package:jimiker/data/models/reservation.dart';
-import 'package:jimiker/data/models/storage.dart';
 
-class MyStorageCard extends StatelessWidget {
+import '../../../../../data/models/reservation.dart';
+import '../../../../../data/models/storage.dart';
+
+class StorageWithReservationsCard extends StatelessWidget {
   final Storage storage;
   final List<Reservation> reservations;
-  final VoidCallback onEdit;
-  final void Function(Reservation reservation, Status status)
-  onReservationAction;
+  final VoidCallback onEdit; // 수정 버튼 콜백
+  final Function(Reservation) onReservationTap; // 예약 카드 탭 콜백
 
-  const MyStorageCard({
+  const StorageWithReservationsCard({
     super.key,
     required this.storage,
     required this.reservations,
     required this.onEdit,
-    required this.onReservationAction,
+    required this.onReservationTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // 거절된 예약은 제외
+    final visibleReservations = reservations
+        .where((r) => r.status != Status.rejected)
+        .toList();
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // [상단] 창고 정보
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 90,
+                    height: 90,
+                    color: const Color(0xFFF0F0F0),
+                    child: storage.images.isNotEmpty
+                        ? Image.network(
+                            storage.images.first,
+                            fit: BoxFit.cover,
+                          )
+                        : const Icon(
+                            Icons.inventory_2_outlined,
+                            color: Color(0xFFC0C0C0),
+                            size: 40,
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // 승인 상태 & 편집 버튼 Row
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildBadge(
+                            text: storage.approved
+                                ? "승인 완료"
+                                : "승인 대기",
+                            isApproved: storage.approved,
+                          ),
+                          // 편집 버튼 추가
+                          GestureDetector(
+                            onTap: onEdit,
+                            child: const Text(
+                              "편집",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF6B7AF5),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
                       Text(
                         storage.address,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Text(
-                        storage.detailAddress.isEmpty
-                            ? '상세 주소 없음'
-                            : storage.detailAddress,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.grey.shade700,
+                        storage.detailAddress,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF888888),
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
+                      const SizedBox(height: 8),
+                      Row(
                         children: [
-                          _InfoChip(
-                            label: '보관함',
-                            value: '${storage.count}개',
+                          const Icon(
+                            Icons.archive_outlined,
+                            size: 16,
+                            color: Color(0xFF6B7AF5),
                           ),
-                          _InfoChip(
-                            label: '가로',
-                            value:
-                                '${storage.width.toStringAsFixed(1)}m',
-                          ),
-                          _InfoChip(
-                            label: '세로',
-                            value:
-                                '${storage.height.toStringAsFixed(1)}m',
+                          const SizedBox(width: 4),
+                          Text(
+                            "보관함 ${storage.count}개",
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF6B7AF5),
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Column(
-                  children: [
-                    _StatusBadge(isApproved: storage.approved),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: onEdit,
-                      child: const Text('편집'),
-                    ),
-                  ],
-                ),
               ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              '예약 요청',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (reservations.isEmpty)
-              Text(
-                '아직 들어온 예약이 없어요.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade600,
-                ),
-              )
-            else
-              Column(
-                children: reservations
-                    .map(
-                      (reservation) => _ReservationTile(
-                        reservation: reservation,
-                        onAction: onReservationAction,
-                      ),
-                    )
-                    .toList(),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _InfoChip({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        '$label $value',
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final bool isApproved;
-
-  const _StatusBadge({required this.isApproved});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isApproved ? Colors.green : Colors.orange;
-    final label = isApproved ? '승인 완료' : '승인 대기';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _ReservationTile extends StatelessWidget {
-  final Reservation reservation;
-  final void Function(Reservation reservation, Status status)
-  onAction;
-
-  const _ReservationTile({
-    required this.reservation,
-    required this.onAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final statusLabel = _statusLabel(reservation.status);
-    final statusColor = _statusColor(reservation.status);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () => _showReservationDialog(context),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: Colors.grey.shade200),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '보관함 ${reservation.zoneIndex}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    statusLabel,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '${_formatDate(reservation.startAt)} ~ ${_formatDate(reservation.endAt)}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade700,
-              ),
-            ),
-            Text(
-              reservation.status == Status.waiting
-                  ? '탭해서 승인 또는 거절할 수 있어요.'
-                  : '탭해서 예약 정보를 확인할 수 있어요.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showReservationDialog(BuildContext context) async {
-    final statusLabel = _statusLabel(reservation.status);
-    final statusColor = _statusColor(reservation.status);
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('예약 요청 상세'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('보관함 ${reservation.zoneIndex}'),
-            const SizedBox(height: 8),
-            Text(
-              '${_formatDate(reservation.startAt)} ~ ${_formatDate(reservation.endAt)}',
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Text('상태: '),
-                Text(
-                  statusLabel,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('닫기'),
           ),
-          if (reservation.status == Status.waiting) ...[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                onAction(reservation, Status.rejected);
-              },
-              child: const Text('거절'),
+
+          // 구분선
+          const Divider(height: 1, color: Color(0xFFEEEEEE)),
+
+          // [하단] 예약 목록 영역
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFAFAFA),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                onAction(reservation, Status.approved);
-              },
-              child: const Text('승인'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "예약 요청",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                if (visibleReservations.isEmpty)
+                  _buildEmptyState()
+                else
+                  ...visibleReservations.map(
+                    (r) => _buildInnerReservationCard(r),
+                  ),
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  String _formatDate(DateTime date) {
-    final year = date.year.toString();
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '$year.$month.$day';
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20.0),
+        child: Column(
+          children: const [
+            Icon(
+              Icons.inbox_outlined,
+              size: 32,
+              color: Color(0xFFCCCCCC),
+            ),
+            SizedBox(height: 8),
+            Text(
+              "들어온 예약 요청이 없어요",
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF999999),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  String _statusLabel(Status status) {
-    switch (status) {
-      case Status.waiting:
-        return '대기중';
-      case Status.approved:
-        return '승인됨';
-      case Status.rejected:
-        return '거절됨';
-    }
+  Widget _buildInnerReservationCard(Reservation reservation) {
+    String formatDate(DateTime d) =>
+        "${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}";
+
+    return GestureDetector(
+      onTap: () => onReservationTap(reservation), // 탭 이벤트 전달
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFEEEEEE)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  reservation.zoneIndex.isNotEmpty
+                      ? "보관함 ${reservation.zoneIndex}"
+                      : "보관함",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                _buildStatusText(reservation.status),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              "${formatDate(reservation.startAt)} ~ ${formatDate(reservation.endAt)}",
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF666666),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              "탭해서 승인 또는 거절할 수 있어요.",
+              style: TextStyle(
+                fontSize: 11,
+                color: Color(0xFF999999),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  Color _statusColor(Status status) {
+  Widget _buildBadge({
+    required String text,
+    required bool isApproved,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isApproved
+            ? const Color(0xFFE8F5E9)
+            : const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: isApproved
+              ? const Color(0xFF2E7D32)
+              : const Color(0xFFFF9800),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusText(Status status) {
     switch (status) {
       case Status.waiting:
-        return Colors.orange;
+        return const Text(
+          "대기중",
+          style: TextStyle(
+            fontSize: 12,
+            color: Color(0xFFFF9800),
+            fontWeight: FontWeight.bold,
+          ),
+        );
       case Status.approved:
-        return Colors.green;
-      case Status.rejected:
-        return Colors.redAccent;
+        return const Text(
+          "승인됨",
+          style: TextStyle(
+            fontSize: 12,
+            color: Color(0xFF2E7D32),
+            fontWeight: FontWeight.bold,
+          ),
+        );
+      default:
+        return const SizedBox();
     }
   }
 }
