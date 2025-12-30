@@ -139,11 +139,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       batch.set(chatRoomRef, {
         'roomName': roomName,
         'participantUids': [user.uid, ownerId],
-        'ownerId': ownerId,
-        'userId': user.uid,
-        'storageId': storageId,
-        'reservationId': reservationRef.id,
-        'lastMessage': '',
+        'lastMessage': null,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
