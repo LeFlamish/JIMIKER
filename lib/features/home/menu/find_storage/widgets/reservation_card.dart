@@ -98,10 +98,22 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
         throw Exception('storage.id가 비어있습니다.');
       }
 
+      final ownerId = widget.storage.ownerId;
+      if (ownerId.isEmpty) {
+        throw Exception('storage.ownerId가 비어있습니다.');
+      }
+
+      final reservationRef = firestore
+          .collection('reservations')
+          .doc();
+      final chatRoomRef = firestore
+          .collection('chat_rooms')
+          .doc('reservation_${reservationRef.id}');
+
       final reservation = Reservation(
-        id: '',
+        id: reservationRef.id,
         userId: user.uid,
-        ownerId: widget.storage.ownerId,
+        ownerId: ownerId,
         storageId: storageId,
         zoneIndex: zone.index,
         createdAt: DateTime.now(),
@@ -110,12 +122,33 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
         status: Status.waiting,
       );
 
-      await firestore.collection('reservations').add({
+      final addressLabel =
+          widget.storage.address.substring(5) +
+          "-" +
+          widget.storage.detailAddress;
+      final roomName = '예약 문의 - $addressLabel (${zone.index})';
+
+      final batch = firestore.batch();
+      batch.set(reservationRef, {
         ...reservation.toMap(),
-        'createdAt': Timestamp.now(),
+        'createdAt': FieldValue.serverTimestamp(),
         'startAt': Timestamp.fromDate(startAt),
         'endAt': Timestamp.fromDate(endAt),
       });
+
+      batch.set(chatRoomRef, {
+        'roomName': roomName,
+        'participantUids': [user.uid, ownerId],
+        'ownerId': ownerId,
+        'userId': user.uid,
+        'storageId': storageId,
+        'reservationId': reservationRef.id,
+        'lastMessage': '',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
 
       if (!mounted) return;
       ScaffoldMessenger.of(
