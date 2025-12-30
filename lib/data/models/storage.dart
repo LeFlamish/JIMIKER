@@ -48,7 +48,8 @@ class Storage {
     final height = (data['height'] as num?)?.toDouble() ?? 0;
     final count = (data['count'] as num?)?.toInt() ?? 0;
     final createdAt =
-        (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+        (data['createdAt'] as Timestamp?)?.toDate().toLocal() ??
+        DateTime.now().toLocal();
 
     final lines =
         (layoutMap['lines'] as List<dynamic>?)
@@ -92,7 +93,7 @@ class Storage {
       'address': address,
       'detailAddress': detailAddress,
       'count': count,
-      'createdAt': createdAt,
+      'createdAt': Timestamp.fromDate(createdAt.toUtc()),
       'images': images,
       'ownerId': ownerId,
       'width': width,

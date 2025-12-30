@@ -42,9 +42,9 @@ class Reservation {
       ownerId: data['ownerId'],
       storageId: data['storageId']?.toString() ?? '',
       zoneIndex: data['zoneIndex']?.toString() ?? '',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      startAt: (data['startAt'] as Timestamp).toDate(),
-      endAt: (data['endAt'] as Timestamp).toDate(),
+      createdAt: (data['createdAt'] as Timestamp).toDate().toLocal(),
+      startAt: (data['startAt'] as Timestamp).toDate().toLocal(),
+      endAt: (data['endAt'] as Timestamp).toDate().toLocal(),
       status: Status.values.firstWhere(
         (status) => status.name == statusName,
         orElse: () => Status.waiting,
@@ -58,9 +58,9 @@ class Reservation {
       'ownerId': ownerId,
       'storageId': storageId,
       'containerIndex': zoneIndex,
-      'createdAt': createdAt,
-      'startAt': startAt,
-      'endAt': endAt,
+      'createdAt': Timestamp.fromDate(createdAt.toUtc()),
+      'startAt': Timestamp.fromDate(startAt.toUtc()),
+      'endAt': Timestamp.fromDate(endAt.toUtc()),
       'status': status.name,
     };
   }

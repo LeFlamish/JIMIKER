@@ -52,7 +52,7 @@ class AppUser {
         : 'user';
 
     DateTime? tsToDt(dynamic v) {
-      if (v is Timestamp) return v.toDate();
+      if (v is Timestamp) return v.toDate().toLocal();
       return null;
     }
 
@@ -84,9 +84,9 @@ class AppUser {
       'userType': userType.name,
       // DateTime -> Timestamp로 저장
       if (createdAt != null)
-        'createdAt': Timestamp.fromDate(createdAt!),
+        'createdAt': Timestamp.fromDate(createdAt!.toUtc()),
       if (lastLoginAt != null)
-        'lastLoginAt': Timestamp.fromDate(lastLoginAt!),
+        'lastLoginAt': Timestamp.fromDate(lastLoginAt!.toUtc()),
     };
   }
 

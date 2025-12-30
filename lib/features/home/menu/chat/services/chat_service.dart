@@ -6,14 +6,18 @@ class ChatService {
 
   final FirebaseFirestore _firestore;
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamChatRooms(String uid) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamChatRooms(
+    String uid,
+  ) {
     return _firestore
         .collection('chat_rooms')
         .where('participantUids', arrayContains: uid)
         .snapshots();
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> streamMessages(String roomId) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> streamMessages(
+    String roomId,
+  ) {
     return _firestore
         .collection('chat_rooms')
         .doc(roomId)
@@ -35,15 +39,15 @@ class ChatService {
       'uid': user.uid,
       'displayName': user.displayName ?? user.email ?? '사용자',
       'message': message,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': Timestamp.now(),
     };
-
+    print(Timestamp.now());
     await _firestore.runTransaction((transaction) async {
       final roomSnapshot = await transaction.get(roomRef);
       final existingParticipants =
           (roomSnapshot.data()?['participantUids'] as List<dynamic>?)
               ?.cast<String>() ??
-              [];
+          [];
       final participantUids = {
         ...existingParticipants,
         user.uid,
@@ -52,19 +56,15 @@ class ChatService {
       if (!roomSnapshot.exists) {
         transaction.set(roomRef, {
           'roomName': '채팅방',
-          'createdAt': FieldValue.serverTimestamp(),
+          'createdAt': Timestamp.now(),
         });
       }
       transaction.set(messageRef, payload);
-      transaction.set(
-        roomRef,
-        {
-          'participantUids': participantUids,
-          'lastMessage': message,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      transaction.set(roomRef, {
+        'participantUids': participantUids,
+        'lastMessage': message,
+        'updatedAt': Timestamp.now(),
+      }, SetOptions(merge: true));
     });
   }
 
@@ -81,7 +81,7 @@ class ChatService {
       final existingParticipants =
           (roomSnapshot.data()?['participantUids'] as List<dynamic>?)
               ?.cast<String>() ??
-              [];
+          [];
       final participantUids = {
         ...existingParticipants,
         user.uid,
@@ -99,13 +99,13 @@ class ChatService {
         'uid': 'system',
         'displayName': '지미커(시스템)',
         'message': message,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': Timestamp.now(),
       });
 
       transaction.set(roomRef, {
         'participantUids': participantUids,
         'lastMessage': message,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': Timestamp.now(),
       }, SetOptions(merge: true));
     });
   }

@@ -19,7 +19,8 @@ class ChatRoomScreen extends StatefulWidget {
 }
 
 class _ChatRoomScreenState extends State<ChatRoomScreen> {
-  final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _messageController =
+      TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
   @override
@@ -36,9 +37,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인 후 이용해주세요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인 후 이용해주세요.')));
       return;
     }
 
@@ -54,7 +55,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   String _formatTime(Timestamp? timestamp) {
     if (timestamp == null) return '';
-    final dateTime = timestamp.toDate();
+    final dateTime = timestamp.toDate().toLocal();
     final time = TimeOfDay.fromDateTime(dateTime);
     return time.format(context);
   }
@@ -64,24 +65,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final chatService = ChatService(FirebaseFirestore.instance);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.roomName),
-      ),
+      appBar: AppBar(title: Text(widget.roomName)),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: chatService.streamMessages(widget.roomId),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
                 }
 
                 final docs = snapshot.data?.docs ?? [];
                 if (docs.isEmpty) {
-                  return const Center(
-                    child: Text('첫 메시지를 남겨보세요.'),
-                  );
+                  return const Center(child: Text('첫 메시지를 남겨보세요.'));
                 }
 
                 final currentUser = FirebaseAuth.instance.currentUser;
@@ -92,7 +92,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     vertical: 12,
                   ),
                   itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final data = docs[index].data();
                     final isMine = data['uid'] == currentUser?.uid;
@@ -104,9 +105,11 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       child: ChatMessageBubble(
                         isMine: isMine,
                         displayName:
-                        data['displayName']?.toString() ?? '사용자',
+                            data['displayName']?.toString() ?? '사용자',
                         message: data['message']?.toString() ?? '',
-                        timeLabel: _formatTime(data['createdAt'] as Timestamp?),
+                        timeLabel: _formatTime(
+                          data['createdAt'] as Timestamp?,
+                        ),
                       ),
                     );
                   },

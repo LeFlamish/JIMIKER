@@ -37,9 +37,9 @@ class Usage {
       ownerId: data['ownerId'],
       storageId: data['storageId'],
       zoneIndex: data['containerIndex'],
-      startAt: (data['startAt'] as Timestamp).toDate(),
-      endAt: (data['endAt'] as Timestamp).toDate(),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      startAt: (data['startAt'] as Timestamp).toDate().toLocal(),
+      endAt: (data['endAt'] as Timestamp).toDate().toLocal(),
+      createdAt: (data['createdAt'] as Timestamp).toDate().toLocal(),
     );
   }
 
@@ -49,9 +49,9 @@ class Usage {
       'ownerId': ownerId,
       'storageId': storageId,
       'containerIndex': zoneIndex,
-      'startAt': startAt,
-      'endAt': endAt,
-      'createdAt': createdAt,
+      'startAt': Timestamp.fromDate(startAt.toUtc()),
+      'endAt': Timestamp.fromDate(endAt.toUtc()),
+      'createdAt': Timestamp.fromDate(createdAt.toUtc()),
     };
   }
 }

@@ -2,36 +2,56 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ChatRoom {
   final String id;
-  final List<String> participants;
+  final List<String> participantUids;
   final String? lastMessage;
-
+  final DateTime createdAt;
+  final String roomName;
+  final DateTime updatedAt;
   ChatRoom({
     required this.id,
-    required this.participants,
+    required this.participantUids,
     required this.lastMessage,
+    required this.createdAt,
+    required this.roomName,
+    required this.updatedAt,
   });
 
   factory ChatRoom.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return ChatRoom(
       id: doc.id,
-      participants: List<String>.from(data['participants']),
+      participantUids: List<String>.from(data['participants']),
       lastMessage: data['lastMessage'],
+      createdAt: (data['createdAt'] as Timestamp).toDate().toLocal(),
+      roomName: data['roomName'],
+      updatedAt: (data['updatedAt'] as Timestamp).toDate().toLocal(),
     );
   }
 
   Map<String, dynamic> toMap() {
-    return {'participants': participants, 'lastMessage': lastMessage};
+    return {
+      'participants': participantUids,
+      'lastMessage': lastMessage,
+      'createdAt': Timestamp.fromDate(createdAt.toUtc()),
+      'roomName': roomName,
+      'updatedAt': Timestamp.fromDate(updatedAt.toUtc()),
+    };
   }
 
   ChatRoom copyWith({
     List<String>? participants,
     String? lastMessage,
+    String? roomName,
+    DateTime? updatedAt,
+    DateTime? createdAt,
   }) {
     return ChatRoom(
       id: id,
-      participants: participants ?? this.participants,
+      participantUids: participants ?? this.participantUids,
       lastMessage: lastMessage ?? this.lastMessage,
+      createdAt: createdAt ?? this.createdAt,
+      roomName: roomName ?? this.roomName,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }
@@ -59,7 +79,7 @@ class ChatMessage {
       senderId: data['senderId'],
       content: data['content'],
       imageUrl: data['imageUrl'],
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      createdAt: (data['createdAt'] as Timestamp).toDate().toLocal(),
     );
   }
 
@@ -68,7 +88,7 @@ class ChatMessage {
       'senderId': senderId,
       'content': content,
       'imageUrl': imageUrl,
-      'createdAt': createdAt,
+      'createdAt': Timestamp.fromDate(createdAt.toUtc()),
     };
   }
 }

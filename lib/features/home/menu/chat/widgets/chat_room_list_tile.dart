@@ -26,9 +26,9 @@ class ChatRoomListTile extends StatelessWidget {
       ),
       trailing: Text(
         _formatTime(context, updatedAt),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: Colors.grey.shade600,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(color: Colors.grey.shade600),
       ),
       onTap: onTap,
     );
@@ -36,7 +36,7 @@ class ChatRoomListTile extends StatelessWidget {
 
   String _formatTime(BuildContext context, Timestamp? timestamp) {
     if (timestamp == null) return '';
-    final dateTime = timestamp.toDate();
+    final dateTime = timestamp.toDate().toLocal();
     final time = TimeOfDay.fromDateTime(dateTime);
     return time.format(context);
   }

@@ -132,8 +132,8 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       batch.set(reservationRef, {
         ...reservation.toMap(),
         'createdAt': FieldValue.serverTimestamp(),
-        'startAt': Timestamp.fromDate(startAt),
-        'endAt': Timestamp.fromDate(endAt),
+        'startAt': Timestamp.fromDate(startAt.toUtc()),
+        'endAt': Timestamp.fromDate(endAt.toUtc()),
       });
 
       batch.set(chatRoomRef, {
