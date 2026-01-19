@@ -13,7 +13,7 @@ class Reservation {
   final String userId;
   final String ownerId;
   final String storageId;
-  final String zoneIndex;
+  final String containerIndex;
   final DateTime createdAt;
   final DateTime startAt;
   final DateTime endAt;
@@ -24,7 +24,7 @@ class Reservation {
     required this.userId,
     required this.ownerId,
     required this.storageId,
-    required this.zoneIndex,
+    required this.containerIndex,
     required this.createdAt,
     required this.startAt,
     required this.endAt,
@@ -41,7 +41,7 @@ class Reservation {
       userId: data['userId'],
       ownerId: data['ownerId'],
       storageId: data['storageId']?.toString() ?? '',
-      zoneIndex: data['zoneIndex']?.toString() ?? '',
+      containerIndex: data['containerIndex']?.toString() ?? '',
       createdAt: (data['createdAt'] as Timestamp).toDate().toLocal(),
       startAt: (data['startAt'] as Timestamp).toDate().toLocal(),
       endAt: (data['endAt'] as Timestamp).toDate().toLocal(),
@@ -57,7 +57,7 @@ class Reservation {
       'userId': userId,
       'ownerId': ownerId,
       'storageId': storageId,
-      'containerIndex': zoneIndex,
+      'containerIndex': containerIndex,
       'createdAt': Timestamp.fromDate(createdAt.toUtc()),
       'startAt': Timestamp.fromDate(startAt.toUtc()),
       'endAt': Timestamp.fromDate(endAt.toUtc()),
@@ -70,7 +70,7 @@ class Reservation {
     String? userId,
     String? ownerId,
     String? storageId,
-    String? zoneIndex,
+    String? containerIndex,
     DateTime? createdAt,
     DateTime? startAt,
     DateTime? endAt,
@@ -81,7 +81,7 @@ class Reservation {
       userId: userId ?? this.userId,
       ownerId: ownerId ?? this.ownerId,
       storageId: storageId ?? this.storageId,
-      zoneIndex: zoneIndex ?? this.zoneIndex,
+      containerIndex: containerIndex ?? this.containerIndex,
       createdAt: createdAt ?? this.createdAt,
       startAt: startAt ?? this.startAt,
       endAt: endAt ?? this.endAt,

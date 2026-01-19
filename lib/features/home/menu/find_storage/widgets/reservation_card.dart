@@ -115,7 +115,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
         userId: user.uid,
         ownerId: ownerId,
         storageId: storageId,
-        zoneIndex: zone.index,
+        containerIndex: zone.index,
         createdAt: DateTime.now(),
         startAt: startAt,
         endAt: endAt,

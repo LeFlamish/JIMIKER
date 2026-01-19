@@ -227,8 +227,8 @@ class StorageWithReservationsCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  reservation.zoneIndex.isNotEmpty
-                      ? "보관함 ${reservation.zoneIndex}"
+                  reservation.containerIndex.isNotEmpty
+                      ? "보관함 ${reservation.containerIndex}"
                       : "보관함",
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
