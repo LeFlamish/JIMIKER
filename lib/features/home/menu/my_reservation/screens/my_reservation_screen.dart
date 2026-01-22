@@ -1,97 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // 날짜 및 숫자 포맷용 (pubspec.yaml에 intl 추가 권장)
-
-// --- 1. Provided Models ---
-
-enum Status { waiting, approved, rejected, canceled }
-
-class Reservation2 {
-  final String id;
-  final String userId;
-  final String ownerId;
-  final String storageId;
-  final String containerIndex; // Zone의 index와 매핑
-  final DateTime createdAt;
-  final DateTime startAt;
-  final DateTime endAt;
-  final Status status;
-  final int totalPrice; // 편의상 추가 (실제로는 Zone price * 일수 계산)
-
-  Reservation2({
-    required this.id,
-    required this.userId,
-    required this.ownerId,
-    required this.storageId,
-    required this.containerIndex,
-    required this.createdAt,
-    required this.startAt,
-    required this.endAt,
-    required this.status,
-    required this.totalPrice,
-  });
-}
-
-class Storage2 {
-  final String? id;
-  final String locationId;
-  final double lat;
-  final double lng;
-  final String address;
-  final String detailAddress;
-  final int count;
-  final DateTime createdAt;
-  final List<String> images;
-  final String ownerId;
-  final double width;
-  final double height;
-  final Map<String, dynamic> layout;
-  final bool approved;
-
-  Storage2({
-    this.id,
-    required this.locationId,
-    required this.lat,
-    required this.lng,
-    required this.address,
-    required this.detailAddress,
-    required this.count,
-    required this.createdAt,
-    required this.images,
-    required this.ownerId,
-    required this.width,
-    required this.height,
-    required this.layout,
-    required this.approved,
-  });
-}
-
-class Zone2 {
-  final String index;
-  final double x, y, angle, width, height;
-  final int price;
-
-  Zone2({
-    required this.index,
-    required this.x,
-    required this.y,
-    required this.angle,
-    required this.width,
-    required this.height,
-    required this.price,
-  });
-}
-
-// --- 2. Reservation Card Widget ---
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:jimiker/data/models/reservation.dart';
+import 'package:jimiker/data/models/storage.dart';
+import 'package:jimiker/features/home/menu/my_reservation/services/my_reservation_provider.dart';
 
 class ReservationCard extends StatelessWidget {
-  final Reservation2 reservation;
-  final Storage2 storage;
+  final Reservation reservation;
+  final Storage storage;
+  final int? price;
   final VoidCallback? onTap;
 
   const ReservationCard({
     super.key,
     required this.reservation,
     required this.storage,
+    required this.price,
     this.onTap,
   });
 
@@ -108,7 +32,7 @@ class ReservationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 기간 계산 (몇 박 며칠)
+    // 기간 계산 (일수)
     final duration = reservation.endAt
         .difference(reservation.startAt)
         .inDays;
@@ -120,11 +44,10 @@ class ReservationCard extends StatelessWidget {
 
     switch (reservation.status) {
       case Status.approved:
-        // 현재 날짜가 이용 기간 내에 있으면 '이용 중'으로 표시 가능
         final now = DateTime.now();
         if (now.isAfter(reservation.startAt) &&
             now.isBefore(reservation.endAt)) {
-          statusColor = const Color(0xFF6B7AF5); // Primary Color
+          statusColor = const Color(0xFF6B7AF5); // Primary
           statusText = "이용 중";
           bgColor = const Color(0xFFEEF0FF);
         } else if (now.isAfter(reservation.endAt)) {
@@ -137,19 +60,23 @@ class ReservationCard extends StatelessWidget {
           bgColor = const Color(0xFFE8F5E9);
         }
         break;
+
       case Status.waiting:
         statusColor = const Color(0xFFFF9800); // Orange
         statusText = "승인 대기";
         bgColor = const Color(0xFFFFF3E0);
         break;
+
       case Status.rejected:
         statusColor = const Color(0xFFD32F2F); // Red
         statusText = "거절됨";
         bgColor = const Color(0xFFFFEBEE);
         break;
-      case Status.canceled:
+
+      default:
+        // enum 값이 확장되거나 예외 케이스가 있어도 화면이 깨지지 않도록 방어
         statusColor = Colors.grey;
-        statusText = "취소됨";
+        statusText = "상태 확인 필요";
         bgColor = Colors.grey.shade100;
         break;
     }
@@ -177,29 +104,18 @@ class ReservationCard extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.calendar_today_rounded,
-                        size: 16,
-                        color: Color(0xFF6B7AF5),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        "${_formatDate(reservation.startAt)} ~ ${_formatDate(reservation.endAt)}",
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    "${_formatDate(reservation.startAt)} ~ ${_formatDate(reservation.endAt)}",
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF222222),
+                    ),
                   ),
-                  // 상태 뱃지
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
-                      vertical: 5,
+                      vertical: 6,
                     ),
                     decoration: BoxDecoration(
                       color: bgColor,
@@ -208,9 +124,9 @@ class ReservationCard extends StatelessWidget {
                     child: Text(
                       statusText,
                       style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
                         fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: statusColor,
                       ),
                     ),
                   ),
@@ -218,33 +134,47 @@ class ReservationCard extends StatelessWidget {
               ),
             ),
 
-            const Divider(height: 1, color: Color(0xFFEEEEEE)),
+            // 구분선
+            Container(height: 1, color: const Color(0xFFF0F0F0)),
 
-            // [하단] 창고 정보 및 가격
+            // [하단] 장소 + 보관함/가격
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 이미지
+                  // 대표 이미지 (없으면 아이콘)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      width: 80,
-                      height: 80,
-                      color: Colors.grey[100],
-                      child: storage.images.isNotEmpty
-                          ? Image.network(
-                              storage.images.first,
-                              fit: BoxFit.cover,
-                            )
-                          : Icon(
-                              Icons.inventory_2,
-                              color: Colors.grey[300],
-                              size: 32,
+                    child: (storage.images.isNotEmpty)
+                        ? Image.network(
+                            storage.images.first,
+                            width: 62,
+                            height: 62,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 62,
+                                height: 62,
+                                color: const Color(0xFFF5F6FA),
+                                child: Icon(
+                                  Icons.image_not_supported_outlined,
+                                  color: Colors.grey[400],
+                                ),
+                              );
+                            },
+                          )
+                        : Container(
+                            width: 62,
+                            height: 62,
+                            color: const Color(0xFFF5F6FA),
+                            child: Icon(
+                              Icons.inventory_2_outlined,
+                              color: Colors.grey[400],
                             ),
-                    ),
+                          ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
 
                   // 텍스트 정보
                   Expanded(
@@ -253,21 +183,24 @@ class ReservationCard extends StatelessWidget {
                       children: [
                         Text(
                           storage.address,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF222222),
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           storage.detailAddress,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                             color: Colors.grey[600],
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 10),
 
@@ -296,14 +229,23 @@ class ReservationCard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            Text(
-                              _formatCurrency(reservation.totalPrice),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF6B7AF5), // 강조색
-                              ),
-                            ),
+                            price == null
+                                ? Text(
+                                    '요금 정보 없음',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey[500],
+                                    ),
+                                  )
+                                : Text(
+                                    _formatCurrency(price!),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF6B7AF5),
+                                    ),
+                                  ),
                           ],
                         ),
                       ],
@@ -319,132 +261,93 @@ class ReservationCard extends StatelessWidget {
   }
 }
 
-// --- 3. Screen with Dummy Data ---
-
-class ReservationListScreen extends StatelessWidget {
+class ReservationListScreen extends ConsumerStatefulWidget {
   const ReservationListScreen({super.key});
 
   @override
+  ConsumerState<ReservationListScreen> createState() =>
+      _ReservationListScreenState();
+}
+
+class _ReservationListScreenState
+    extends ConsumerState<ReservationListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref
+          .read(myReservationProvider.notifier)
+          .loadMyReservations(),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // -- Dummy Data Generation --
+    final state = ref.watch(myReservationProvider);
+    final items = state.items;
 
-    // 1. Storage Data
-    final storageA = Storage2(
-      id: 's1',
-      locationId: 'loc1',
-      lat: 37.0,
-      lng: 127.0,
-      address: '서울 강남구 테헤란로 123',
-      detailAddress: '지미커 타워 B1',
-      count: 10,
-      createdAt: DateTime.now(),
-      images: ['https://via.placeholder.com/150'], // 실제 이미지 URL
-      ownerId: 'owner1',
-      width: 100,
-      height: 100,
-      layout: {},
-      approved: true,
-    );
+    ref.listen(myReservationProvider, (previous, next) {
+      final message = next.errorMessage;
+      if (message == null || message.isEmpty) return;
+      if (message == previous?.errorMessage) return;
+      if (!context.mounted) return;
 
-    final storageB = Storage2(
-      id: 's2',
-      locationId: 'loc2',
-      lat: 37.0,
-      lng: 127.0,
-      address: '대구 북구 대학로 80',
-      detailAddress: '경북대학교 IT대학',
-      count: 5,
-      createdAt: DateTime.now(),
-      images: [], // 이미지 없음
-      ownerId: 'owner2',
-      width: 100,
-      height: 100,
-      layout: {},
-      approved: true,
-    );
-
-    // 2. Reservation Data
-    final List<Reservation2> dummyReservations = [
-      // Case 1: 승인 대기
-      Reservation2(
-        id: 'r1',
-        userId: 'me',
-        ownerId: 'owner1',
-        storageId: 's1',
-        containerIndex: 'A-101',
-        createdAt: DateTime.now(),
-        startAt: DateTime(2025, 12, 25),
-        endAt: DateTime(2026, 1, 25),
-        status: Status.waiting,
-        totalPrice: 150000,
-      ),
-      // Case 2: 이용 중 (현재 날짜가 기간 내 포함)
-      Reservation2(
-        id: 'r2',
-        userId: 'me',
-        ownerId: 'owner2',
-        storageId: 's2',
-        containerIndex: 'B-2',
-        createdAt: DateTime.now(),
-        startAt: DateTime.now().subtract(const Duration(days: 5)),
-        endAt: DateTime.now().add(const Duration(days: 25)),
-        status: Status.approved,
-        totalPrice: 80000,
-      ),
-      // Case 3: 이용 완료
-      Reservation2(
-        id: 'r3',
-        userId: 'me',
-        ownerId: 'owner1',
-        storageId: 's1',
-        containerIndex: 'C-5',
-        createdAt: DateTime(2023, 1, 1),
-        startAt: DateTime(2023, 5, 1),
-        endAt: DateTime(2023, 6, 1),
-        status: Status.approved,
-        totalPrice: 200000,
-      ),
-      // Case 4: 거절됨
-      Reservation2(
-        id: 'r4',
-        userId: 'me',
-        ownerId: 'owner1',
-        storageId: 's1',
-        containerIndex: 'A-102',
-        createdAt: DateTime.now(),
-        startAt: DateTime(2025, 10, 1),
-        endAt: DateTime(2025, 10, 5),
-        status: Status.rejected,
-        totalPrice: 30000,
-      ),
-    ];
-
-    // Helper to find storage by ID
-    Storage2 getStorage(String id) =>
-        id == 's1' ? storageA : storageB;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    });
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
       body: SafeArea(
-        child: ListView.builder(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 10,
-          ),
-          itemCount: dummyReservations.length,
-          itemBuilder: (context, index) {
-            final reservation = dummyReservations[index];
-            final storage = getStorage(reservation.storageId);
-
-            return ReservationCard(
-              reservation: reservation,
-              storage: storage,
-              onTap: () {
-                print("예약 ${reservation.id} 클릭됨");
-              },
-            );
-          },
+        child: RefreshIndicator(
+          onRefresh: () => ref
+              .read(myReservationProvider.notifier)
+              .loadMyReservations(),
+          child: state.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : items.isEmpty
+              ? _buildEmptyView()
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return ReservationCard(
+                      reservation: item.reservation,
+                      storage: item.storage,
+                      price: item.price,
+                      onTap: () {
+                        debugPrint("예약 ${item.reservation.id} 클릭됨");
+                      },
+                    );
+                  },
+                ),
         ),
       ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const SizedBox(height: 100),
+        Icon(
+          Icons.inventory_2_outlined,
+          size: 56,
+          color: Colors.grey.shade300,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '예약 내역이 없습니다.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
+      ],
     );
   }
 }
