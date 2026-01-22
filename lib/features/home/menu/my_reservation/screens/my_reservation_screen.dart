@@ -5,7 +5,7 @@ import 'package:intl/intl.dart'; // 날짜 및 숫자 포맷용 (pubspec.yaml에
 
 enum Status { waiting, approved, rejected, canceled }
 
-class Reservation {
+class Reservation2 {
   final String id;
   final String userId;
   final String ownerId;
@@ -17,7 +17,7 @@ class Reservation {
   final Status status;
   final int totalPrice; // 편의상 추가 (실제로는 Zone price * 일수 계산)
 
-  Reservation({
+  Reservation2({
     required this.id,
     required this.userId,
     required this.ownerId,
@@ -31,7 +31,7 @@ class Reservation {
   });
 }
 
-class Storage {
+class Storage2 {
   final String? id;
   final String locationId;
   final double lat;
@@ -47,7 +47,7 @@ class Storage {
   final Map<String, dynamic> layout;
   final bool approved;
 
-  Storage({
+  Storage2({
     this.id,
     required this.locationId,
     required this.lat,
@@ -65,12 +65,12 @@ class Storage {
   });
 }
 
-class Zone {
+class Zone2 {
   final String index;
   final double x, y, angle, width, height;
   final int price;
 
-  Zone({
+  Zone2({
     required this.index,
     required this.x,
     required this.y,
@@ -84,8 +84,8 @@ class Zone {
 // --- 2. Reservation Card Widget ---
 
 class ReservationCard extends StatelessWidget {
-  final Reservation reservation;
-  final Storage storage;
+  final Reservation2 reservation;
+  final Storage2 storage;
   final VoidCallback? onTap;
 
   const ReservationCard({
@@ -191,14 +191,6 @@ class ReservationCard extends StatelessWidget {
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        "(${duration}일)",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
                         ),
                       ),
                     ],
@@ -337,7 +329,7 @@ class ReservationListScreen extends StatelessWidget {
     // -- Dummy Data Generation --
 
     // 1. Storage Data
-    final storageA = Storage(
+    final storageA = Storage2(
       id: 's1',
       locationId: 'loc1',
       lat: 37.0,
@@ -354,7 +346,7 @@ class ReservationListScreen extends StatelessWidget {
       approved: true,
     );
 
-    final storageB = Storage(
+    final storageB = Storage2(
       id: 's2',
       locationId: 'loc2',
       lat: 37.0,
@@ -372,9 +364,9 @@ class ReservationListScreen extends StatelessWidget {
     );
 
     // 2. Reservation Data
-    final List<Reservation> dummyReservations = [
+    final List<Reservation2> dummyReservations = [
       // Case 1: 승인 대기
-      Reservation(
+      Reservation2(
         id: 'r1',
         userId: 'me',
         ownerId: 'owner1',
@@ -387,7 +379,7 @@ class ReservationListScreen extends StatelessWidget {
         totalPrice: 150000,
       ),
       // Case 2: 이용 중 (현재 날짜가 기간 내 포함)
-      Reservation(
+      Reservation2(
         id: 'r2',
         userId: 'me',
         ownerId: 'owner2',
@@ -400,7 +392,7 @@ class ReservationListScreen extends StatelessWidget {
         totalPrice: 80000,
       ),
       // Case 3: 이용 완료
-      Reservation(
+      Reservation2(
         id: 'r3',
         userId: 'me',
         ownerId: 'owner1',
@@ -413,7 +405,7 @@ class ReservationListScreen extends StatelessWidget {
         totalPrice: 200000,
       ),
       // Case 4: 거절됨
-      Reservation(
+      Reservation2(
         id: 'r4',
         userId: 'me',
         ownerId: 'owner1',
@@ -428,39 +420,30 @@ class ReservationListScreen extends StatelessWidget {
     ];
 
     // Helper to find storage by ID
-    Storage getStorage(String id) => id == 's1' ? storageA : storageB;
+    Storage2 getStorage(String id) =>
+        id == 's1' ? storageA : storageB;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "내 예약 내역",
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
+      body: SafeArea(
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 10,
           ),
-        ),
-        backgroundColor: const Color(0xFFF5F6FA),
-        elevation: 0,
-        centerTitle: false,
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 10,
-        ),
-        itemCount: dummyReservations.length,
-        itemBuilder: (context, index) {
-          final reservation = dummyReservations[index];
-          final storage = getStorage(reservation.storageId);
+          itemCount: dummyReservations.length,
+          itemBuilder: (context, index) {
+            final reservation = dummyReservations[index];
+            final storage = getStorage(reservation.storageId);
 
-          return ReservationCard(
-            reservation: reservation,
-            storage: storage,
-            onTap: () {
-              print("예약 ${reservation.id} 클릭됨");
-            },
-          );
-        },
+            return ReservationCard(
+              reservation: reservation,
+              storage: storage,
+              onTap: () {
+                print("예약 ${reservation.id} 클릭됨");
+              },
+            );
+          },
+        ),
       ),
     );
   }

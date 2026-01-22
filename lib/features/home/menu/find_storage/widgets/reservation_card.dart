@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/data/models/chat.dart';
 import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/features/draw/zone_provider.dart';
+import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
 class ReservationCard extends ConsumerStatefulWidget {
@@ -58,6 +60,56 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       if (z.index == index) return z;
     }
     return null;
+  }
+
+  Future<void> _oneToOneInquiry({required Zone? zone}) async {
+    // 채팅방 개설하자 제목은 1대1 문의 - ~~~
+    try {
+      if (zone == null || zone.index.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('예약할 구역을 선택해주세요.')),
+        );
+        return;
+      }
+
+      final authController = ref.read(
+        authControllerProvider.notifier,
+      );
+      final signedIn = await authController.checkSignIn(context);
+      if (!signedIn) return;
+
+      final firestore = ref.read(firestoreProvider);
+      final user = ref.read(firebaseAuthProvider).currentUser;
+      if (user == null) return;
+      final batch = firestore.batch();
+      final chatRoomRef = firestore.collection('chat_rooms').doc();
+
+      final addressLabel =
+          widget.storage.address.substring(5) +
+          "-" +
+          widget.storage.detailAddress;
+      final roomName = '1대1 문의 - $addressLabel (${zone.index})';
+      final ownerId = widget.storage.ownerId;
+
+      batch.set(chatRoomRef, {
+        'roomName': roomName,
+        'participantUids': [user.uid, ownerId],
+        'lastMessage': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      batch.commit();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('채팅방 생성에 실패했어요')));
+    } finally {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => ChatScreen()));
+    }
   }
 
   Future<void> _submitReservation({required Zone? zone}) async {
@@ -317,7 +369,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
           SizedBox(
             height: 50,
             child: TextButton(
-              onPressed: () => print('1:1 문의 클릭'),
+              onPressed: () => _oneToOneInquiry(zone: zone),
               style: TextButton.styleFrom(
                 backgroundColor: _inputFillColor,
                 shape: RoundedRectangleBorder(

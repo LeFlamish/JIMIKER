@@ -7,7 +7,7 @@ DateTime _toLocalDateTime(dynamic value) {
 }
 
 class ChatRoom {
-  final String id;
+  final String? id;
   final List<String> participantUids; // Firestore: participantUids
   final String roomName; // Firestore: roomName
   final String? lastMessage; // Firestore: lastMessage
@@ -15,7 +15,7 @@ class ChatRoom {
   final DateTime updatedAt; // Firestore: updatedAt
 
   const ChatRoom({
-    required this.id,
+    this.id,
     required this.participantUids,
     required this.roomName,
     required this.lastMessage,
