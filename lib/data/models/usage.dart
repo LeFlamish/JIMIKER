@@ -2,14 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Usage {
   final String id;
-
   // 참여자
   final String userId;
   final String ownerId;
-
   // 대상
   final String storageId;
-  final String zoneIndex;
+  final String containerIndex;
 
   // 기간(계약/합의된 사용 기간)
   final DateTime startAt;
@@ -23,7 +21,7 @@ class Usage {
     required this.userId,
     required this.ownerId,
     required this.storageId,
-    required this.zoneIndex,
+    required this.containerIndex,
     required this.startAt,
     required this.endAt,
     required this.createdAt,
@@ -36,7 +34,7 @@ class Usage {
       userId: data['userId'],
       ownerId: data['ownerId'],
       storageId: data['storageId'],
-      zoneIndex: data['containerIndex'],
+      containerIndex: data['containerIndex'],
       startAt: (data['startAt'] as Timestamp).toDate().toLocal(),
       endAt: (data['endAt'] as Timestamp).toDate().toLocal(),
       createdAt: (data['createdAt'] as Timestamp).toDate().toLocal(),
@@ -48,7 +46,7 @@ class Usage {
       'userId': userId,
       'ownerId': ownerId,
       'storageId': storageId,
-      'containerIndex': zoneIndex,
+      'containerIndex': containerIndex,
       'startAt': Timestamp.fromDate(startAt.toUtc()),
       'endAt': Timestamp.fromDate(endAt.toUtc()),
       'createdAt': Timestamp.fromDate(createdAt.toUtc()),

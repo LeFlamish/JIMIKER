@@ -52,7 +52,8 @@ class FindStorageNotifier extends Notifier<FindStorageState> {
 
       final storages = <String, Storage>{};
       for (final doc in snapshot.docs) {
-        storages[doc.id] = Storage.fromDoc(doc);
+        final storage = Storage.fromDoc(doc);
+        if (storage.approved) storages[doc.id] = storage;
       }
 
       state = state.copyWith(storages: storages, isLoading: false);

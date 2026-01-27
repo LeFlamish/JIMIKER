@@ -27,7 +27,7 @@ class ReservationCard extends StatelessWidget {
   // 금액 포맷 (10,000원)
   String _formatCurrency(int price) {
     final format = NumberFormat('###,###,###,###');
-    return "${format.format(price)}원";
+    return "${format.format(price)}원(월)";
   }
 
   @override
