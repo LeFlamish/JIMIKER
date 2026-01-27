@@ -44,21 +44,9 @@ class ReservationCard extends StatelessWidget {
 
     switch (reservation.status) {
       case Status.approved:
-        final now = DateTime.now();
-        if (now.isAfter(reservation.startAt) &&
-            now.isBefore(reservation.endAt)) {
-          statusColor = const Color(0xFF6B7AF5); // Primary
-          statusText = "이용 중";
-          bgColor = const Color(0xFFEEF0FF);
-        } else if (now.isAfter(reservation.endAt)) {
-          statusColor = Colors.grey;
-          statusText = "이용 완료";
-          bgColor = Colors.grey.shade100;
-        } else {
-          statusColor = const Color(0xFF2E7D32); // Green
-          statusText = "예약 확정";
-          bgColor = const Color(0xFFE8F5E9);
-        }
+        statusColor = const Color(0xFF2E7D32); // Green
+        statusText = "예약 확정";
+        bgColor = const Color(0xFFE8F5E9);
         break;
 
       case Status.waiting:
