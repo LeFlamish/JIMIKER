@@ -1,45 +1,10 @@
 import 'package:flutter/material.dart';
-
-// --- 1. Models (Usage & Storage) ---
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/data/models/storage.dart';
+import 'package:jimiker/data/models/usage.dart';
+import 'package:jimiker/features/home/menu/my_usages/services/my_usages_provider.dart';
 
 enum UsageStatus { active, endingSoon, overdue }
-
-class Usage {
-  final String id;
-  final String storageId;
-  final String userId;
-  final String zoneIndex; // 예: "A-101"
-  final DateTime startAt;
-  final DateTime endAt;
-  final UsageStatus status;
-  // 필요하다면 Reservation 객체를 포함할 수도 있습니다.
-
-  Usage({
-    required this.id,
-    required this.storageId,
-    required this.userId,
-    required this.zoneIndex,
-    required this.startAt,
-    required this.endAt,
-    required this.status,
-  });
-}
-
-class Storage {
-  final String id;
-  final String address;
-  final String detailAddress;
-  final List<String> images;
-
-  Storage({
-    required this.id,
-    required this.address,
-    required this.detailAddress,
-    required this.images,
-  });
-}
-
-// --- 2. Usage Card Widget (핵심 UI) ---
 
 class UsageCard extends StatelessWidget {
   final Usage usage;
@@ -55,15 +20,12 @@ class UsageCard extends StatelessWidget {
     this.onExtendTap,
   });
 
-  // 날짜 포맷
   String _formatDate(DateTime date) {
     return "${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}";
   }
 
-  // D-Day 계산
   int _calculateDDay() {
     final now = DateTime.now();
-    // 시간/분/초 제거하고 날짜만 비교
     final endDate = DateTime(
       usage.endAt.year,
       usage.endAt.month,
@@ -73,25 +35,31 @@ class UsageCard extends StatelessWidget {
     return endDate.difference(today).inDays;
   }
 
+  UsageStatus _statusFromDDay(int dDay) {
+    if (dDay < 0) return UsageStatus.overdue;
+    if (dDay <= 3) return UsageStatus.endingSoon;
+    return UsageStatus.active;
+  }
+
   @override
   Widget build(BuildContext context) {
     final dDay = _calculateDDay();
+    final status = _statusFromDDay(dDay);
 
-    // 상태별 UI 설정
     Color statusColor;
     String statusText;
     String dDayText;
 
-    if (usage.status == UsageStatus.overdue) {
-      statusColor = const Color(0xFFD32F2F); // Red
+    if (status == UsageStatus.overdue) {
+      statusColor = const Color(0xFFD32F2F);
       statusText = "연체 중";
       dDayText = "D+${dDay.abs()}";
-    } else if (dDay <= 3) {
-      statusColor = const Color(0xFFFF9800); // Orange
+    } else if (status == UsageStatus.endingSoon) {
+      statusColor = const Color(0xFFFF9800);
       statusText = "종료 임박";
       dDayText = "D-$dDay";
     } else {
-      statusColor = const Color(0xFF6B7AF5); // Primary Blue
+      statusColor = const Color(0xFF6B7AF5);
       statusText = "이용 중";
       dDayText = "D-$dDay";
     }
@@ -111,12 +79,10 @@ class UsageCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // [상단] D-Day 및 창고 정보
           Padding(
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                // 이미지
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
@@ -127,6 +93,15 @@ class UsageCard extends StatelessWidget {
                         ? Image.network(
                             storage.images.first,
                             fit: BoxFit.cover,
+                            errorBuilder:
+                                (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons
+                                        .image_not_supported_outlined,
+                                    color: Colors.grey,
+                                    size: 32,
+                                  );
+                                },
                           )
                         : const Icon(
                             Icons.inventory_2_outlined,
@@ -136,13 +111,10 @@ class UsageCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 16),
-
-                // 텍스트 정보
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 상태 뱃지 & D-Day
                       Row(
                         mainAxisAlignment:
                             MainAxisAlignment.spaceBetween,
@@ -187,7 +159,7 @@ class UsageCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "보관함 ${usage.zoneIndex} · ~${_formatDate(usage.endAt)}",
+                        "보관함 ${usage.containerIndex} · ~${_formatDate(usage.endAt)}",
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[600],
@@ -199,13 +171,9 @@ class UsageCard extends StatelessWidget {
               ],
             ),
           ),
-
           const Divider(height: 1, color: Color(0xFFEEEEEE)),
-
-          // [하단] 액션 버튼 (스마트키, 연장하기)
           Row(
             children: [
-              // 스마트키 버튼 (강조)
               Expanded(
                 child: InkWell(
                   onTap: onSmartKeyTap,
@@ -241,7 +209,6 @@ class UsageCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // 이용 연장 버튼
               Expanded(
                 child: InkWell(
                   onTap: onExtendTap,
@@ -280,66 +247,41 @@ class UsageCard extends StatelessWidget {
   }
 }
 
-// --- 3. Screen (Dummy Data) ---
-
-class UsageListScreen extends StatelessWidget {
+class UsageListScreen extends ConsumerStatefulWidget {
   const UsageListScreen({super.key});
 
   @override
+  ConsumerState<UsageListScreen> createState() =>
+      _UsageListScreenState();
+}
+
+class _UsageListScreenState extends ConsumerState<UsageListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(myUsagesProvider.notifier).loadMyUsages(),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // 더미 데이터 생성
-    final storage1 = Storage(
-      id: 's1',
-      address: '서울 강남구 테헤란로 123',
-      detailAddress: '지하 1층',
-      images: ['https://via.placeholder.com/150'],
-    );
+    final state = ref.watch(myUsagesProvider);
+    final items = state.items;
 
-    final storage2 = Storage(
-      id: 's2',
-      address: '대구 북구 대학로 80',
-      detailAddress: 'IT대학 2호관',
-      images: [],
-    );
+    ref.listen(myUsagesProvider, (previous, next) {
+      final message = next.errorMessage;
+      if (message == null || message.isEmpty) return;
+      if (message == previous?.errorMessage) return;
+      if (!context.mounted) return;
 
-    final usages = [
-      // Case 1: 일반 이용 중
-      Usage(
-        id: 'u1',
-        storageId: 's1',
-        userId: 'user1',
-        zoneIndex: 'A-101',
-        startAt: DateTime.now().subtract(const Duration(days: 10)),
-        endAt: DateTime.now().add(const Duration(days: 20)), // 20일 남음
-        status: UsageStatus.active,
-      ),
-      // Case 2: 종료 임박 (3일 이하)
-      Usage(
-        id: 'u2',
-        storageId: 's2',
-        userId: 'user1',
-        zoneIndex: 'B-05',
-        startAt: DateTime.now().subtract(const Duration(days: 28)),
-        endAt: DateTime.now().add(const Duration(days: 2)), // 2일 남음
-        status: UsageStatus.endingSoon,
-      ),
-      // Case 3: 연체 중
-      Usage(
-        id: 'u3',
-        storageId: 's1',
-        userId: 'user1',
-        zoneIndex: 'C-11',
-        startAt: DateTime.now().subtract(const Duration(days: 35)),
-        endAt: DateTime.now().subtract(
-          const Duration(days: 2),
-        ), // 2일 지남
-        status: UsageStatus.overdue,
-      ),
-    ];
-
-    Storage getStorage(String id) => id == 's1' ? storage1 : storage2;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    });
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
         title: const Text(
           "이용 중인 보관함",
@@ -352,30 +294,62 @@ class UsageListScreen extends StatelessWidget {
         elevation: 0,
         centerTitle: false,
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 10,
-        ),
-        itemCount: usages.length,
-        itemBuilder: (context, index) {
-          final usage = usages[index];
-          return UsageCard(
-            usage: usage,
-            storage: getStorage(usage.storageId),
-            onSmartKeyTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${usage.zoneIndex} 보관함 문이 열렸습니다!'),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () =>
+              ref.read(myUsagesProvider.notifier).loadMyUsages(),
+          child: state.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : items.isEmpty
+              ? _buildEmptyView()
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return UsageCard(
+                      usage: item.usage,
+                      storage: item.storage,
+                      onSmartKeyTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '${item.usage.containerIndex} 보관함 문이 열렸습니다!',
+                            ),
+                          ),
+                        );
+                      },
+                      onExtendTap: () {
+                        debugPrint('연장하기 클릭: ${item.usage.id}');
+                      },
+                    );
+                  },
                 ),
-              );
-            },
-            onExtendTap: () {
-              print('연장하기 클릭: ${usage.id}');
-            },
-          );
-        },
+        ),
       ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const SizedBox(height: 100),
+        Icon(
+          Icons.inventory_2_outlined,
+          size: 56,
+          color: Colors.grey.shade300,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '이용 중인 보관함이 없습니다.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
+      ],
     );
   }
 }
