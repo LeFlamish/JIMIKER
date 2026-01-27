@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
 import 'package:jimiker/features/home/menu/my_reservation/screens/my_reservation_screen.dart';
 import 'package:jimiker/features/home/menu/my_storages/screens/my_storages_screen.dart';
+import 'package:jimiker/features/home/menu/my_usages/screen/my_usages_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 import 'package:jimiker/features/home/menu/my_information/screens/my_information_screen.dart';
 import '../menu/find_storage/screens/find_storage_screen.dart';
@@ -72,8 +73,21 @@ class HomeActionGrid extends ConsumerWidget {
       _HomeActionItem(
         icon: Icons.inventory_2_outlined,
         label: '이용 중인 창고',
-        onTap: () {
-          // TODO: 이용 중인 창고 화면으로 이동
+        onTap: () async {
+          final bool check = await authController.checkSignIn(
+            context,
+          );
+
+          if (!context.mounted) return;
+
+          if (check) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const UsageListScreen(),
+              ),
+            );
+          }
         },
       ),
 
