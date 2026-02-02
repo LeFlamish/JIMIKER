@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 class ChatRoomListTile extends StatelessWidget {
   final String roomName;
+  final String? photoUrl;
   final String lastMessage;
   final Timestamp? updatedAt;
   final VoidCallback onTap;
@@ -10,6 +11,7 @@ class ChatRoomListTile extends StatelessWidget {
   const ChatRoomListTile({
     super.key,
     required this.roomName,
+    required this.photoUrl,
     required this.lastMessage,
     required this.updatedAt,
     required this.onTap,
@@ -19,6 +21,7 @@ class ChatRoomListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       title: Text(roomName),
+      leading: _ProfileAvatar(photoUrl: photoUrl),
       subtitle: Text(
         lastMessage,
         maxLines: 1,
@@ -39,5 +42,27 @@ class ChatRoomListTile extends StatelessWidget {
     final dateTime = timestamp.toDate().toLocal();
     final time = TimeOfDay.fromDateTime(dateTime);
     return time.format(context);
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  final String? photoUrl;
+
+  const _ProfileAvatar({required this.photoUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (photoUrl == null || photoUrl!.isEmpty) {
+      return CircleAvatar(
+        backgroundColor: theme.colorScheme.surfaceContainerHighest,
+        child: Icon(
+          Icons.person,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+
+    return CircleAvatar(backgroundImage: NetworkImage(photoUrl!));
   }
 }
