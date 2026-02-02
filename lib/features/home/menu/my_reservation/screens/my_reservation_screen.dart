@@ -320,22 +320,24 @@ class _ReservationListScreenState
   }
 
   Widget _buildEmptyView() {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const SizedBox(height: 100),
-        Icon(
-          Icons.inventory_2_outlined,
-          size: 56,
-          color: Colors.grey.shade300,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          '예약 내역이 없습니다.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-      ],
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 56,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '예약 내역이 없습니다.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ],
+      ),
     );
   }
 }

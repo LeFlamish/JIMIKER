@@ -7,6 +7,7 @@ import 'package:jimiker/features/home/menu/my_usages/screen/my_usages_screen.dar
 import 'package:jimiker/services/auth_providers.dart';
 import 'package:jimiker/features/home/menu/my_information/screens/my_information_screen.dart';
 import '../menu/find_storage/screens/find_storage_screen.dart';
+import '../menu/history/screens/ended_usage_list_screen.dart';
 import '../menu/register_storage/screens/register_storage_screen.dart';
 
 class HomeActionGrid extends ConsumerWidget {
@@ -115,8 +116,21 @@ class HomeActionGrid extends ConsumerWidget {
       _HomeActionItem(
         icon: Icons.history,
         label: '이용 내역',
-        onTap: () {
-          // TODO: 이용 내역 화면으로 이동
+        onTap: () async {
+          final bool check = await authController.checkSignIn(
+            context,
+          );
+
+          if (!context.mounted) return;
+
+          if (check) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const EndedUsageListScreen(),
+              ),
+            );
+          }
         },
       ),
 

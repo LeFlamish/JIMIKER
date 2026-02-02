@@ -4,7 +4,7 @@ import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/usage.dart';
 import 'package:jimiker/features/home/menu/my_usages/services/my_usages_provider.dart';
 
-enum UsageStatus { active, endingSoon, overdue }
+enum UsageStatus { active, endingSoon }
 
 class UsageCard extends StatelessWidget {
   final Usage usage;
@@ -36,7 +36,6 @@ class UsageCard extends StatelessWidget {
   }
 
   UsageStatus _statusFromDDay(int dDay) {
-    if (dDay < 0) return UsageStatus.overdue;
     if (dDay <= 3) return UsageStatus.endingSoon;
     return UsageStatus.active;
   }
@@ -50,11 +49,7 @@ class UsageCard extends StatelessWidget {
     String statusText;
     String dDayText;
 
-    if (status == UsageStatus.overdue) {
-      statusColor = const Color(0xFFD32F2F);
-      statusText = "연체 중";
-      dDayText = "D+${dDay.abs()}";
-    } else if (status == UsageStatus.endingSoon) {
+    if (status == UsageStatus.endingSoon) {
       statusColor = const Color(0xFFFF9800);
       statusText = "종료 임박";
       dDayText = "D-$dDay";
@@ -282,18 +277,6 @@ class _UsageListScreenState extends ConsumerState<UsageListScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        title: const Text(
-          "이용 중인 보관함",
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: const Color(0xFFF5F6FA),
-        elevation: 0,
-        centerTitle: false,
-      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () =>
@@ -334,22 +317,24 @@ class _UsageListScreenState extends ConsumerState<UsageListScreen> {
   }
 
   Widget _buildEmptyView() {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const SizedBox(height: 100),
-        Icon(
-          Icons.inventory_2_outlined,
-          size: 56,
-          color: Colors.grey.shade300,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          '이용 중인 보관함이 없습니다.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-      ],
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 56,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '이용 중인 보관함이 없습니다.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ],
+      ),
     );
   }
 }

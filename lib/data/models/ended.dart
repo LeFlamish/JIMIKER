@@ -2,21 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Ended {
   final String id;
-
-  // 참여자
   final String userId;
   final String ownerId;
-
-  // 대상
   final String storageId;
   final String containerIndex;
-
-  // 기간(계약/합의된 사용 기간)
   final DateTime startAt;
   final DateTime endAt;
-
-  // 승인/생성 메타
-  final DateTime createdAt; // 소유자가 승인한 시점(사용중으로 전환된 시점)
+  final DateTime createdAt;
 
   Ended({
     required this.id,
