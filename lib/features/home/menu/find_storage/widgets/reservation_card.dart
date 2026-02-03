@@ -88,11 +88,9 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
           widget.storage.address.substring(5) +
           "-" +
           widget.storage.detailAddress;
-      final roomName = '1대1 문의 - $addressLabel (${zone.index})';
       final ownerId = widget.storage.ownerId;
 
       batch.set(chatRoomRef, {
-        'roomName': roomName,
         'participantUids': [user.uid, ownerId],
         'lastMessage': null,
         'createdAt': FieldValue.serverTimestamp(),
@@ -178,7 +176,6 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
           widget.storage.address.substring(5) +
           "-" +
           widget.storage.detailAddress;
-      final roomName = '예약 문의 - $addressLabel (${zone.index})';
 
       final batch = firestore.batch();
       batch.set(reservationRef, {
@@ -189,7 +186,6 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       });
 
       batch.set(chatRoomRef, {
-        'roomName': roomName,
         'participantUids': [user.uid, ownerId],
         'lastMessage': null,
         'createdAt': FieldValue.serverTimestamp(),

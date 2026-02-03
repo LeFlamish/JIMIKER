@@ -70,8 +70,6 @@ class ChatScreen extends StatelessWidget {
               itemBuilder: (context, index) {
                 final doc = rooms[index];
                 final data = doc.data();
-                final roomName =
-                    data['roomName']?.toString() ?? '채팅방';
                 final lastMessage =
                     data['lastMessage']?.toString() ?? '메시지가 없습니다.';
                 final updatedAt = data['updatedAt'] as Timestamp?;
@@ -101,7 +99,7 @@ class ChatScreen extends StatelessWidget {
                         ?.toString();
                     final displayName =
                         (opponentName == null || opponentName.isEmpty)
-                        ? roomName
+                        ? "지미커"
                         : opponentName;
 
                     return ChatRoomListTile(

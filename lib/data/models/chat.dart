@@ -9,7 +9,6 @@ DateTime _toLocalDateTime(dynamic value) {
 class ChatRoom {
   final String? id;
   final List<String> participantUids; // Firestore: participantUids
-  final String roomName; // Firestore: roomName
   final String? lastMessage; // Firestore: lastMessage
   final DateTime createdAt; // Firestore: createdAt
   final DateTime updatedAt; // Firestore: updatedAt
@@ -17,7 +16,6 @@ class ChatRoom {
   const ChatRoom({
     this.id,
     required this.participantUids,
-    required this.roomName,
     required this.lastMessage,
     required this.createdAt,
     required this.updatedAt,
@@ -30,7 +28,6 @@ class ChatRoom {
       participantUids:
           (data['participantUids'] as List<dynamic>? ?? [])
               .cast<String>(),
-      roomName: (data['roomName'] as String?) ?? '채팅방',
       lastMessage: data['lastMessage'] as String?,
       createdAt: _toLocalDateTime(data['createdAt']),
       updatedAt: _toLocalDateTime(data['updatedAt']),
@@ -41,7 +38,6 @@ class ChatRoom {
   Map<String, dynamic> toMap({bool useServerTimestamps = false}) {
     return {
       'participantUids': participantUids,
-      'roomName': roomName,
       'lastMessage': lastMessage,
       'createdAt': useServerTimestamps
           ? FieldValue.serverTimestamp()
@@ -62,7 +58,6 @@ class ChatRoom {
     return ChatRoom(
       id: id,
       participantUids: participantUids ?? this.participantUids,
-      roomName: roomName ?? this.roomName,
       lastMessage: lastMessage ?? this.lastMessage,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

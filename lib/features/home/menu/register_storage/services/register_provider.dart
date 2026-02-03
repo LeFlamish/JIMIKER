@@ -169,7 +169,6 @@ class RegisterNotifier extends Notifier<RegisterData> {
           if (!file.existsSync()) {
             throw Exception('이미지 파일을 찾을 수 없습니다.');
           }
-
           final timestamp = DateTime.now().microsecondsSinceEpoch;
           final path =
               'storages/${storageRef.id}/'
