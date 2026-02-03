@@ -9,6 +9,7 @@ import 'package:jimiker/features/draw/zone_provider.dart';
 import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
+import '../../chat/screens/chat_room_screen.dart';
 import '../../chat/services/chat_service.dart';
 
 class ReservationCard extends ConsumerStatefulWidget {
@@ -84,34 +85,51 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       final user = ref.read(firebaseAuthProvider).currentUser;
       if (user == null) return;
       final chatService = ChatService(firestore);
-      final addressLabel =
-          widget.storage.address.substring(5) +
-          "-" +
-          widget.storage.detailAddress;
       final ownerId = widget.storage.ownerId;
 
       final existingRoomId = await chatService.findExistingRoomId(
         uid: user.uid,
         opponentUid: ownerId,
       );
+      final roomId =
+          existingRoomId ??
+          firestore.collection('chat_rooms').doc().id;
+
       if (existingRoomId == null) {
-        final chatRoomRef = firestore.collection('chat_rooms').doc();
-        await chatRoomRef.set({
+        await firestore.collection('chat_rooms').doc(roomId).set({
           'participantUids': [user.uid, ownerId],
           'lastMessage': null,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
+      final ownerSnapshot = await firestore
+          .collection('users')
+          .doc(ownerId)
+          .get();
+      final ownerName = ownerSnapshot
+          .data()?['nickName']
+          ?.toString()
+          .trim();
+      final roomName = (ownerName == null || ownerName.isEmpty)
+          ? '지미커'
+          : ownerName;
+
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ChatScreen()));
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              ChatRoomScreen(roomId: roomId, roomName: roomName),
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('채팅방 생성에 실패했어요')));
-    } finally {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => ChatScreen()));
     }
   }
 
