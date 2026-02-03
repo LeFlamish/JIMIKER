@@ -9,6 +9,8 @@ import 'package:jimiker/features/draw/zone_provider.dart';
 import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
+import '../../chat/services/chat_service.dart';
+
 class ReservationCard extends ConsumerStatefulWidget {
   const ReservationCard({super.key, required this.storage});
 
@@ -81,23 +83,26 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       final firestore = ref.read(firestoreProvider);
       final user = ref.read(firebaseAuthProvider).currentUser;
       if (user == null) return;
-      final batch = firestore.batch();
-      final chatRoomRef = firestore.collection('chat_rooms').doc();
-
+      final chatService = ChatService(firestore);
       final addressLabel =
           widget.storage.address.substring(5) +
           "-" +
           widget.storage.detailAddress;
       final ownerId = widget.storage.ownerId;
 
-      batch.set(chatRoomRef, {
-        'participantUids': [user.uid, ownerId],
-        'lastMessage': null,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      batch.commit();
+      final existingRoomId = await chatService.findExistingRoomId(
+        uid: user.uid,
+        opponentUid: ownerId,
+      );
+      if (existingRoomId == null) {
+        final chatRoomRef = firestore.collection('chat_rooms').doc();
+        await chatRoomRef.set({
+          'participantUids': [user.uid, ownerId],
+          'lastMessage': null,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -139,7 +144,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
     );
 
     final firestore = ref.read(firestoreProvider);
-
+    final chatService = ChatService(firestore);
     setState(() => _isSubmitting = true);
 
     try {
@@ -156,9 +161,15 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       final reservationRef = firestore
           .collection('reservations')
           .doc();
-      final chatRoomRef = firestore
-          .collection('chat_rooms')
-          .doc('reservation_${reservationRef.id}');
+      final existingRoomId = await chatService.findExistingRoomId(
+        uid: user.uid,
+        opponentUid: ownerId,
+      );
+      final chatRoomRef = existingRoomId == null
+          ? firestore
+                .collection('chat_rooms')
+                .doc('reservation_${reservationRef.id}')
+          : null;
 
       final reservation = Reservation(
         id: reservationRef.id,
@@ -185,12 +196,14 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
         'endAt': Timestamp.fromDate(endAt.toUtc()),
       });
 
-      batch.set(chatRoomRef, {
-        'participantUids': [user.uid, ownerId],
-        'lastMessage': null,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      if (chatRoomRef != null) {
+        batch.set(chatRoomRef, {
+          'participantUids': [user.uid, ownerId],
+          'lastMessage': null,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       await batch.commit();
 

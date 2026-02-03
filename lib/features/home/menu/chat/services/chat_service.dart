@@ -6,6 +6,27 @@ class ChatService {
 
   final FirebaseFirestore _firestore;
 
+  Future<String?> findExistingRoomId({
+    required String uid,
+    required String opponentUid,
+  }) async {
+    if (uid == opponentUid) return null;
+    final snapshot = await _firestore
+        .collection('chat_rooms')
+        .where('participantUids', arrayContains: uid)
+        .get();
+    for (final doc in snapshot.docs) {
+      final participantUids =
+          (doc.data()['participantUids'] as List<dynamic>?)
+              ?.cast<String>() ??
+          [];
+      if (participantUids.contains(opponentUid)) {
+        return doc.id;
+      }
+    }
+    return null;
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> streamChatRooms(
     String uid,
   ) {
