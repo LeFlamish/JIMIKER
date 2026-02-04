@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/data/models/chat.dart';
 import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/zone.dart';
@@ -26,6 +25,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
   DateTime? _selectedDate;
   int _selectedMonth = 1;
   bool _isSubmitting = false;
+  bool _isLoadingDates = false; // 날짜 로딩 상태 표시용
 
   final List<int> _monthList = List.generate(
     12,
@@ -35,13 +35,159 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
   final Color _primaryColor = const Color(0xFF4A65F0);
   final Color _inputFillColor = const Color(0xFFEEF0F5);
 
+  Future<List<DateTimeRange>> _fetchAllBlockedRanges(
+    String zoneIndex,
+  ) async {
+    final firestore = ref.read(firestoreProvider);
+    final storageId = widget.storage.id;
+
+    if (storageId == null) return [];
+
+    try {
+      // 1. Reservations 쿼리 (승인된 예약만)
+      final reservationQuery = firestore
+          .collection('reservations')
+          .where('storageId', isEqualTo: storageId)
+          .where('containerIndex', isEqualTo: zoneIndex)
+          .get();
+
+      // 2. Usages 쿼리 (이미 사용 중인 내역)
+      // usages 컬렉션 구조가 startAt, endAt을 가지고 있다고 가정
+      final usageQuery = firestore
+          .collection('usages')
+          .where('storageId', isEqualTo: storageId)
+          .where('containerIndex', isEqualTo: zoneIndex)
+          .get();
+
+      // 3. 두 쿼리를 병렬로 실행하여 시간 단축
+      final results = await Future.wait([
+        reservationQuery,
+        usageQuery,
+      ]);
+
+      final reservationSnapshot = results[0];
+      final usageSnapshot = results[1];
+
+      List<DateTimeRange> ranges = [];
+
+      // 헬퍼 함수: 스냅샷에서 날짜 범위 추출
+      void addRangesFromDocs(
+        List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+      ) {
+        for (var doc in docs) {
+          final data = doc.data();
+          final startTimestamp = data['startAt'] as Timestamp?;
+          final endTimestamp = data['endAt'] as Timestamp?;
+
+          if (startTimestamp != null && endTimestamp != null) {
+            ranges.add(
+              DateTimeRange(
+                start: startTimestamp.toDate(),
+                end: endTimestamp.toDate(),
+              ),
+            );
+          }
+        }
+      }
+
+      // 두 결과 합치기
+      addRangesFromDocs(reservationSnapshot.docs);
+      addRangesFromDocs(usageSnapshot.docs);
+
+      return ranges;
+    } catch (e) {
+      debugPrint('블락된 날짜 정보 불러오기 실패: $e');
+      return [];
+    }
+  }
+
+  bool _isDateSelectable(
+    DateTime day,
+    List<DateTimeRange> blockedRanges,
+  ) {
+    // 날짜의 시간 성분 제거 (순수 날짜 비교)
+    final DateTime tentativeStart = DateTime(
+      day.year,
+      day.month,
+      day.day,
+    );
+
+    // 종료일 계산 (선택한 개월 수 반영)
+    final DateTime tentativeEnd = DateTime(
+      day.year,
+      day.month + _selectedMonth,
+      day.day,
+    );
+
+    for (var range in blockedRanges) {
+      // 겹침 공식: (StartA < EndB) && (EndA > StartB)
+      bool isOverlapping =
+          tentativeStart.isBefore(range.end) &&
+          tentativeEnd.isAfter(range.start);
+
+      if (isOverlapping) {
+        return false; // 선택 불가
+      }
+    }
+    return true; // 선택 가능
+  }
+
   Future<void> _pickDate() async {
+    // 1. 구역 선택 여부 확인
+    final zones = ref.read(zoneProvider);
+    final selectedIndex = ref.read(selectedZoneProvider);
+    final zone = _findZoneByIndex(zones, selectedIndex);
+
+    if (zone == null || zone.index.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('먼저 예약할 구역을 선택해주세요.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoadingDates = true);
+
+    // 2. 예약된 날짜들 가져오기
+    final reservedRanges = await _fetchAllBlockedRanges(zone.index);
+
+    setState(() => _isLoadingDates = false);
+
+    if (!mounted) return;
+
     final DateTime now = DateTime.now();
+    // 기준일: 이미 선택된 날짜가 있으면 그 날짜, 없으면 오늘
+    // 단, 과거 날짜는 선택 불가하므로 오늘보다 이전이면 오늘로 설정
+    DateTime baseDate = _selectedDate ?? now;
+    if (baseDate.isBefore(DateTime(now.year, now.month, now.day))) {
+      baseDate = DateTime(now.year, now.month, now.day);
+    }
+
+    // 2. 가장 가까운 "예약 가능한 날짜" 찾기 (핵심 로직)
+    DateTime? validInitialDate;
+
+    // 오늘부터 1년 뒤까지만 탐색 (무한 루프 방지)
+    for (int i = 0; i < 365; i++) {
+      final DateTime candidate = baseDate.add(Duration(days: i));
+      if (_isDateSelectable(candidate, reservedRanges)) {
+        validInitialDate = candidate;
+        break; // 찾았으면 중단
+      }
+    }
+
+    // 만약 1년 내에 예약 가능한 날짜가 아예 없다면?
+    if (validInitialDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('향후 1년간 예약 가능한 날짜가 없습니다.')),
+      );
+      return;
+    }
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? now,
+      initialDate: validInitialDate,
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(2030),
+      selectableDayPredicate: (day) =>
+          _isDateSelectable(day, reservedRanges),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -201,11 +347,6 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
         status: Status.waiting,
       );
 
-      final addressLabel =
-          widget.storage.address.substring(5) +
-          "-" +
-          widget.storage.detailAddress;
-
       final batch = firestore.batch();
       batch.set(reservationRef, {
         ...reservation.toMap(),
@@ -309,7 +450,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
           ),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: _pickDate,
+            onTap: _isLoadingDates ? null : _pickDate,
             child: Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -327,18 +468,28 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
                     color: Colors.grey[600],
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    _selectedDate == null
-                        ? '날짜를 선택해주세요'
-                        : '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: _selectedDate == null
-                          ? Colors.grey[600]
-                          : Colors.black,
+                  // 로딩 중이면 인디케이터, 아니면 날짜 텍스트
+                  if (_isLoadingDates)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  else
+                    Text(
+                      _selectedDate == null
+                          ? '날짜를 선택해주세요'
+                          : '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: _selectedDate == null
+                            ? Colors.grey[600]
+                            : Colors.black,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
