@@ -7,7 +7,6 @@ import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/features/draw/zone_provider.dart';
 import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
-
 import '../../chat/screens/chat_room_screen.dart';
 import '../../chat/services/chat_service.dart';
 

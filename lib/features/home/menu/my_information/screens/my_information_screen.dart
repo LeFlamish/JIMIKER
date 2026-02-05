@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/features/home/menu/my_information/profile_edit/screens/profile_edit_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
 class MyInformationScreen extends ConsumerWidget {
@@ -19,105 +20,103 @@ class MyInformationScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: const Text(
-          '내 정보',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: backgroundColor,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-          onPressed: () {
-            // 뒤로가기 기능 (필요 시 구현)
-            Navigator.pop(context);
-          },
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            // 1. 상단 프로필 카드 (그라데이션 적용)
-            _buildProfileCard(
-              name: me != null ? me.nickName : '',
-              email: me != null ? me.email : '',
-              photoURL: me != null ? me.photoURL : '',
-            ),
-
-            const SizedBox(height: 24),
-
-            // 2. 계정 설정 섹션
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "계정 관리",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _buildMenuTile(Icons.person_outline, "프로필 수정"),
-                  _buildMenuTile(Icons.lock_outline, "비밀번호 변경"),
-                  _buildMenuTile(Icons.payment, "결제 수단 관리"),
-                ],
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              // 1. 상단 프로필 카드 (그라데이션 적용)
+              _buildProfileCard(
+                name: me != null ? me.nickName : '',
+                email: me != null ? me.email : '',
+                photoURL: me != null ? me.photoURL : '',
               ),
-            ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // 3. 앱 설정 섹션
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "앱 설정",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: textDark,
+              // 2. 계정 설정 섹션
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "계정 관리",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: textDark,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  _buildMenuTile(Icons.notifications_none, "알림 설정"),
-                  _buildMenuTile(
-                    Icons.headset_mic_outlined,
-                    "고객센터 / 문의하기",
-                  ),
-                  _buildMenuTile(Icons.info_outline, "약관 및 정책"),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 4. 하단 로그아웃 버튼
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: TextButton(
-                onPressed: () {
-                  // 로그아웃 로직
-                  authController.signOut(context);
-                },
-                child: const Text(
-                  "로그아웃",
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                    const SizedBox(height: 10),
+                    _buildMenuTile(
+                      Icons.person_outline,
+                      "프로필 수정",
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const ProfileEditScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildMenuTile(Icons.lock_outline, "비밀번호 변경"),
+                    _buildMenuTile(Icons.payment, "결제 수단 관리"),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 40),
-          ],
+
+              const SizedBox(height: 24),
+
+              // 3. 앱 설정 섹션
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "앱 설정",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildMenuTile(Icons.notifications_none, "알림 설정"),
+                    _buildMenuTile(
+                      Icons.headset_mic_outlined,
+                      "고객센터 / 문의하기",
+                    ),
+                    _buildMenuTile(Icons.info_outline, "약관 및 정책"),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // 4. 하단 로그아웃 버튼
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: TextButton(
+                  onPressed: () {
+                    // 로그아웃 로직
+                    authController.signOut(context);
+                  },
+                  child: const Text(
+                    "로그아웃",
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );
@@ -184,27 +183,31 @@ class MyInformationScreen extends ConsumerWidget {
               ),
             ],
           ),
-          const Spacer(),
-          // 수정 아이콘
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.edit,
-              color: Colors.white,
-              size: 18,
-            ),
-          ),
+          // const Spacer(),
+          // // 수정 아이콘
+          // Container(
+          //   padding: const EdgeInsets.all(8),
+          //   decoration: BoxDecoration(
+          //     color: Colors.white.withOpacity(0.2),
+          //     borderRadius: BorderRadius.circular(12),
+          //   ),
+          //   child: const Icon(
+          //     Icons.edit,
+          //     color: Colors.white,
+          //     size: 18,
+          //   ),
+          // ),
         ],
       ),
     );
   }
 
   // 위젯: 메뉴 리스트 아이템 (카드 형태)
-  Widget _buildMenuTile(IconData icon, String title) {
+  Widget _buildMenuTile(
+    IconData icon,
+    String title, {
+    void Function()? onTap,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -240,9 +243,7 @@ class MyInformationScreen extends ConsumerWidget {
           size: 16,
           color: Colors.grey,
         ),
-        onTap: () {
-          // 메뉴 클릭 이벤트
-        },
+        onTap: onTap,
       ),
     );
   }
