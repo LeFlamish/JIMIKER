@@ -155,12 +155,32 @@ class MyInformationScreen extends ConsumerWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white.withOpacity(0.2),
-              border: Border.all(color: Colors.white, width: 2),
             ),
-            child: const Icon(
-              Icons.person,
-              color: Colors.white,
-              size: 35,
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6A85FF), Color(0xFF8F94FB)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: ClipOval(
+                child: photoURL == ""
+                    ? const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 35,
+                      )
+                    : Image.network(
+                        photoURL,
+                        fit: BoxFit.cover,
+                        width: 60,
+                        height: 60,
+                      ),
+              ),
             ),
           ),
           const SizedBox(width: 16),

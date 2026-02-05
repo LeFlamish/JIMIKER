@@ -209,6 +209,41 @@ class AuthController extends Notifier<AppUser?> {
       ).showSnackBar(SnackBar(content: Text('로그아웃 실패: $e')));
     }
   }
+
+  Future<void> updateProfile({
+    String? nickName,
+    String? photoURL,
+  }) async {
+    final auth = ref.read(firebaseAuthProvider);
+    final user = auth.currentUser;
+    if (user == null) {
+      throw Exception('로그인이 필요합니다.');
+    }
+
+    final updates = <String, dynamic>{};
+    final trimmedNickName = nickName?.trim();
+    if (trimmedNickName != null && trimmedNickName.isNotEmpty) {
+      updates['nickName'] = trimmedNickName;
+    }
+    if (photoURL != null && photoURL.isNotEmpty) {
+      updates['photoURL'] = photoURL;
+    }
+
+    if (updates.isEmpty) return;
+
+    await ref
+        .read(firestoreProvider)
+        .collection('users')
+        .doc(user.uid)
+        .set(updates, SetOptions(merge: true));
+
+    if (state != null) {
+      state = state!.copyWith(
+        nickName: updates['nickName'] as String? ?? state!.nickName,
+        photoURL: updates['photoURL'] as String? ?? state!.photoURL,
+      );
+    }
+  }
 }
 
 /// ✅ Provider 변경: state(AppUser?)를 방출하는 NotifierProvider
