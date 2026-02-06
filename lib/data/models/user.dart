@@ -7,6 +7,7 @@ class AppUser {
   final String email;
   final String nickName;
   final String photoURL;
+  final String fcmToken;
   final bool advertisement;
   final UserType userType;
 
@@ -19,6 +20,7 @@ class AppUser {
     required this.email,
     required this.nickName,
     required this.photoURL,
+    required this.fcmToken,
     required this.advertisement,
     required this.userType,
     this.createdAt,
@@ -43,6 +45,9 @@ class AppUser {
     final photoURL = (data['photoURL'] is String)
         ? data['photoURL'] as String
         : '';
+    final fcmToken = (data['fcmToken'] is String)
+        ? data['fcmToken'] as String
+        : '';
     final advertisement = (data['advertisement'] is bool)
         ? data['advertisement'] as bool
         : false;
@@ -61,6 +66,7 @@ class AppUser {
       email: email,
       nickName: nickName,
       photoURL: photoURL,
+      fcmToken: fcmToken,
       advertisement: advertisement,
       userType: UserType.values.firstWhere(
         (t) => t.name == userTypeStr,
@@ -80,6 +86,7 @@ class AppUser {
       'email': email,
       'nickName': nickName,
       'photoURL': photoURL,
+      'fcmToken': fcmToken,
       'advertisement': advertisement,
       'userType': userType.name,
       // DateTime -> Timestamp로 저장
@@ -95,6 +102,7 @@ class AppUser {
     String? email,
     String? nickName,
     String? photoURL,
+    String? fcmToken,
     bool? advertisement,
     UserType? userType,
     DateTime? createdAt,
@@ -105,6 +113,7 @@ class AppUser {
       email: email ?? this.email,
       nickName: nickName ?? this.nickName,
       photoURL: photoURL ?? this.photoURL,
+      fcmToken: fcmToken ?? this.fcmToken,
       advertisement: advertisement ?? this.advertisement,
       userType: userType ?? this.userType,
       createdAt: createdAt ?? this.createdAt,

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -67,6 +70,40 @@ class AuthController extends Notifier<AppUser?> {
     _cachedUid = null;
   }
 
+  Future<void> upsertFcmTokenToUserDoc(String token) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return; // 로그인 안됐으면 스킵
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid);
+
+    await userRef.set({'fcmToken': token}, SetOptions(merge: true));
+  }
+
+  StreamSubscription<String>? _tokenSub;
+
+  Future<void> initFcmTokenSync() async {
+    // 1) 초기 토큰
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) {
+      await upsertFcmTokenToUserDoc(token);
+    }
+
+    // 2) 토큰 갱신 리스너
+    _tokenSub?.cancel();
+    _tokenSub = FirebaseMessaging.instance.onTokenRefresh.listen((
+      newToken,
+    ) async {
+      await upsertFcmTokenToUserDoc(newToken);
+    });
+  }
+
+  Future<void> disposeFcmTokenSync() async {
+    await _tokenSub?.cancel();
+    _tokenSub = null;
+  }
+
   Future<AppUser?> _ensureAndFetchMe(User fbUser) {
     // 계정 변경 시 캐시 초기화
     if (_cachedUid != null && _cachedUid != fbUser.uid) {
@@ -96,6 +133,7 @@ class AuthController extends Notifier<AppUser?> {
               email: fbUser.email ?? '',
               nickName: fbUser.displayName ?? '',
               photoURL: '',
+              fcmToken: '',
               advertisement: false,
               userType: UserType.user,
             );
@@ -110,6 +148,7 @@ class AuthController extends Notifier<AppUser?> {
           }
 
           state = userDoc; // ✅ notifier 발생 (UI 자동 갱신)
+          await initFcmTokenSync();
           return state;
         }().whenComplete(() {
           _meFuture = null;
@@ -187,6 +226,7 @@ class AuthController extends Notifier<AppUser?> {
 
       _clearCache(); // ✅ state=null로 notify
 
+      await disposeFcmTokenSync();
       await auth.signOut();
       await GoogleSignIn.instance.disconnect();
 
