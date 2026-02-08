@@ -226,6 +226,7 @@ class AuthController extends Notifier<AppUser?> {
 
       _clearCache(); // ✅ state=null로 notify
 
+      await upsertFcmTokenToUserDoc('');
       await disposeFcmTokenSync();
       await auth.signOut();
       await GoogleSignIn.instance.disconnect();
