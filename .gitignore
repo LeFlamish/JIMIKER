@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Node (Cloud Functions / Firestore 규칙 테스트)
+node_modules/
+firestore-tests/.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log

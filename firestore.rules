@@ -1,0 +1,212 @@
+rules_version = '2';
+
+// 지미커 Firestore 보안 규칙
+//
+// 원칙
+//  - 창고 목록/지도는 로그인 없이도 볼 수 있어야 하므로 읽기만 공개한다.
+//  - 그 외 모든 쓰기는 "그 데이터의 주인"만 할 수 있다.
+//  - 채팅은 그 방의 참여자만 읽고 쓸 수 있다.
+//  - 승인(approved), 사용내역(usages/endeds)처럼 서버가 정해야 하는 값은
+//    클라이언트가 못 건드리게 막고 Cloud Functions(Admin SDK)에 맡긴다.
+//    Admin SDK는 이 규칙을 우회하므로 함수 쪽 동작에는 영향이 없다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- 공통 헬퍼 ----------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // 이번 쓰기로 값이 바뀌지 않는 필드인지 확인한다.
+    function unchanged(field) {
+      return request.resource.data[field] == resource.data[field];
+    }
+
+    // ---------- users ----------
+    //
+    // 채팅 목록/예약 화면에서 상대방의 닉네임·프로필 사진을 읽어야 하므로
+    // 로그인한 사용자는 다른 사람의 문서도 읽을 수 있다.
+    // (주의: 같은 문서에 email과 fcmToken이 같이 들어 있다.
+    //  이걸 감추려면 공개 프로필만 별도 컬렉션으로 분리해야 한다.)
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      // 전체 목록을 훑을 일은 없으므로 막아둔다.
+      allow list: if false;
+
+      // 가입 시 본인 문서만 생성. 스스로 manager가 될 수는 없다.
+      allow create: if isSelf(userId)
+                    && request.resource.data.userType == 'user';
+
+      // 본인 문서만 수정. 등급은 바꿀 수 없다.
+      allow update: if isSelf(userId) && unchanged('userType');
+
+      allow delete: if false;
+    }
+
+    // ---------- storages ----------
+    //
+    // 앱이 storages 전체를 받아와서 approved를 클라이언트에서 거르기 때문에
+    // (find_storage_provider.loadStorages) 읽기는 전체 공개다.
+    // 더 조이려면 그 쿼리를 .where('approved', isEqualTo: true)로 바꾸고
+    // 여기 read를 approved == true || 본인 소유로 좁히면 된다.
+    match /storages/{storageId} {
+      allow read: if true;
+
+      // 등록은 로그인한 사용자가 본인 소유로만. 스스로 승인할 수 없다.
+      allow create: if isSelf(request.resource.data.ownerId)
+                    && request.resource.data.approved == false;
+
+      // 수정/삭제는 주인만. 승인 여부는 서버(Functions)만 바꾼다.
+      allow update: if isSelf(resource.data.ownerId)
+                    && unchanged('ownerId')
+                    && unchanged('approved');
+      allow delete: if isSelf(resource.data.ownerId);
+
+      // 구역(zone)은 창고를 따라간다.
+      //
+      // 창고 등록은 storages 문서와 zones를 같은 batch로 쓴다.
+      // 이때 부모 창고는 아직 커밋 전이라 get()으로는 안 보이므로,
+      // 커밋 후 상태를 보는 getAfter()로 주인을 확인한다.
+      match /zones/{zoneId} {
+        allow read: if true;
+        allow write: if isSignedIn()
+                     && isSelf(
+                          getAfter(/databases/$(database)/documents/storages/$(storageId))
+                            .data.ownerId
+                        );
+      }
+    }
+
+    // ---------- locations ----------
+    //
+    // 주소 단위로 창고를 묶는 인덱스 문서. 창고 등록 시 arrayUnion으로 갱신된다.
+    match /locations/{locationId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
+    // ---------- chat_rooms ----------
+
+    function isRoomMember(room) {
+      return isSignedIn() && request.auth.uid in room.participantUids;
+    }
+
+    // 시스템 방(system_<uid>)에는 앱이 '지미커(시스템)' 이름으로 메시지를 남긴다.
+    // 본인 시스템 방에 한해서만 uid: 'system' 메시지를 허용한다.
+    // (더 안전하게 하려면 이 메시지 생성도 Cloud Functions로 옮기면 된다.)
+    function isOwnSystemRoom(roomId) {
+      return isSignedIn() && roomId == 'system_' + request.auth.uid;
+    }
+
+    match /chat_rooms/{roomId} {
+      // 첫 메시지를 보낼 때 sendMessage가 트랜잭션 안에서 "아직 없는" 방을 먼저 읽는다.
+      // 그때는 resource가 null이라 participantUids를 볼 수 없으므로 통과시켜야 한다.
+      // (로그인한 사람이 특정 방 id의 존재 여부만 알 수 있는 정도의 노출이다.)
+      allow get: if isSignedIn()
+                 && (resource == null || isRoomMember(resource.data));
+
+      // 목록 쿼리는 where('participantUids', arrayContains: uid)로 걸려 있어
+      // 이 조건으로 통과한다. 전체 방 조회는 막힌다.
+      allow list: if isRoomMember(resource.data);
+
+      // 방은 첫 메시지를 보낼 때 만들어진다. 만드는 사람이 참여자여야 한다.
+      allow create: if isRoomMember(request.resource.data);
+
+      // 참여자만 수정 가능하고, 수정 후에도 본인이 참여자로 남아 있어야 한다.
+      // (상대를 참여자로 추가하는 건 허용 — 첫 메시지에 상대가 들어간다.)
+      allow update: if isRoomMember(resource.data)
+                    && isRoomMember(request.resource.data);
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        function parentRoom() {
+          return get(/databases/$(database)/documents/chat_rooms/$(roomId)).data;
+        }
+
+        // 첫 메시지는 방 문서와 같은 트랜잭션에서 만들어진다.
+        // 이 시점엔 방이 아직 "커밋 전"이라 get()으로는 안 보이므로,
+        // 커밋 후 상태를 보는 getAfter()로 참여자를 확인한다.
+        function parentRoomAfter() {
+          return getAfter(/databases/$(database)/documents/chat_rooms/$(roomId)).data;
+        }
+
+        function parentRoomExists() {
+          return exists(/databases/$(database)/documents/chat_rooms/$(roomId));
+        }
+
+        // 아직 저장되지 않은 방에 들어가면 앱이 곧바로 메시지 목록을 구독한다.
+        // 방이 없으면 메시지도 없으므로 빈 결과를 그대로 돌려주면 된다.
+        allow read: if isSignedIn()
+                    && (!parentRoomExists() || isRoomMember(parentRoom()));
+
+        allow create: if isRoomMember(parentRoomAfter())
+                      && (
+                           request.resource.data.uid == request.auth.uid
+                           || (
+                                request.resource.data.uid == 'system'
+                                && isOwnSystemRoom(roomId)
+                              )
+                         );
+
+        // 읽음 표시 외에는 메시지를 고칠 수 없다.
+        allow update: if isRoomMember(parentRoom())
+                      && request.resource.data.diff(resource.data)
+                           .affectedKeys().hasOnly(['read']);
+
+        allow delete: if false;
+      }
+    }
+
+    // ---------- reservations ----------
+    //
+    // 예약 가능한 날짜를 계산할 때 남의 예약까지 봐야 해서
+    // (reservation_card._fetchAllBlockedRanges 가 storageId+containerIndex로 조회)
+    // 읽기는 로그인한 사용자 전체에 열어둔다.
+    // 날짜만 공개하고 싶다면 예약 기간만 담은 별도 컬렉션을 두고
+    // 여기 read를 본인/주인으로 좁히는 게 좋다.
+    match /reservations/{reservationId} {
+      allow read: if isSignedIn();
+
+      // 예약 신청은 본인 이름으로만, 항상 대기 상태로 시작한다.
+      allow create: if isSelf(request.resource.data.userId)
+                    && request.resource.data.status == 'waiting';
+
+      // 승인/거절은 창고 주인이, 취소는 예약자가 한다.
+      // 예약자와 창고는 바뀔 수 없다.
+      allow update: if (isSelf(resource.data.ownerId) || isSelf(resource.data.userId))
+                    && unchanged('userId')
+                    && unchanged('ownerId')
+                    && unchanged('storageId');
+
+      allow delete: if isSelf(resource.data.userId)
+                    || isSelf(resource.data.ownerId);
+    }
+
+    // ---------- usages / endeds ----------
+    //
+    // 이용 중·종료된 내역. 예약과 마찬가지로 날짜 겹침 확인에 쓰이므로 읽기는 열고,
+    // 쓰기는 서버(Admin SDK)만 하도록 막는다. 지금 앱에는 쓰기 코드가 없다.
+    match /usages/{usageId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /endeds/{endedId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---------- 그 외 ----------
+    // 위에서 명시하지 않은 경로는 전부 차단한다.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
