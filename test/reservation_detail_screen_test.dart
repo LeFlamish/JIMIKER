@@ -157,7 +157,6 @@ void main() {
       expect(find.text('창고 지형도'), findsOneWidget);
       expect(find.text('B 구역'), findsOneWidget);
       expect(find.text('1 대 1 문의'), findsOneWidget);
-      expect(find.text('예약 취소'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -199,14 +198,44 @@ void main() {
       expect(find.text('창고 주인의 승인을 기다리는 중이에요.'), findsOneWidget);
     });
 
-    testWidgets('취소 버튼을 누르면 확인 다이얼로그가 뜬다', (tester) async {
-      await _pumpDetail(tester);
+    testWidgets('대기중인 예약은 바로 취소할 수 있다', (tester) async {
+      await _pumpDetail(tester, status: Status.waiting);
+
+      expect(find.text('예약 취소'), findsOneWidget);
+      expect(find.text('취소 요청'), findsNothing);
 
       await tester.tap(find.text('예약 취소'));
       await tester.pumpAndSettle();
 
       expect(find.text('예약을 취소할까요?'), findsOneWidget);
       expect(find.text('닫기'), findsOneWidget);
+    });
+
+    testWidgets('확정된 예약은 바로 취소하지 못하고 취소 요청만 된다', (tester) async {
+      await _pumpDetail(tester, status: Status.approved);
+
+      expect(find.text('취소 요청'), findsOneWidget);
+      expect(find.text('예약 취소'), findsNothing);
+      expect(find.text('내역 삭제'), findsNothing);
+    });
+
+    testWidgets('취소 요청을 누르면 문의로 안내하는 다이얼로그가 뜬다', (tester) async {
+      await _pumpDetail(tester, status: Status.approved);
+
+      await tester.tap(find.text('취소 요청'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('확정된 예약이에요'), findsOneWidget);
+      expect(
+        find.textContaining('창고 주인에게 문의로 취소를 요청해 주세요.'),
+        findsOneWidget,
+      );
+      expect(find.text('문의하기'), findsOneWidget);
+
+      // 닫기를 누르면 아무 일도 일어나지 않는다.
+      await tester.tap(find.text('닫기'));
+      await tester.pumpAndSettle();
+      expect(find.text('확정된 예약이에요'), findsNothing);
     });
   });
 }

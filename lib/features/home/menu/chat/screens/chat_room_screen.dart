@@ -13,11 +13,16 @@ class ChatRoomScreen extends StatefulWidget {
   /// 참여자로 넣어주기 위해 필요하다. (시스템 방처럼 상대가 없으면 null)
   final String? opponentUid;
 
+  /// 입력창에 미리 채워둘 문구. 자동으로 보내지는 않고,
+  /// 사용자가 고쳐서 보낼 수 있게 초안만 넣어준다.
+  final String? initialMessage;
+
   const ChatRoomScreen({
     super.key,
     required this.roomId,
     required this.roomName,
     this.opponentUid,
+    this.initialMessage,
   });
 
   @override
@@ -29,6 +34,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final draft = widget.initialMessage?.trim();
+    if (draft != null && draft.isNotEmpty) {
+      _messageController.value = TextEditingValue(
+        text: draft,
+        selection: TextSelection.collapsed(offset: draft.length),
+      );
+    }
+  }
 
   @override
   void dispose() {

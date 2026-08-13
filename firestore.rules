@@ -185,8 +185,14 @@ service cloud.firestore {
                     && unchanged('ownerId')
                     && unchanged('storageId');
 
-      allow delete: if isSelf(resource.data.userId)
-                    || isSelf(resource.data.ownerId);
+      // 확정(approved)된 예약은 예약자가 마음대로 지울 수 없다.
+      // 주인이 이미 그 기간을 비워둔 상태라, 취소는 문의로 요청하고
+      // 주인이 거절(rejected)로 바꿔준 뒤에 정리한다.
+      allow delete: if isSelf(resource.data.ownerId)
+                    || (
+                         isSelf(resource.data.userId)
+                         && resource.data.status != 'approved'
+                       );
     }
 
     // ---------- usages / endeds ----------

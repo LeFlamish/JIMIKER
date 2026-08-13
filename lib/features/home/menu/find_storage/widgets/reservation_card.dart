@@ -41,7 +41,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
     if (storageId == null) return [];
 
     try {
-      // 1. Reservations 쿼리 (승인된 예약만)
+      // 1. Reservations 쿼리 (거절된 건은 아래에서 걸러낸다)
       final reservationQuery = firestore
           .collection('reservations')
           .where('storageId', isEqualTo: storageId)
@@ -73,6 +73,12 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       ) {
         for (var doc in docs) {
           final data = doc.data();
+
+          // 거절된 예약은 그 기간을 막지 않는다.
+          // (주인이 거절하면 곧바로 다시 예약할 수 있어야 한다.
+          //  usages에는 status가 없어서 항상 통과한다.)
+          if (data['status'] == Status.rejected.name) continue;
+
           final startTimestamp = data['startAt'] as Timestamp?;
           final endTimestamp = data['endAt'] as Timestamp?;
 

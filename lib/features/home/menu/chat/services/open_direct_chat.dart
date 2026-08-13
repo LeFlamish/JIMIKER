@@ -12,11 +12,13 @@ import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 ///
 /// 화면이 사라진 뒤에도 이동할 수 있도록 [BuildContext] 대신
 /// [NavigatorState]를 미리 받아둔다.
+/// [initialMessage]를 넘기면 입력창에 초안으로 채워둔다. (자동 발송은 하지 않는다)
 Future<void> openDirectChatRoom({
   required NavigatorState navigator,
   required FirebaseFirestore firestore,
   required String uid,
   required String opponentUid,
+  String? initialMessage,
 }) async {
   final chatService = ChatService(firestore);
 
@@ -45,6 +47,7 @@ Future<void> openDirectChatRoom({
         roomId: roomId,
         roomName: roomName,
         opponentUid: opponentUid,
+        initialMessage: initialMessage,
       ),
     ),
   );

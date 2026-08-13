@@ -478,6 +478,63 @@ test('reservations: 창고 주인은 상태를 바꾸고, 제3자는 못 바꾼�
   );
 });
 
+test('reservations: 대기중인 예약은 예약자가 취소할 수 있다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'reservations', 'r1'), {
+      userId: ALICE,
+      ownerId: BOB,
+      storageId: 's1',
+      status: 'waiting',
+    });
+  });
+
+  await assertSucceeds(deleteDoc(doc(asAlice(), 'reservations', 'r1')));
+});
+
+test('reservations: 확정된 예약은 예약자가 지울 수 없다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'reservations', 'r1'), {
+      userId: ALICE,
+      ownerId: BOB,
+      storageId: 's1',
+      status: 'approved',
+    });
+  });
+
+  // 예약자는 막히고, 창고 주인은 정리할 수 있다.
+  await assertFails(deleteDoc(doc(asAlice(), 'reservations', 'r1')));
+  await assertSucceeds(deleteDoc(doc(asBob(), 'reservations', 'r1')));
+});
+
+test('reservations: 주인이 거절로 바꾸면 예약자가 내역을 지울 수 있다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'reservations', 'r1'), {
+      userId: ALICE,
+      ownerId: BOB,
+      storageId: 's1',
+      status: 'approved',
+    });
+  });
+
+  await assertSucceeds(
+    updateDoc(doc(asBob(), 'reservations', 'r1'), {status: 'rejected'}),
+  );
+  await assertSucceeds(deleteDoc(doc(asAlice(), 'reservations', 'r1')));
+});
+
+test('reservations: 제3자는 남의 예약을 지울 수 없다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'reservations', 'r1'), {
+      userId: ALICE,
+      ownerId: BOB,
+      storageId: 's1',
+      status: 'waiting',
+    });
+  });
+
+  await assertFails(deleteDoc(doc(asCarol(), 'reservations', 'r1')));
+});
+
 // -------------------------------------------------------- usages / endeds
 
 test('usages/endeds: 읽기만 되고 클라이언트 쓰기는 막힌다', async () => {

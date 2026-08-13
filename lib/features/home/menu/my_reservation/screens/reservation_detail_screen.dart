@@ -91,7 +91,13 @@ class _ReservationDetailScreenState
     }
   }
 
-  Future<void> _openInquiry() async {
+  /// 확정된 예약은 사용자가 마음대로 무를 수 없다.
+  /// 창고 주인이 이미 그 기간을 비워둔 상태라 서로 합의가 필요하기 때문에,
+  /// 취소는 문의로 요청하고 주인이 처리하도록 한다.
+  bool get _canCancelDirectly =>
+      _reservation.status != Status.approved;
+
+  Future<void> _openInquiry({String? initialMessage}) async {
     final user = ref.read(firebaseAuthProvider).currentUser;
     if (user == null) {
       _showMessage('로그인 후 이용해주세요.');
@@ -111,10 +117,58 @@ class _ReservationDetailScreenState
         firestore: ref.read(firestoreProvider),
         uid: user.uid,
         opponentUid: ownerId,
+        initialMessage: initialMessage,
       );
     } catch (error) {
       _showMessage('채팅방을 열지 못했어요.');
     }
+  }
+
+  /// 확정된 예약의 "취소 요청". 바로 지우지 않고 문의 채팅으로 넘긴다.
+  Future<void> _requestCancel() async {
+    final wantsInquiry = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('확정된 예약이에요'),
+        content: const Text(
+          '확정된 예약은 바로 취소할 수 없어요.\n'
+          '창고 주인에게 문의로 취소를 요청해 주세요.',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              '닫기',
+              style: TextStyle(color: Colors.grey[700]),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              '문의하기',
+              style: TextStyle(
+                color: _primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (wantsInquiry != true || !mounted) return;
+
+    await _openInquiry(
+      initialMessage:
+          '예약 취소를 요청드립니다.\n'
+          '· 보관 구역: ${_reservation.containerIndex}\n'
+          '· 이용 기간: ${_formatDate(_reservation.startAt)} ~ '
+          '${_formatDate(_reservation.endAt)}',
+    );
   }
 
   Future<void> _confirmCancel() async {
@@ -568,39 +622,69 @@ class _ReservationDetailScreenState
             Expanded(
               child: SizedBox(
                 height: 52,
-                child: ElevatedButton(
-                  onPressed: _isCancelling ? null : _confirmCancel,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _dangerColor,
-                    disabledBackgroundColor: _dangerColor.withValues(
-                      alpha: 0.5,
-                    ),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isCancelling
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                      : Text(
-                          isRejected ? '내역 삭제' : '예약 취소',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
+                // 확정된 예약은 바로 지우지 않고 주인에게 취소를 요청한다.
+                child: _canCancelDirectly
+                    ? _buildCancelButton(
+                        label: isRejected ? '내역 삭제' : '예약 취소',
+                      )
+                    : _buildRequestCancelButton(),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 대기중/거절된 예약: 바로 지운다.
+  Widget _buildCancelButton({required String label}) {
+    return ElevatedButton(
+      onPressed: _isCancelling ? null : _confirmCancel,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _dangerColor,
+        disabledBackgroundColor: _dangerColor.withValues(alpha: 0.5),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      child: _isCancelling
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2.5,
+              ),
+            )
+          : Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+    );
+  }
+
+  /// 확정된 예약: 문의로 넘어가기만 한다. 실제로 지우지 않으므로
+  /// 채워진 빨간 버튼 대신 테두리만 있는 형태로 약하게 보여준다.
+  Widget _buildRequestCancelButton() {
+    return OutlinedButton(
+      onPressed: _requestCancel,
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: _dangerColor),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      child: const Text(
+        '취소 요청',
+        style: TextStyle(
+          color: _dangerColor,
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
