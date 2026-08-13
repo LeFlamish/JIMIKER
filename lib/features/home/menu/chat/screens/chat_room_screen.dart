@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:jimiker/core/utils/kst_time.dart';
+import 'package:jimiker/services/notification_service.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 import 'package:jimiker/features/home/menu/chat/widgets/chat_message_bubble.dart';
 
@@ -43,6 +44,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void initState() {
     super.initState();
 
+    // 보고 있는 방의 메시지는 알림으로 또 띄우지 않는다.
+    NotificationService.currentChatRoomId = widget.roomId;
+
     final draft = widget.initialMessage?.trim();
     if (draft != null && draft.isNotEmpty) {
       _messageController.value = TextEditingValue(
@@ -54,6 +58,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   @override
   void dispose() {
+    if (NotificationService.currentChatRoomId == widget.roomId) {
+      NotificationService.currentChatRoomId = null;
+    }
     _messageController.dispose();
     _focusNode.dispose();
     super.dispose();

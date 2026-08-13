@@ -4,6 +4,52 @@ import 'package:jimiker/features/home/menu/chat/screens/chat_room_screen.dart';
 import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 
+/// 방 id만 알 때 그 채팅방을 연다. (알림을 눌러 들어오는 경우)
+///
+/// 방 이름은 문서에서 상대를 찾아 채운다. 상대를 못 찾으면 방 이름만 쓰고,
+/// 그것도 없으면 '지미커'로 둔다.
+Future<void> openChatRoomById({
+  required NavigatorState navigator,
+  required FirebaseFirestore firestore,
+  required String uid,
+  required String roomId,
+}) async {
+  final roomSnapshot = await firestore
+      .collection('chat_rooms')
+      .doc(roomId)
+      .get();
+  if (!roomSnapshot.exists) return;
+
+  final data = roomSnapshot.data() ?? {};
+  final participantUids =
+      (data['participantUids'] as List<dynamic>?)?.cast<String>() ??
+      const [];
+  final opponentUid = participantUids.firstWhere(
+    (participant) => participant != uid && participant != 'system',
+    orElse: () => '',
+  );
+
+  var roomName = data['roomName']?.toString().trim() ?? '';
+  if (opponentUid.isNotEmpty) {
+    final opponent = await firestore
+        .collection('users')
+        .doc(opponentUid)
+        .get();
+    final nickName = opponent.data()?['nickName']?.toString().trim();
+    if (nickName != null && nickName.isNotEmpty) roomName = nickName;
+  }
+
+  navigator.push(
+    MaterialPageRoute(
+      builder: (_) => ChatRoomScreen(
+        roomId: roomId,
+        roomName: roomName.isEmpty ? '지미커' : roomName,
+        opponentUid: opponentUid.isEmpty ? null : opponentUid,
+      ),
+    ),
+  );
+}
+
 /// 상대와의 1:1 채팅방을 연다.
 ///
 /// 이미 상대와의 방이 있으면 그 방을 그대로 열고, 없으면 새 방 id만 만들어 들어간다.

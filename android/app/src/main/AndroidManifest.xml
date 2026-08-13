@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- 안드로이드 13부터 알림도 사용자 허용이 필요하다 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="jimiker"
@@ -38,6 +40,12 @@
 
         <meta-data android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyAuhd1aQTSgjtgnydP3_wgD3SDD2QD-VGU"/>
+
+        <!-- 앱이 꺼져 있을 때 도착한 알림이 쓸 기본 채널.
+             NotificationService가 만드는 채널, Functions가 보내는 channelId와 같아야 한다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="high_importance_channel"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

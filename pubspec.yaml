@@ -40,6 +40,9 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.2
 
+  ###  알림 (앱이 켜져 있을 때 표시 + 안드로이드 알림 채널) ###
+  flutter_local_notifications: ^20.1.0
+
   ###  파이어베이스 ###
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2
