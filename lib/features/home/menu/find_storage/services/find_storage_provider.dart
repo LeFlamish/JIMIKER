@@ -53,7 +53,10 @@ class FindStorageNotifier extends Notifier<FindStorageState> {
       final storages = <String, Storage>{};
       for (final doc in snapshot.docs) {
         final storage = Storage.fromDoc(doc);
-        if (storage.approved) storages[doc.id] = storage;
+        // 주인이 내린 창고(deleted)는 지도에 띄우지 않는다.
+        if (storage.approved && !storage.deleted) {
+          storages[doc.id] = storage;
+        }
       }
 
       state = state.copyWith(storages: storages, isLoading: false);

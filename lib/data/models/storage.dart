@@ -17,6 +17,11 @@ class Storage {
   final Map<String, dynamic> layout;
   final bool approved;
 
+  /// 주인이 내린 창고. 이용/예약 내역이 참조하고 있어서 문서는 남겨두되
+  /// 목록·지도·검색에는 노출하지 않는다.
+  final bool deleted;
+  final DateTime? deletedAt;
+
   Storage({
     this.id,
     required this.locationId,
@@ -32,6 +37,8 @@ class Storage {
     required this.height,
     required this.layout,
     required this.approved,
+    this.deleted = false,
+    this.deletedAt,
   });
 
   factory Storage.fromDoc(DocumentSnapshot doc) {
@@ -82,6 +89,8 @@ class Storage {
       height: height,
       layout: {'lines': lines, 'doors': doors},
       approved: data['approved'] ?? false,
+      deleted: data['deleted'] ?? false,
+      deletedAt: (data['deletedAt'] as Timestamp?)?.toDate().toLocal(),
     );
   }
 
@@ -107,6 +116,9 @@ class Storage {
             .toList(),
       },
       'approved': approved,
+      'deleted': deleted,
+      if (deletedAt != null)
+        'deletedAt': Timestamp.fromDate(deletedAt!.toUtc()),
     };
   }
 
@@ -123,6 +135,8 @@ class Storage {
     double? width,
     double? height,
     Map<String, dynamic>? layout,
+    bool? deleted,
+    DateTime? deletedAt,
   }) {
     return Storage(
       id: id,
@@ -139,6 +153,8 @@ class Storage {
       height: height ?? this.height,
       layout: layout ?? this.layout,
       approved: approved,
+      deleted: deleted ?? this.deleted,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 }

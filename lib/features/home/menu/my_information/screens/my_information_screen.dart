@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
+import 'package:jimiker/data/services/deletion_service.dart';
 import 'package:jimiker/features/home/menu/my_information/profile_edit/screens/profile_edit_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
@@ -63,8 +64,11 @@ class MyInformationScreen extends ConsumerWidget {
                         );
                       },
                     ),
-                    _buildMenuTile(Icons.lock_outline, "비밀번호 변경"),
-                    _buildMenuTile(Icons.payment, "결제 수단 관리"),
+                    _buildMenuTile(
+                      Icons.person_remove_outlined,
+                      "회원 탈퇴",
+                      onTap: () => _confirmWithdraw(context, ref),
+                    ),
                   ],
                 ),
               ),
@@ -271,5 +275,76 @@ class MyInformationScreen extends ConsumerWidget {
         onTap: onTap,
       ),
     );
+  }
+
+  /// 회원 탈퇴. 되돌릴 수 없으므로 무엇이 지워지고 무엇이 남는지 먼저 알려준다.
+  Future<void> _confirmWithdraw(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('회원 탈퇴'),
+        content: const Text(
+          '탈퇴하면 프로필과 등록한 창고가 삭제돼요.\n'
+          '이미 끝난 거래 기록은 상대방에게도 필요해서 남지만, '
+          '내 이름은 "탈퇴한 사용자"로 바뀝니다.\n\n'
+          '되돌릴 수 없어요. 정말 탈퇴할까요?',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              '닫기',
+              style: TextStyle(color: Colors.grey[700]),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              '탈퇴하기',
+              style: TextStyle(
+                color: Color(0xFFD32F2F),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await ref.read(deletionServiceProvider).deleteAccount();
+
+      navigator.pop(); // 로딩 닫기
+      navigator.popUntil((route) => route.isFirst);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('탈퇴가 완료되었어요.')),
+      );
+    } on DeletionBlocked catch (error) {
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      navigator.pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('탈퇴 처리에 실패했어요.')),
+      );
+    }
   }
 }

@@ -12,6 +12,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../data/dataSource/user_source.dart';
 import '../data/models/user.dart';
 import '../data/repository/user_repository.dart';
+import '../data/services/deletion_service.dart';
 import '../features/auth/sign_in_screen.dart';
 
 /// FirebaseAuth 인스턴스
@@ -31,6 +32,15 @@ final firestoreProvider = Provider<FirebaseFirestore>((ref) {
 });
 final firebaseStorageProvider = Provider<FirebaseStorage>((ref) {
   return FirebaseStorage.instance;
+});
+
+/// 창고/계정 삭제 시 Firestore + Storage 정리
+final deletionServiceProvider = Provider<DeletionService>((ref) {
+  return DeletionService(
+    firestore: ref.read(firestoreProvider),
+    storage: ref.read(firebaseStorageProvider),
+    auth: ref.read(firebaseAuthProvider),
+  );
 });
 
 // 2) DataSource Provider

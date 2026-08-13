@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:jimiker/core/widgets/cached_image.dart';
+import 'package:jimiker/core/widgets/detail_section.dart';
+import 'package:jimiker/core/widgets/storage_detail_sections.dart';
 import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
-import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/features/home/menu/chat/services/open_direct_chat.dart';
 import 'package:jimiker/features/home/menu/my_reservation/services/my_reservation_provider.dart';
-import 'package:jimiker/features/home/menu/my_reservation/services/storage_zones_provider.dart';
-import 'package:jimiker/features/home/menu/my_reservation/widgets/storage_layout_view.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
 /// 예약 카드를 눌렀을 때 나오는 상세 화면.
@@ -41,7 +39,6 @@ class _ReservationDetailScreenState
   static const Color _dangerColor = Color(0xFFD32F2F);
 
   bool _isCancelling = false;
-  int _photoIndex = 0;
 
   Reservation get _reservation => widget.reservation;
   Storage get _storage => widget.storage;
@@ -242,10 +239,6 @@ class _ReservationDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final zonesAsync = ref.watch(
-      storageZonesProvider(_storage.id ?? ''),
-    );
-
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
@@ -275,12 +268,16 @@ class _ReservationDetailScreenState
             _buildStatusBanner(),
             const SizedBox(height: 16),
             if (_storage.images.isNotEmpty) ...[
-              _buildPhotos(),
+              DetailPhotoCarousel(images: _storage.images),
               const SizedBox(height: 16),
             ],
-            _buildStorageCard(),
+            StorageInfoCard(storage: _storage),
             const SizedBox(height: 16),
-            _buildLayoutCard(zonesAsync),
+            StorageLayoutCard(
+              storage: _storage,
+              zoneIndex: _reservation.containerIndex,
+              description: '색이 채워진 곳이 내가 예약한 보관 구역이에요.',
+            ),
             const SizedBox(height: 16),
             _buildReservationCard(),
           ],
@@ -295,222 +292,16 @@ class _ReservationDetailScreenState
   Widget _buildStatusBanner() {
     final style = _statusStyle;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 16,
-      ),
-      decoration: BoxDecoration(
-        color: style.background,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              _reservation.status == Status.approved
-                  ? Icons.check_circle_outline
-                  : _reservation.status == Status.waiting
-                  ? Icons.hourglass_empty
-                  : Icons.cancel_outlined,
-              color: style.color,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  style.label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: style.color,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  style.description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: style.color.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------- 사진
-
-  Widget _buildPhotos() {
-    final images = _storage.images;
-
-    return _SectionCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(20),
-            ),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: PageView.builder(
-                itemCount: images.length,
-                onPageChanged: (index) =>
-                    setState(() => _photoIndex = index),
-                itemBuilder: (context, index) =>
-                    CachedImage(imageUrl: images[index]),
-              ),
-            ),
-          ),
-          if (images.length > 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(images.length, (index) {
-                  final isActive = index == _photoIndex;
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: isActive ? 18 : 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? _primaryColor
-                          : const Color(0xFFD9DCE5),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  );
-                }),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // ------------------------------------------------------------ 창고 정보
-
-  Widget _buildStorageCard() {
-    return _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle('창고 정보'),
-          const SizedBox(height: 14),
-          Text(
-            _storage.address,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF222222),
-            ),
-          ),
-          if (_storage.detailAddress.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              _storage.detailAddress,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _StorageStat(
-                icon: Icons.meeting_room_outlined,
-                label: '보관구역',
-                value: '${_storage.count}개',
-              ),
-              const SizedBox(width: 10),
-              _StorageStat(
-                icon: Icons.straighten,
-                label: '가로',
-                value: '${_storage.width.toStringAsFixed(1)}m',
-              ),
-              const SizedBox(width: 10),
-              _StorageStat(
-                icon: Icons.height,
-                label: '세로',
-                value: '${_storage.height.toStringAsFixed(1)}m',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // -------------------------------------------------------------- 지형도
-
-  Widget _buildLayoutCard(AsyncValue<List<Zone>> zonesAsync) {
-    return _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle('창고 지형도'),
-          const SizedBox(height: 4),
-          Text(
-            '색이 채워진 곳이 내가 예약한 보관 구역이에요.',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 14),
-          zonesAsync.when(
-            loading: () => const SizedBox(
-              height: 120,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (error, _) => Container(
-              height: 120,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F6FA),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '지형도를 불러오지 못했어요.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ),
-            data: (zones) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                StorageLayoutView(
-                  storage: _storage,
-                  zones: zones,
-                  highlightedZoneIndex: _reservation.containerIndex,
-                ),
-                const SizedBox(height: 12),
-                StorageLayoutLegend(
-                  zoneIndex: _reservation.containerIndex,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return DetailStatusBanner(
+      icon: switch (_reservation.status) {
+        Status.approved => Icons.check_circle_outline,
+        Status.waiting => Icons.hourglass_empty,
+        Status.rejected => Icons.cancel_outlined,
+      },
+      label: style.label,
+      description: style.description,
+      color: style.color,
+      background: style.background,
     );
   }
 
@@ -519,28 +310,28 @@ class _ReservationDetailScreenState
   Widget _buildReservationCard() {
     final price = widget.price;
 
-    return _SectionCard(
+    return DetailCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionTitle('예약 정보'),
+          const DetailSectionTitle('예약 정보'),
           const SizedBox(height: 14),
-          _InfoRow(
+          DetailInfoRow(
             label: '보관 구역',
             value: '${_reservation.containerIndex} 구역',
           ),
-          _InfoRow(
+          DetailInfoRow(
             label: '이용 기간',
             value:
                 '${_formatDate(_reservation.startAt)} ~ '
                 '${_formatDate(_reservation.endAt)}',
           ),
-          _InfoRow(label: '이용 개월', value: '$_months개월'),
-          _InfoRow(
+          DetailInfoRow(label: '이용 개월', value: '$_months개월'),
+          DetailInfoRow(
             label: '월 요금',
             value: price == null ? '정보 없음' : _formatWon(price),
           ),
-          _InfoRow(
+          DetailInfoRow(
             label: '신청일',
             value: _formatDate(_reservation.createdAt),
           ),
@@ -685,140 +476,6 @@ class _ReservationDetailScreenState
           color: _dangerColor,
           fontSize: 15,
           fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-}
-
-// ------------------------------------------------------------- 공용 조각
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.child,
-    this.padding = const EdgeInsets.all(20),
-  });
-
-  final Widget child;
-  final EdgeInsets padding;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.bold,
-        color: Color(0xFF222222),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 84,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF222222),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StorageStat extends StatelessWidget {
-  const _StorageStat({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF5F6FA),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 18, color: Colors.grey[600]),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF222222),
-              ),
-            ),
-          ],
         ),
       ),
     );

@@ -8,6 +8,7 @@ class StorageWithReservationsCard extends StatelessWidget {
   final Storage storage;
   final List<Reservation> reservations;
   final VoidCallback onEdit; // 수정 버튼 콜백
+  final VoidCallback onDelete; // 삭제 버튼 콜백
   final Function(Reservation) onReservationTap; // 예약 카드 탭 콜백
 
   const StorageWithReservationsCard({
@@ -15,6 +16,7 @@ class StorageWithReservationsCard extends StatelessWidget {
     required this.storage,
     required this.reservations,
     required this.onEdit,
+    required this.onDelete,
     required this.onReservationTap,
   });
 
@@ -82,17 +84,34 @@ class StorageWithReservationsCard extends StatelessWidget {
                                 : "승인 대기",
                             isApproved: storage.approved,
                           ),
-                          // 편집 버튼 추가
-                          GestureDetector(
-                            onTap: onEdit,
-                            child: const Text(
-                              "편집",
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF6B7AF5),
-                                fontWeight: FontWeight.bold,
+                          // 편집 / 삭제 버튼
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: onEdit,
+                                child: const Text(
+                                  "편집",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF6B7AF5),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 14),
+                              GestureDetector(
+                                onTap: onDelete,
+                                child: Text(
+                                  "삭제",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

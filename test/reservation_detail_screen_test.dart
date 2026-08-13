@@ -5,8 +5,8 @@ import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/features/home/menu/my_reservation/screens/reservation_detail_screen.dart';
-import 'package:jimiker/features/home/menu/my_reservation/services/storage_zones_provider.dart';
-import 'package:jimiker/features/home/menu/my_reservation/widgets/storage_layout_view.dart';
+import 'package:jimiker/services/storage_zones_provider.dart';
+import 'package:jimiker/core/widgets/storage_layout_view.dart';
 
 const _storageId = 's1';
 

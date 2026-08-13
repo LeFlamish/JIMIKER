@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
+import 'package:jimiker/data/services/deletion_service.dart';
 import 'package:jimiker/features/home/menu/my_storages/services/my_storages_provider.dart';
+import 'package:jimiker/services/auth_providers.dart';
 import 'package:jimiker/features/home/menu/my_storages/services/storage_edit_config.dart';
 import 'package:jimiker/features/home/menu/register_storage/screens/register_storage_screen.dart';
 
@@ -77,6 +79,10 @@ class _MyStoragesScreenState extends ConsumerState<MyStoragesScreen> {
                         storageId: storageId,
                         storage: storage,
                       ),
+                      onDelete: () => _confirmDeleteStorage(
+                        context: context,
+                        storageId: storageId,
+                      ),
                       onReservationTap: (reservation) {
                         // 예약 카드 탭 시 승인/거절 선택 다이얼로그 표시
                         _showReservationActionDialog(
@@ -143,7 +149,75 @@ class _MyStoragesScreenState extends ConsumerState<MyStoragesScreen> {
     );
   }
 
-  // ... imports
+  /// 창고 삭제.
+  ///
+  /// 지난 이용 내역이 참조하는 창고는 완전히 지우면 상대방 기록까지 깨지므로
+  /// 목록에서만 내리고 문서는 보관한다. 어느 쪽으로 처리됐는지 결과로 알려준다.
+  Future<void> _confirmDeleteStorage({
+    required BuildContext context,
+    required String storageId,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('창고를 삭제할까요?'),
+        content: const Text(
+          '삭제하면 지도와 목록에서 사라져 더 이상 예약을 받지 않아요.\n'
+          '이미 끝난 이용 내역은 이용자에게도 필요해서 남습니다.',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              '닫기',
+              style: TextStyle(color: Colors.grey[700]),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              '삭제',
+              style: TextStyle(
+                color: Color(0xFFD32F2F),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final removedCompletely = await ref
+          .read(deletionServiceProvider)
+          .deleteStorage(storageId);
+
+      await ref.read(myStoragesProvider.notifier).loadMyStorages();
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            removedCompletely
+                ? '창고를 삭제했어요.'
+                : '창고를 내렸어요. 지난 이용 내역은 그대로 남아 있어요.',
+          ),
+        ),
+      );
+    } on DeletionBlocked catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('창고를 삭제하지 못했어요.')),
+      );
+    }
+  }
 
   Future<void> _showReservationActionDialog(
     BuildContext context,
