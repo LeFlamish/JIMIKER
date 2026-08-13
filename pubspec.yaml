@@ -36,6 +36,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   image_picker: ^1.2.1
 
+  ###  이미지 캐시 (같은 이미지 재다운로드 방지) ###
+  cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.2
+
   ###  파이어베이스 ###
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2

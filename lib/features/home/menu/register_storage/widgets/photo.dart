@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:jimiker/core/widgets/cached_image.dart';
 
 class PhotoButton extends StatelessWidget {
   final VoidCallback onTap;
@@ -127,7 +128,8 @@ class StoragePhotoList extends StatelessWidget {
             final index = entry.key;
             final url = entry.value;
             return _PhotoThumbnail(
-              imageProvider: NetworkImage(url),
+              // 이미 올라간 사진은 캐시에서 꺼내 쓴다.
+              imageProvider: cachedImageProvider(url),
               onDelete: () => onDeleteExisting?.call(index),
             );
           }),
@@ -146,7 +148,7 @@ class StoragePhotoList extends StatelessWidget {
 }
 
 class _PhotoThumbnail extends StatelessWidget {
-  final ImageProvider imageProvider;
+  final ImageProvider? imageProvider;
   final VoidCallback? onDelete;
 
   const _PhotoThumbnail({
@@ -156,6 +158,8 @@ class _PhotoThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provider = imageProvider;
+
     return Stack(
       children: [
         Container(
@@ -164,10 +168,13 @@ class _PhotoThumbnail extends StatelessWidget {
           width: 60,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            image: DecorationImage(
-              image: imageProvider,
-              fit: BoxFit.cover,
-            ),
+            color: const Color(0xFFF0F0F0),
+            image: provider == null
+                ? null
+                : DecorationImage(
+                    image: provider,
+                    fit: BoxFit.cover,
+                  ),
           ),
         ),
         Positioned(

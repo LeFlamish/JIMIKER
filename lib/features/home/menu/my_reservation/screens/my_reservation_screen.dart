@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:jimiker/data/models/reservation.dart';
+import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/features/home/menu/my_reservation/services/my_reservation_provider.dart';
 
@@ -135,22 +136,19 @@ class ReservationCard extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: (storage.images.isNotEmpty)
-                        ? Image.network(
-                            storage.images.first,
+                        ? CachedImage(
+                            imageUrl: storage.images.first,
                             width: 62,
                             height: 62,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 62,
-                                height: 62,
-                                color: const Color(0xFFF5F6FA),
-                                child: Icon(
-                                  Icons.image_not_supported_outlined,
-                                  color: Colors.grey[400],
-                                ),
-                              );
-                            },
+                            errorWidget: Container(
+                              width: 62,
+                              height: 62,
+                              color: const Color(0xFFF5F6FA),
+                              child: Icon(
+                                Icons.image_not_supported_outlined,
+                                color: Colors.grey[400],
+                              ),
+                            ),
                           )
                         : Container(
                             width: 62,

@@ -3,6 +3,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
 class ProfileEditScreen extends ConsumerStatefulWidget {
@@ -124,6 +125,8 @@ class _ProfileEditScreenState
       // 저장 성공 시 초기값 업데이트 (버튼 다시 비활성화되도록)
       _initialNickname = nickname;
       if (uploadedUrl != null) {
+        // URL이 그대로여도 내용이 바뀌었을 수 있으니 캐시를 비워 새로 받게 한다.
+        await AppImageCache.evict(uploadedUrl);
         _photoUrl = uploadedUrl;
         _selectedImage = null; // 선택된 이미지 초기화
       }
@@ -151,10 +154,7 @@ class _ProfileEditScreenState
     if (_selectedImage != null) {
       return FileImage(File(_selectedImage!.path));
     }
-    if (_photoUrl.isNotEmpty) {
-      return NetworkImage(_photoUrl);
-    }
-    return null;
+    return cachedImageProvider(_photoUrl);
   }
 
   @override

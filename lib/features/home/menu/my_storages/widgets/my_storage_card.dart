@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jimiker/core/widgets/cached_image.dart';
 
 import '../../../../../data/models/reservation.dart';
 import '../../../../../data/models/storage.dart';
@@ -53,9 +54,10 @@ class StorageWithReservationsCard extends StatelessWidget {
                     height: 90,
                     color: const Color(0xFFF0F0F0),
                     child: storage.images.isNotEmpty
-                        ? Image.network(
-                            storage.images.first,
-                            fit: BoxFit.cover,
+                        ? CachedImage(
+                            imageUrl: storage.images.first,
+                            width: 90,
+                            height: 90,
                           )
                         : const Icon(
                             Icons.inventory_2_outlined,

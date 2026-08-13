@@ -210,8 +210,56 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
     return null;
   }
 
+  /// 창고 주인과의 1:1 채팅방을 연다.
+  ///
+  /// 이미 상대와의 방이 있으면 그 방을 그대로 열고, 없으면 새 방 id만 만들어 들어간다.
+  /// 이 시점에는 Firestore에 아무것도 쓰지 않기 때문에, 아무 말도 안 하고 나오면
+  /// 방은 저장되지 않는다. (첫 메시지를 보내는 순간 방이 만들어진다.)
+  Future<void> _openChatWithOwner({
+    required String uid,
+    required String ownerId,
+    NavigatorState? navigator,
+  }) async {
+    final firestore = ref.read(firestoreProvider);
+    final chatService = ChatService(firestore);
+
+    final roomId = await chatService.resolveDirectRoomId(
+      uid: uid,
+      opponentUid: ownerId,
+    );
+
+    final ownerSnapshot = await firestore
+        .collection('users')
+        .doc(ownerId)
+        .get();
+    final ownerName = ownerSnapshot
+        .data()?['nickName']
+        ?.toString()
+        .trim();
+    final roomName = (ownerName == null || ownerName.isEmpty)
+        ? '지미커'
+        : ownerName;
+
+    final target =
+        navigator ?? (mounted ? Navigator.of(context) : null);
+    if (target == null) return;
+
+    // 뒤로 가면 채팅 목록이 보이도록 목록 → 방 순서로 쌓는다.
+    target.push(
+      MaterialPageRoute(builder: (_) => const ChatScreen()),
+    );
+    target.push(
+      MaterialPageRoute(
+        builder: (_) => ChatRoomScreen(
+          roomId: roomId,
+          roomName: roomName,
+          opponentUid: ownerId,
+        ),
+      ),
+    );
+  }
+
   Future<void> _oneToOneInquiry({required Zone? zone}) async {
-    // 채팅방 개설하자 제목은 1대1 문의 - ~~~
     try {
       if (zone == null || zone.index.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -226,55 +274,18 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       final signedIn = await authController.checkSignIn(context);
       if (!signedIn) return;
 
-      final firestore = ref.read(firestoreProvider);
       final user = ref.read(firebaseAuthProvider).currentUser;
       if (user == null) return;
-      final chatService = ChatService(firestore);
-      final ownerId = widget.storage.ownerId;
 
-      final existingRoomId = await chatService.findExistingRoomId(
+      await _openChatWithOwner(
         uid: user.uid,
-        opponentUid: ownerId,
-      );
-      final roomId =
-          existingRoomId ??
-          firestore.collection('chat_rooms').doc().id;
-
-      if (existingRoomId == null) {
-        await firestore.collection('chat_rooms').doc(roomId).set({
-          'participantUids': [user.uid, ownerId],
-          'lastMessage': null,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      }
-      final ownerSnapshot = await firestore
-          .collection('users')
-          .doc(ownerId)
-          .get();
-      final ownerName = ownerSnapshot
-          .data()?['nickName']
-          ?.toString()
-          .trim();
-      final roomName = (ownerName == null || ownerName.isEmpty)
-          ? '지미커'
-          : ownerName;
-
-      if (!mounted) return;
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const ChatScreen()));
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) =>
-              ChatRoomScreen(roomId: roomId, roomName: roomName),
-        ),
+        ownerId: widget.storage.ownerId,
       );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('채팅방 생성에 실패했어요')));
+      ).showSnackBar(const SnackBar(content: Text('채팅방을 열지 못했어요.')));
     }
   }
 
@@ -294,7 +305,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
 
     final authController = ref.read(authControllerProvider.notifier);
     final signedIn = await authController.checkSignIn(context);
-    if (!signedIn) return;
+    if (!signedIn || !mounted) return;
 
     final user = ref.read(firebaseAuthProvider).currentUser;
     if (user == null) return;
@@ -306,33 +317,26 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       startAt.day,
     );
 
+    final storageId = widget.storage.id;
+    final ownerId = widget.storage.ownerId;
+    if (storageId == null || storageId.isEmpty || ownerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('창고 정보가 올바르지 않아요.')),
+      );
+      return;
+    }
+
     final firestore = ref.read(firestoreProvider);
-    final chatService = ChatService(firestore);
+    // 바텀시트를 닫은 뒤에도 써야 하므로 미리 잡아둔다.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _isSubmitting = true);
 
+    var isReserved = false;
     try {
-      final storageId = widget.storage.id;
-      if (storageId == null || storageId.isEmpty) {
-        throw Exception('storage.id가 비어있습니다.');
-      }
-
-      final ownerId = widget.storage.ownerId;
-      if (ownerId.isEmpty) {
-        throw Exception('storage.ownerId가 비어있습니다.');
-      }
-
       final reservationRef = firestore
           .collection('reservations')
           .doc();
-      final existingRoomId = await chatService.findExistingRoomId(
-        uid: user.uid,
-        opponentUid: ownerId,
-      );
-      final chatRoomRef = existingRoomId == null
-          ? firestore
-                .collection('chat_rooms')
-                .doc('reservation_${reservationRef.id}')
-          : null;
 
       final reservation = Reservation(
         id: reservationRef.id,
@@ -354,30 +358,37 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
         'endAt': Timestamp.fromDate(endAt.toUtc()),
       });
 
-      if (chatRoomRef != null) {
-        batch.set(chatRoomRef, {
-          'participantUids': [user.uid, ownerId],
-          'lastMessage': null,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      }
-
       await batch.commit();
+      isReserved = true;
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('예약이 완료되었어요.')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('예약이 완료되었어요.')),
+      );
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('예약에 실패했어요: $error')));
+      messenger.showSnackBar(
+        SnackBar(content: Text('예약에 실패했어요: $error')),
+      );
     } finally {
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      Navigator.of(context).pop();
+      // 이미 닫힌 뒤라면(사용자가 시트를 내렸다면) 다시 pop하지 않는다.
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        navigator.pop(); // 예약 바텀시트 닫기
+      }
+    }
+
+    if (!isReserved) return;
+
+    // 예약과 동시에 주인과의 1:1 채팅방으로 들어간다.
+    try {
+      await _openChatWithOwner(
+        uid: user.uid,
+        ownerId: ownerId,
+        navigator: navigator,
+      );
+    } catch (error) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('채팅방을 열지 못했어요.')),
+      );
     }
   }
 

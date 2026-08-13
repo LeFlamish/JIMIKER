@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/features/home/menu/my_information/profile_edit/screens/profile_edit_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
@@ -174,11 +175,15 @@ class MyInformationScreen extends ConsumerWidget {
                         color: Colors.white,
                         size: 35,
                       )
-                    : Image.network(
-                        photoURL,
-                        fit: BoxFit.cover,
+                    : CachedImage(
+                        imageUrl: photoURL,
                         width: 60,
                         height: 60,
+                        errorWidget: const Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 35,
+                        ),
                       ),
               ),
             ),

@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:jimiker/features/home/menu/chat/screens/chat_room_screen.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
-import 'package:jimiker/features/home/menu/chat/widgets/chat_room_list_tile.dart';
+import 'package:jimiker/features/home/menu/chat/widgets/chat_room_list_item.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key});
@@ -34,28 +34,13 @@ class ChatScreen extends StatelessWidget {
             }
 
             final rooms =
-                List<
-                    QueryDocumentSnapshot<Map<String, dynamic>>
-                  >.from(snapshot.data?.docs ?? [])
+                (snapshot.data?.docs ?? [])
+                    // 메시지가 한 번도 오가지 않은 방은 "없는 방"과 같으므로 숨긴다.
+                    .where((doc) => _hasMessage(doc.data()))
+                    .toList()
                   ..sort((a, b) {
-                    final aData = a.data();
-                    final bData = b.data();
-                    final aUpdatedAt =
-                        aData['updatedAt'] as Timestamp?;
-                    final bUpdatedAt =
-                        bData['updatedAt'] as Timestamp?;
-                    final aCreatedAt =
-                        aData['createdAt'] as Timestamp?;
-                    final bCreatedAt =
-                        bData['createdAt'] as Timestamp?;
-                    final aTime =
-                        (aUpdatedAt ?? aCreatedAt)
-                            ?.millisecondsSinceEpoch ??
-                        0;
-                    final bTime =
-                        (bUpdatedAt ?? bCreatedAt)
-                            ?.millisecondsSinceEpoch ??
-                        0;
+                    final aTime = _sortTime(a.data());
+                    final bTime = _sortTime(b.data());
                     return bTime.compareTo(aTime);
                   });
 
@@ -70,9 +55,6 @@ class ChatScreen extends StatelessWidget {
               itemBuilder: (context, index) {
                 final doc = rooms[index];
                 final data = doc.data();
-                final lastMessage =
-                    data['lastMessage']?.toString() ?? '메시지가 없습니다.';
-                final updatedAt = data['updatedAt'] as Timestamp?;
 
                 final participantUids =
                     (data['participantUids'] as List<dynamic>?)
@@ -82,42 +64,32 @@ class ChatScreen extends StatelessWidget {
                   (uid) => uid != user.uid,
                   orElse: () => '',
                 );
+                final fallbackName =
+                    data['roomName']?.toString().trim().isNotEmpty ==
+                        true
+                    ? data['roomName'].toString().trim()
+                    : '지미커';
 
-                return StreamBuilder<
-                  DocumentSnapshot<Map<String, dynamic>>
-                >(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(opponentUid)
-                      .snapshots(),
-                  builder: (context, userSnapshot) {
-                    final userData = userSnapshot.data?.data();
-                    final opponentName = userData?['nickName']
-                        ?.toString()
-                        .trim();
-                    final opponentPhotoUrl = userData?['photoURL']
-                        ?.toString();
-                    final displayName =
-                        (opponentName == null || opponentName.isEmpty)
-                        ? "지미커"
-                        : opponentName;
-
-                    return ChatRoomListTile(
-                      roomName: displayName,
-                      photoUrl: opponentPhotoUrl,
-                      lastMessage: lastMessage,
-                      updatedAt: updatedAt,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ChatRoomScreen(
-                              roomId: doc.id,
-                              roomName: displayName,
-                            ),
-                          ),
-                        );
-                      },
+                return ChatRoomListItem(
+                  key: ValueKey(doc.id),
+                  opponentUid: opponentUid,
+                  fallbackName: fallbackName,
+                  lastMessage:
+                      data['lastMessage']?.toString() ?? '메시지가 없습니다.',
+                  // 목록 우측 시간 = 마지막으로 메시지가 오간 시각
+                  updatedAt: data['updatedAt'] as Timestamp?,
+                  onTap: (opponentName) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatRoomScreen(
+                          roomId: doc.id,
+                          roomName: opponentName,
+                          opponentUid: opponentUid.isEmpty
+                              ? null
+                              : opponentUid,
+                        ),
+                      ),
                     );
                   },
                 );
@@ -127,5 +99,16 @@ class ChatScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  bool _hasMessage(Map<String, dynamic> data) {
+    final lastMessage = data['lastMessage'];
+    return lastMessage is String && lastMessage.trim().isNotEmpty;
+  }
+
+  int _sortTime(Map<String, dynamic> data) {
+    final updatedAt = data['updatedAt'] as Timestamp?;
+    final createdAt = data['createdAt'] as Timestamp?;
+    return (updatedAt ?? createdAt)?.millisecondsSinceEpoch ?? 0;
   }
 }

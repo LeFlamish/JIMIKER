@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/features/home/menu/find_storage/widgets/reservation_card.dart';
 
 import '../../../../../data/models/storage.dart';
@@ -181,17 +182,15 @@ class _StorageBottomSheetState
                             borderRadius: BorderRadius.circular(12),
                             child: AspectRatio(
                               aspectRatio: 16 / 9,
-                              child: Image.network(
-                                widget.imageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    Container(
-                                      color: Colors.grey[200],
-                                      alignment: Alignment.center,
-                                      child: const Icon(
-                                        Icons.image_not_supported,
-                                      ),
-                                    ),
+                              child: CachedImage(
+                                imageUrl: widget.imageUrl,
+                                errorWidget: Container(
+                                  color: Colors.grey[200],
+                                  alignment: Alignment.center,
+                                  child: const Icon(
+                                    Icons.image_not_supported,
+                                  ),
+                                ),
                               ),
                             ),
                           ),

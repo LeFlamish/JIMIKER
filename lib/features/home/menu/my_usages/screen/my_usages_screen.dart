@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/data/models/storage.dart';
+import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/data/models/usage.dart';
 import 'package:jimiker/features/home/menu/my_usages/services/my_usages_provider.dart';
 
@@ -85,18 +86,15 @@ class UsageCard extends StatelessWidget {
                     height: 80,
                     color: const Color(0xFFF0F0F0),
                     child: storage.images.isNotEmpty
-                        ? Image.network(
-                            storage.images.first,
-                            fit: BoxFit.cover,
-                            errorBuilder:
-                                (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons
-                                        .image_not_supported_outlined,
-                                    color: Colors.grey,
-                                    size: 32,
-                                  );
-                                },
+                        ? CachedImage(
+                            imageUrl: storage.images.first,
+                            width: 80,
+                            height: 80,
+                            errorWidget: const Icon(
+                              Icons.image_not_supported_outlined,
+                              color: Colors.grey,
+                              size: 32,
+                            ),
                           )
                         : const Icon(
                             Icons.inventory_2_outlined,

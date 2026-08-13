@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:jimiker/core/utils/kst_time.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 import 'package:jimiker/features/home/menu/chat/widgets/chat_message_bubble.dart';
 
@@ -8,10 +9,15 @@ class ChatRoomScreen extends StatefulWidget {
   final String roomId;
   final String roomName;
 
+  /// 상대 uid. 아직 Firestore에 없는 방일 때, 첫 메시지와 함께 방을 만들면서
+  /// 참여자로 넣어주기 위해 필요하다. (시스템 방처럼 상대가 없으면 null)
+  final String? opponentUid;
+
   const ChatRoomScreen({
     super.key,
     required this.roomId,
     required this.roomName,
+    this.opponentUid,
   });
 
   @override
@@ -22,6 +28,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final TextEditingController _messageController =
       TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  bool _isSending = false;
 
   @override
   void dispose() {
@@ -31,6 +38,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Future<void> _sendMessage(ChatService chatService) async {
+    if (_isSending) return;
+
     final message = _messageController.text.trim();
     if (message.isEmpty) return;
 
@@ -43,21 +52,29 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       return;
     }
 
-    await chatService.sendMessage(
-      roomId: widget.roomId,
-      message: message,
-      user: user,
-    );
+    setState(() => _isSending = true);
+    try {
+      // 방이 아직 없으면 여기서 처음 만들어진다.
+      // 상대 uid를 같이 넘겨야 상대 목록에도 채팅방이 새로 뜬다.
+      await chatService.sendMessage(
+        roomId: widget.roomId,
+        message: message,
+        user: user,
+        participantUids: [
+          if (widget.opponentUid != null) widget.opponentUid!,
+        ],
+      );
 
-    _messageController.clear();
-    _focusNode.requestFocus();
-  }
-
-  String _formatTime(Timestamp? timestamp) {
-    if (timestamp == null) return '';
-    final dateTime = timestamp.toDate().toLocal();
-    final time = TimeOfDay.fromDateTime(dateTime);
-    return time.format(context);
+      _messageController.clear();
+      _focusNode.requestFocus();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('메시지를 보내지 못했어요.')));
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
   }
 
   @override
@@ -107,7 +124,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         displayName:
                             data['displayName']?.toString() ?? '사용자',
                         message: data['message']?.toString() ?? '',
-                        timeLabel: _formatTime(
+                        timeLabel: formatKstTimeOfDay(
                           data['createdAt'] as Timestamp?,
                         ),
                       ),
@@ -145,7 +162,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed: () => _sendMessage(chatService),
+                    onPressed: _isSending
+                        ? null
+                        : () => _sendMessage(chatService),
                     icon: const Icon(Icons.send),
                     color: Theme.of(context).colorScheme.primary,
                   ),
