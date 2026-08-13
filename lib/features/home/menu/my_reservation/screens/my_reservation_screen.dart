@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/data/models/storage.dart';
+import 'package:jimiker/features/home/menu/my_reservation/screens/reservation_detail_screen.dart';
 import 'package:jimiker/features/home/menu/my_reservation/services/my_reservation_provider.dart';
 
 class ReservationCard extends StatelessWidget {
@@ -307,7 +308,15 @@ class _ReservationListScreenState
                       storage: item.storage,
                       price: item.price,
                       onTap: () {
-                        debugPrint("예약 ${item.reservation.id} 클릭됨");
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ReservationDetailScreen(
+                              reservation: item.reservation,
+                              storage: item.storage,
+                              price: item.price,
+                            ),
+                          ),
+                        );
                       },
                     );
                   },

@@ -5,10 +5,8 @@ import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/features/draw/zone_provider.dart';
-import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
+import 'package:jimiker/features/home/menu/chat/services/open_direct_chat.dart';
 import 'package:jimiker/services/auth_providers.dart';
-import '../../chat/screens/chat_room_screen.dart';
-import '../../chat/services/chat_service.dart';
 
 class ReservationCard extends ConsumerStatefulWidget {
   const ReservationCard({super.key, required this.storage});
@@ -220,42 +218,15 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
     required String ownerId,
     NavigatorState? navigator,
   }) async {
-    final firestore = ref.read(firestoreProvider);
-    final chatService = ChatService(firestore);
-
-    final roomId = await chatService.resolveDirectRoomId(
-      uid: uid,
-      opponentUid: ownerId,
-    );
-
-    final ownerSnapshot = await firestore
-        .collection('users')
-        .doc(ownerId)
-        .get();
-    final ownerName = ownerSnapshot
-        .data()?['nickName']
-        ?.toString()
-        .trim();
-    final roomName = (ownerName == null || ownerName.isEmpty)
-        ? '지미커'
-        : ownerName;
-
     final target =
         navigator ?? (mounted ? Navigator.of(context) : null);
     if (target == null) return;
 
-    // 뒤로 가면 채팅 목록이 보이도록 목록 → 방 순서로 쌓는다.
-    target.push(
-      MaterialPageRoute(builder: (_) => const ChatScreen()),
-    );
-    target.push(
-      MaterialPageRoute(
-        builder: (_) => ChatRoomScreen(
-          roomId: roomId,
-          roomName: roomName,
-          opponentUid: ownerId,
-        ),
-      ),
+    await openDirectChatRoom(
+      navigator: target,
+      firestore: ref.read(firestoreProvider),
+      uid: uid,
+      opponentUid: ownerId,
     );
   }
 

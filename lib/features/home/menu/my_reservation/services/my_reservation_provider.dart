@@ -115,6 +115,34 @@ class MyReservationNotifier extends Notifier<MyReservationState> {
     }
   }
 
+  /// 예약을 취소한다.
+  ///
+  /// 상태만 바꾸지 않고 문서를 지우는 이유: 예약 가능 날짜를 계산할 때
+  /// (reservation_card._fetchAllBlockedRanges) 상태를 보지 않고 기간만 보기 때문에,
+  /// 문서가 남아 있으면 취소한 기간이 계속 막혀버린다.
+  Future<bool> cancelReservation(String reservationId) async {
+    if (reservationId.isEmpty) return false;
+
+    try {
+      await ref
+          .read(firestoreProvider)
+          .collection('reservations')
+          .doc(reservationId)
+          .delete();
+
+      state = state.copyWith(
+        items: state.items
+            .where((item) => item.reservation.id != reservationId)
+            .toList(),
+      );
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Failed to cancel reservation: $error\n$stackTrace');
+      state = state.copyWith(errorMessage: '예약을 취소하지 못했어요.');
+      return false;
+    }
+  }
+
   Future<Map<String, Storage>> _fetchStorages(
     Set<String> storageIds,
   ) async {
