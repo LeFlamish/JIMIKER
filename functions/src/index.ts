@@ -1,18 +1,16 @@
 /**
- * Import function triggers from their respective submodules:
+ * 지미커 Cloud Functions
  *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
+ * 모든 함수는 서울 리전(asia-northeast3)에서 돈다. 사용자가 국내에 있어
+ * 지연이 짧고, 기존에 배포된 함수들도 같은 리전이라 하나로 맞춰둔다.
  */
 
+import {logger, setGlobalOptions} from "firebase-functions/v2";
 import {
   onDocumentCreated,
   onDocumentUpdated,
 } from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
-import {logger} from "firebase-functions/v2";
 import {initializeApp} from "firebase-admin/app";
 import {
   DocumentSnapshot,
@@ -20,6 +18,9 @@ import {
   FieldValue,
   Timestamp,
 } from "firebase-admin/firestore";
+import {getMessaging} from "firebase-admin/messaging";
+
+setGlobalOptions({region: "asia-northeast3"});
 
 initializeApp();
 const db = getFirestore();
@@ -75,33 +76,137 @@ export const onStorageApproved = onDocumentUpdated(
   },
 );
 
+/**
+ * 채팅 목록에 보여줄 미리보기 문구. 사진만 보낸 경우도 처리한다.
+ * @param {FirebaseFirestore.DocumentData} data 메시지 문서
+ * @return {string} 목록과 알림에 쓸 한 줄
+ */
+function messagePreview(data: FirebaseFirestore.DocumentData): string {
+  const text = typeof data.message === "string" ? data.message.trim() : "";
+  if (text.length > 0) return text;
+  return data.imageUrl ? "사진" : "";
+}
+
 export const onChatMessageCreated = onDocumentCreated(
   "chat_rooms/{roomId}/messages/{messageId}",
   async (event) => {
     const messageData = event.data?.data();
     if (!messageData) return;
 
-    const updates: Record<string, unknown> = {};
     if (messageData.read === undefined) {
-      updates.read = false;
+      await event.data?.ref.set({read: false}, {merge: true});
     }
 
-    if (Object.keys(updates).length > 0) {
-      await event.data?.ref.set(updates, {merge: true});
-    }
-
-    if (typeof messageData.message === "string") {
-      const roomRef = db.collection("chat_rooms").doc(event.params.roomId);
-      await roomRef.set(
-        {
-          lastMessage: messageData.message,
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        {merge: true},
-      );
-    }
+    const roomRef = db.collection("chat_rooms").doc(event.params.roomId);
+    await roomRef.set(
+      {
+        lastMessage: messagePreview(messageData),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      {merge: true},
+    );
   },
 );
+
+/**
+ * 새 메시지가 오면 상대에게 푸시 알림을 보낸다.
+ *
+ * 목록 갱신(onChatMessageCreated)과 나눠둔 이유: 알림 전송이 실패해도
+ * lastMessage 갱신은 영향받지 않아야 하기 때문이다.
+ */
+export const sendChatNotification = onDocumentCreated(
+  "chat_rooms/{roomId}/messages/{messageId}",
+  async (event) => {
+    const messageData = event.data?.data();
+    if (!messageData) return;
+
+    const roomId = event.params.roomId;
+    const senderUid = messageData.uid as string | undefined;
+    if (!senderUid) return;
+
+    const roomSnapshot = await db.collection("chat_rooms").doc(roomId).get();
+    const participantUids = roomSnapshot.data()?.participantUids as
+      | string[]
+      | undefined;
+
+    if (!participantUids) {
+      logger.warn(`No participants for room ${roomId}`);
+      return;
+    }
+
+    // 보낸 사람과 시스템 계정을 뺀 나머지가 받는 사람이다.
+    const receivers = participantUids.filter(
+      (uid) => uid !== senderUid && uid !== "system",
+    );
+    if (receivers.length === 0) return;
+
+    const body = messagePreview(messageData);
+    const title =
+      (messageData.displayName as string | undefined) ?? "새 메시지";
+
+    await Promise.all(
+      receivers.map((uid) => notifyUser(uid, title, body, roomId)),
+    );
+  },
+);
+
+/**
+ * 한 사람에게 채팅 알림을 보낸다.
+ * @param {string} uid 받는 사람
+ * @param {string} title 알림 제목(보낸 사람 이름)
+ * @param {string} body 알림 본문
+ * @param {string} roomId 눌렀을 때 열 채팅방
+ * @return {Promise<void>}
+ */
+async function notifyUser(
+  uid: string,
+  title: string,
+  body: string,
+  roomId: string,
+): Promise<void> {
+  const userRef = db.collection("users").doc(uid);
+  const fcmToken = (await userRef.get()).data()?.fcmToken as
+    | string
+    | undefined;
+
+  if (!fcmToken) return;
+
+  try {
+    await getMessaging().send({
+      token: fcmToken,
+      notification: {title, body},
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "high_importance_channel",
+          sound: "default",
+          priority: "high",
+        },
+      },
+      apns: {
+        payload: {aps: {sound: "default"}},
+      },
+      data: {
+        roomId,
+        click_action: "FLUTTER_NOTIFICATION_CLICK",
+      },
+    });
+  } catch (error) {
+    const code = (error as {code?: string}).code;
+
+    // 앱을 지웠거나 토큰이 만료된 경우. 남겨두면 계속 실패하므로 비운다.
+    if (
+      code === "messaging/registration-token-not-registered" ||
+      code === "messaging/invalid-registration-token"
+    ) {
+      await userRef.set({fcmToken: ""}, {merge: true});
+      logger.info(`Cleared stale fcmToken for ${uid}`);
+      return;
+    }
+
+    logger.error(`Failed to notify ${uid}`, error);
+  }
+}
 
 /**
  * ─────────────────────────────────────────────────────────────
@@ -117,9 +222,12 @@ export const onChatMessageCreated = onDocumentCreated(
  * 아직 시작도 안 한 건이 '이용 중인 창고'에 뜬다. 또 확정된 예약을 취소 요청하는
  * 화면도 볼 수 없게 된다. 그래서 시작일이 실제로 도래했을 때 옮긴다.
  *
- * 옮길 때 문서 ID를 그대로 물려주기 때문에, 함수가 두 번 실행돼도
- * 같은 건이 두 개로 늘어나지 않는다.
+ * 옮길 때 문서 ID를 그대로 물려주고 트랜잭션 안에서 대상이 이미 있는지 확인한다.
+ * 스케줄러가 겹쳐 돌거나 재시도돼도 같은 건이 두 개로 늘어나지 않는다.
  */
+
+/** 한 번에 처리할 문서 수. 남은 건은 다음 실행에서 이어서 처리한다. */
+const MIGRATION_BATCH_SIZE = 200;
 
 /**
  * 승인됐고 시작일이 지난 예약을 usages로 옮긴다.
@@ -155,8 +263,10 @@ async function activateReservation(
       containerIndex: data.containerIndex,
       startAt: data.startAt,
       endAt: data.endAt,
-      // 이용중으로 전환된 시점
-      createdAt: FieldValue.serverTimestamp(),
+      // 예약을 신청한 시점. 언제 신청했는지가 화면에 필요하다.
+      createdAt: data.createdAt,
+      // 이용 중으로 전환된 시점
+      activatedAt: FieldValue.serverTimestamp(),
     });
     transaction.delete(reservationRef);
     return true;
@@ -196,81 +306,61 @@ async function finishUsage(snapshot: DocumentSnapshot): Promise<boolean> {
   });
 }
 
-/**
- * 오늘부터 시작하는 예약이면 승인 즉시 이용 중으로 넘긴다.
- *
- * 미래 예약은 여기서 아무것도 하지 않고, 아래 스케줄러가 시작일에 처리한다.
- */
-export const onReservationApproved = onDocumentUpdated(
-  "reservations/{reservationId}",
-  async (event) => {
-    const before = event.data?.before;
-    const after = event.data?.after;
-    if (!before || !after) return;
-
-    const wasApproved = before.data()?.status === "approved";
-    const isApproved = after.data()?.status === "approved";
-    if (wasApproved || !isApproved) return;
-
-    const startAt = after.data()?.startAt as Timestamp | undefined;
-    if (!startAt || startAt.toMillis() > Date.now()) return;
-
-    const activated = await activateReservation(after);
-    if (activated) {
-      logger.info(`Reservation ${event.params.reservationId} -> usage`);
-    }
+/** 시작일이 된 예약을 이용 중으로 옮긴다. (1분마다) */
+export const migrateActiveReservations = onSchedule(
+  {
+    schedule: "every 1 minutes",
+    timeZone: "Asia/Seoul",
+    timeoutSeconds: 120,
   },
-);
-
-/**
- * 매일 한국시간 0시 5분에 상태를 넘긴다.
- *  - 시작일이 된 예약 → 이용 중
- *  - 종료일이 지난 이용 → 이용 내역
- */
-export const rolloverStorageUsages = onSchedule(
-  {schedule: "5 0 * * *", timeZone: "Asia/Seoul"},
   async () => {
-    const now = Timestamp.now();
-
-    const dueReservations = await db
+    const snapshot = await db
       .collection("reservations")
       .where("status", "==", "approved")
-      .where("startAt", "<=", now)
+      .where("startAt", "<=", Timestamp.now())
+      .limit(MIGRATION_BATCH_SIZE)
       .get();
 
-    let activated = 0;
-    for (const doc of dueReservations.docs) {
+    if (snapshot.empty) return;
+
+    let moved = 0;
+    for (const doc of snapshot.docs) {
       try {
-        if (await activateReservation(doc)) activated += 1;
+        if (await activateReservation(doc)) moved += 1;
       } catch (error) {
         logger.error(`Failed to activate reservation ${doc.id}`, error);
       }
     }
 
-    const expiredUsages = await db
+    if (moved > 0) logger.info(`${moved}개의 예약이 이용 중으로 넘어갔습니다.`);
+  },
+);
+
+/** 종료일이 지난 이용을 이용 내역으로 옮긴다. (1분마다) */
+export const migrateFinishedUsages = onSchedule(
+  {
+    schedule: "every 1 minutes",
+    timeZone: "Asia/Seoul",
+    timeoutSeconds: 120,
+  },
+  async () => {
+    const snapshot = await db
       .collection("usages")
-      .where("endAt", "<=", now)
+      .where("endAt", "<=", Timestamp.now())
+      .limit(MIGRATION_BATCH_SIZE)
       .get();
 
-    let finished = 0;
-    for (const doc of expiredUsages.docs) {
+    if (snapshot.empty) return;
+
+    let moved = 0;
+    for (const doc of snapshot.docs) {
       try {
-        if (await finishUsage(doc)) finished += 1;
+        if (await finishUsage(doc)) moved += 1;
       } catch (error) {
         logger.error(`Failed to finish usage ${doc.id}`, error);
       }
     }
 
-    logger.info(
-      `Rollover done: ${activated} activated, ${finished} finished`,
-    );
+    if (moved > 0) logger.info(`${moved}개의 이용이 종료 처리되었습니다.`);
   },
 );
-
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
-
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });

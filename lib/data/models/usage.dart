@@ -11,8 +11,9 @@ class Usage {
   // 기간(계약/합의된 사용 기간)
   final DateTime startAt;
   final DateTime endAt;
-  // 승인/생성 메타
-  final DateTime createdAt; // 소유자가 승인한 시점(사용중으로 전환된 시점)
+  // 예약을 신청한 시점. 예약 문서에서 그대로 물려받는다.
+  // (이용 중으로 전환된 시점은 Functions가 activatedAt에 따로 남긴다.)
+  final DateTime createdAt;
 
   Usage({
     required this.id,

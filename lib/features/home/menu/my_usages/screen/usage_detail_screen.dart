@@ -145,7 +145,7 @@ class UsageDetailScreen extends ConsumerWidget {
                 '${_formatDate(usage.endAt)}',
           ),
           DetailInfoRow(
-            label: '이용 시작',
+            label: '신청일',
             value: _formatDate(usage.createdAt),
           ),
           DetailInfoRow(
