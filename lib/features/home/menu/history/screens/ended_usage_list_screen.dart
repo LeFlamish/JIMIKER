@@ -4,29 +4,25 @@ import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/data/models/usage.dart';
 
+import 'package:jimiker/features/home/menu/history/screens/ended_detail_screen.dart';
+
 import '../services/ended_usages_provider.dart';
 
 class EndedUsageCard extends StatelessWidget {
   final Usage usage;
   final Storage storage;
+  final VoidCallback onTap;
 
   const EndedUsageCard({
     super.key,
     required this.usage,
     required this.storage,
+    required this.onTap,
   });
 
   // 날짜 포맷 (YYYY.MM.DD)
   String _formatDate(DateTime date) {
     return "${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}";
-  }
-
-  // 시간 포맷 (오전/오후 HH:MM) - 상세 보기용
-  String _formatTime(DateTime date) {
-    final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-    final amPm = date.hour >= 12 ? "오후" : "오전";
-    final minute = date.minute.toString().padLeft(2, '0');
-    return "$amPm $hour:$minute";
   }
 
   // 총 이용 기간 계산
@@ -36,115 +32,10 @@ class EndedUsageCard extends StatelessWidget {
     return diff == 0 ? 1 : diff;
   }
 
-  // 상세 정보 다이얼로그 띄우기
-  void _showDetailDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "이용 상세 내역",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              _buildDetailRow("보관함 위치", storage.address),
-              _buildDetailRow("보관함 번호", "${usage.containerIndex}번"),
-              const Divider(height: 30),
-              _buildDetailRow(
-                "시작 일시",
-                "${_formatDate(usage.startAt)} ${_formatTime(usage.startAt)}",
-              ),
-              _buildDetailRow(
-                "종료 일시",
-                "${_formatDate(usage.endAt)} ${_formatTime(usage.endAt)}",
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "총 이용 기간",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      "${_calculateTotalDays()}일",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF6B7AF5),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: const Color(0xFFF5F6FA),
-                    foregroundColor: Colors.black,
-                  ),
-                  child: const Text("닫기"),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _showDetailDialog(context),
+      onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
@@ -360,6 +251,14 @@ class _EndedUsageListScreenState
                     return EndedUsageCard(
                       usage: item.usage,
                       storage: item.storage,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => EndedDetailScreen(
+                            ended: item.usage,
+                            storage: item.storage,
+                          ),
+                        ),
+                      ),
                     );
                   },
                 ),

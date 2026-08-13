@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/data/models/usage.dart';
+import 'package:jimiker/features/home/menu/my_usages/screen/usage_detail_screen.dart';
 import 'package:jimiker/features/home/menu/my_usages/services/my_usages_provider.dart';
 
 enum UsageStatus { active, endingSoon }
@@ -13,12 +14,17 @@ class UsageCard extends StatelessWidget {
   final VoidCallback? onSmartKeyTap;
   final VoidCallback? onExtendTap;
 
+  /// 카드 윗부분(창고 정보)을 누르면 이용 상세로 이동한다.
+  /// 아래 스마트키/연장 버튼은 각자 동작이 있어서 제외한다.
+  final VoidCallback? onTap;
+
   const UsageCard({
     super.key,
     required this.usage,
     required this.storage,
     this.onSmartKeyTap,
     this.onExtendTap,
+    this.onTap,
   });
 
   String _formatDate(DateTime date) {
@@ -75,7 +81,12 @@ class UsageCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Padding(
+          InkWell(
+            onTap: onTap,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(20),
+            ),
+            child: Padding(
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
@@ -162,6 +173,7 @@ class UsageCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
             ),
           ),
           const Divider(height: 1, color: Color(0xFFEEEEEE)),
@@ -294,6 +306,14 @@ class _UsageListScreenState extends ConsumerState<UsageListScreen> {
                     return UsageCard(
                       usage: item.usage,
                       storage: item.storage,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => UsageDetailScreen(
+                            usage: item.usage,
+                            storage: item.storage,
+                          ),
+                        ),
+                      ),
                       onSmartKeyTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
