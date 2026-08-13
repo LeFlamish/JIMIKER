@@ -1,0 +1,96 @@
+rules_version = '2';
+
+// 지미커 Firebase Storage 보안 규칙
+//
+// 파일은 세 군데에만 올라간다.
+//   users/{uid}/...          프로필 사진
+//   storages/{storageId}/... 창고 사진
+//   chat_rooms/{roomId}/...  채팅으로 주고받은 사진
+//
+// 주의: 앱은 "문서를 만들기 전에" 파일을 먼저 올린다.
+//  - 창고 등록: 사진을 다 올린 뒤 storages 문서를 만든다.
+//  - 채팅 사진: 사진을 올린 뒤 첫 메시지와 함께 방 문서가 생긴다.
+// 그래서 부모 문서가 아직 없는 순간을 허용해줘야 업로드가 막히지 않는다.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    // 사진 한 장 10MB 제한
+    function underSizeLimit() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    function isValidUpload() {
+      return isSignedIn() && isImage() && underSizeLimit();
+    }
+
+    function storagePath(storageId) {
+      return /databases/(default)/documents/storages/$(storageId);
+    }
+
+    function roomPath(roomId) {
+      return /databases/(default)/documents/chat_rooms/$(roomId);
+    }
+
+    // ---------- 프로필 사진 ----------
+    // 채팅 목록 등 여기저기서 남의 프로필 사진을 보여주므로 읽기는 공개.
+    // 올리고 지우는 건 본인만.
+    match /users/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if isValidUpload() && request.auth.uid == uid;
+      allow delete: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---------- 창고 사진 ----------
+    // 창고 목록/지도가 비로그인에도 보여야 하므로 읽기는 공개.
+    // 쓰기는 그 창고의 주인만. 단, 등록 중이라 문서가 아직 없으면
+    // 업로더가 스스로를 주인으로 표시한 경우에 한해 허용한다.
+    match /storages/{storageId}/{fileName} {
+      allow read: if true;
+
+      allow write: if isValidUpload()
+                   && (
+                        firestore.exists(storagePath(storageId))
+                          ? request.auth.uid ==
+                              firestore.get(storagePath(storageId)).data.ownerId
+                          : request.resource.metadata.ownerId == request.auth.uid
+                      );
+
+      allow delete: if isSignedIn()
+                    && firestore.exists(storagePath(storageId))
+                    && request.auth.uid ==
+                         firestore.get(storagePath(storageId)).data.ownerId;
+    }
+
+    // ---------- 채팅 사진 ----------
+    // 그 방 참여자만 볼 수 있다.
+    // 방이 아직 만들어지기 전(첫 사진을 올린 직후 getDownloadURL 하는 순간)에는
+    // 로그인만 확인한다. 곧바로 첫 메시지가 방을 만든다.
+    match /chat_rooms/{roomId}/{fileName} {
+      allow read: if isSignedIn()
+                  && (
+                       !firestore.exists(roomPath(roomId))
+                       || request.auth.uid in
+                            firestore.get(roomPath(roomId)).data.participantUids
+                     );
+
+      allow write: if isValidUpload()
+                   && request.resource.metadata.uid == request.auth.uid;
+
+      // 보낸 사진은 지우지 않는다. (대화 기록이 어긋나지 않도록)
+      allow delete: if false;
+    }
+
+    // ---------- 그 외 ----------
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

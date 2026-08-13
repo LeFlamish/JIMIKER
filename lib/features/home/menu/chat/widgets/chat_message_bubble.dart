@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:jimiker/core/widgets/cached_image.dart';
 
 class ChatMessageBubble extends StatelessWidget {
   final bool isMine;
   final String displayName;
   final String message;
+
+  /// 사진 메시지면 채워진다. 글과 사진이 같이 올 수도 있다.
+  final String? imageUrl;
   final String timeLabel;
 
   const ChatMessageBubble({
@@ -12,6 +16,7 @@ class ChatMessageBubble extends StatelessWidget {
     required this.displayName,
     required this.message,
     required this.timeLabel,
+    this.imageUrl,
   });
 
   @override
@@ -20,6 +25,7 @@ class ChatMessageBubble extends StatelessWidget {
     final backgroundColor = isMine
         ? theme.colorScheme.primary.withValues(alpha: 0.12)
         : Colors.grey.shade200;
+    final photoUrl = imageUrl;
 
     return Container(
       constraints: const BoxConstraints(maxWidth: 280),
@@ -29,8 +35,9 @@ class ChatMessageBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
-        crossAxisAlignment:
-        isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Text(
             displayName,
@@ -40,10 +47,22 @@ class ChatMessageBubble extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            message,
-            style: theme.textTheme.bodyMedium,
-          ),
+          if (photoUrl != null && photoUrl.isNotEmpty) ...[
+            GestureDetector(
+              onTap: () => _openFullScreen(context, photoUrl),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: CachedImage(
+                  imageUrl: photoUrl,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            if (message.isNotEmpty) const SizedBox(height: 8),
+          ],
+          if (message.isNotEmpty)
+            Text(message, style: theme.textTheme.bodyMedium),
           if (timeLabel.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
@@ -54,6 +73,29 @@ class ChatMessageBubble extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// 사진을 눌렀을 때 확대해서 보기
+  void _openFullScreen(BuildContext context, String url) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            elevation: 0,
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              maxScale: 4,
+              child: CachedImage(imageUrl: url, fit: BoxFit.contain),
+            ),
+          ),
+        ),
       ),
     );
   }

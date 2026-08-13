@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:jimiker/core/utils/kst_time.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 import 'package:jimiker/features/home/menu/chat/widgets/chat_message_bubble.dart';
@@ -61,16 +65,62 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final message = _messageController.text.trim();
     if (message.isEmpty) return;
 
+    await _send(chatService, message: message);
+  }
+
+  /// 갤러리에서 사진을 골라 Storage에 올린 뒤 메시지로 보낸다.
+  Future<void> _sendPhoto(ChatService chatService) async {
+    if (_isSending) return;
+
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      // 원본 그대로 올리면 데이터도 로딩도 부담이라 적당히 줄인다.
+      maxWidth: 1600,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('로그인 후 이용해주세요.')));
+      _showMessage('로그인 후 이용해주세요.');
       return;
     }
 
     setState(() => _isSending = true);
+    try {
+      final imageUrl = await ChatService.uploadChatImage(
+        storage: FirebaseStorage.instance,
+        roomId: widget.roomId,
+        uid: user.uid,
+        file: File(picked.path),
+      );
+
+      await _send(
+        chatService,
+        message: '',
+        imageUrl: imageUrl,
+        keepSendingFlag: true,
+      );
+    } catch (error) {
+      _showMessage('사진을 보내지 못했어요.');
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _send(
+    ChatService chatService, {
+    required String message,
+    String? imageUrl,
+    bool keepSendingFlag = false,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showMessage('로그인 후 이용해주세요.');
+      return;
+    }
+
+    if (!keepSendingFlag) setState(() => _isSending = true);
     try {
       // 방이 아직 없으면 여기서 처음 만들어진다.
       // 상대 uid를 같이 넘겨야 상대 목록에도 채팅방이 새로 뜬다.
@@ -78,21 +128,30 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         roomId: widget.roomId,
         message: message,
         user: user,
+        imageUrl: imageUrl,
         participantUids: [
           if (widget.opponentUid != null) widget.opponentUid!,
         ],
       );
 
-      _messageController.clear();
-      _focusNode.requestFocus();
+      if (message.isNotEmpty) {
+        _messageController.clear();
+        _focusNode.requestFocus();
+      }
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('메시지를 보내지 못했어요.')));
+      _showMessage('메시지를 보내지 못했어요.');
     } finally {
-      if (mounted) setState(() => _isSending = false);
+      if (!keepSendingFlag && mounted) {
+        setState(() => _isSending = false);
+      }
     }
+  }
+
+  void _showMessage(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
@@ -142,6 +201,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                         displayName:
                             data['displayName']?.toString() ?? '사용자',
                         message: data['message']?.toString() ?? '',
+                        imageUrl: data['imageUrl']?.toString(),
                         timeLabel: formatKstTimeOfDay(
                           data['createdAt'] as Timestamp?,
                         ),
@@ -158,6 +218,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Row(
                 children: [
+                  IconButton(
+                    onPressed: _isSending
+                        ? null
+                        : () => _sendPhoto(chatService),
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    color: Theme.of(context).colorScheme.primary,
+                    tooltip: '사진 보내기',
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _messageController,

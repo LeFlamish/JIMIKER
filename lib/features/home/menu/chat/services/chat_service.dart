@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ChatService {
   const ChatService(this._firestore);
@@ -84,10 +87,16 @@ class ChatService {
     required String message,
     required User user,
     List<String> participantUids = const [],
+    String? imageUrl,
   }) async {
     final roomRef = _firestore.collection('chat_rooms').doc(roomId);
     final messageRef = roomRef.collection('messages').doc();
     final now = Timestamp.now();
+
+    // 사진만 보낸 경우 목록에는 '사진'으로 표시한다.
+    final preview = message.isNotEmpty
+        ? message
+        : (imageUrl != null ? '사진' : '');
 
     await _firestore.runTransaction((transaction) async {
       final roomSnapshot = await transaction.get(roomRef);
@@ -105,18 +114,42 @@ class ChatService {
         'uid': user.uid,
         'displayName': user.displayName ?? user.email ?? '사용자',
         'message': message,
+        if (imageUrl != null) 'imageUrl': imageUrl,
         'createdAt': now,
         'read': false,
       });
 
       transaction.set(roomRef, {
         'participantUids': mergedParticipants.toList(),
-        'lastMessage': message,
+        'lastMessage': preview,
         // 목록 우측에 뜨는 "마지막 메시지 시각"의 기준
         'updatedAt': now,
         if (!roomSnapshot.exists) 'createdAt': now,
       }, SetOptions(merge: true));
     });
+  }
+
+  /// 채팅 사진을 Storage에 올리고 다운로드 URL을 돌려준다.
+  ///
+  /// 경로를 방 단위로 나눠서(chat_rooms/{roomId}/...) 방 참여자만 읽도록
+  /// Storage 규칙을 걸 수 있게 한다.
+  static Future<String> uploadChatImage({
+    required FirebaseStorage storage,
+    required String roomId,
+    required String uid,
+    required File file,
+  }) async {
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+    final extension = file.path.split('.').last.toLowerCase();
+    final reference = storage.ref(
+      'chat_rooms/$roomId/${uid}_$timestamp.$extension',
+    );
+
+    await reference.putFile(
+      file,
+      SettableMetadata(customMetadata: {'uid': uid, 'roomId': roomId}),
+    );
+    return reference.getDownloadURL();
   }
 
   Future<void> sendSystemMessageToUser({
