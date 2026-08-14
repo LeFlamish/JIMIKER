@@ -11,6 +11,11 @@ library;
 /// 올리고, 기존 사용자에게 다시 동의를 받는 화면을 붙이면 된다.
 const int termsVersion = 1;
 
+/// 문의를 받는 주소. 개인정보 보호책임자 연락처이자, 앱 없이 계정 삭제를
+/// 요청하는 창구다. 앱 화면과 공개 웹페이지가 같은 값을 쓰도록 여기 둔다.
+/// (tool/generate_legal_pages.dart가 이 값을 가져다 쓴다)
+const String contactEmail = 'qordudduq@gmail.com';
+
 class LegalDocument {
   const LegalDocument({
     required this.id,
@@ -107,7 +112,8 @@ const LegalDocument _privacyPolicy = LegalDocument(
   id: 'privacy',
   title: '개인정보 처리방침',
   required: true,
-  body: '''
+  body:
+      '''
 지미커(이하 "회사")는 이용자의 개인정보를 중요하게 생각하며, 관련 법령을
 지키기 위해 노력합니다.
 
@@ -152,7 +158,10 @@ const LegalDocument _privacyPolicy = LegalDocument(
   - 열람·정정·삭제·처리 정지를 요청하실 수 있습니다.
 
 5. 개인정보 보호책임자
-  문의: (앱 등록 전 담당자 이메일을 기재해주세요)
+  개인정보 열람·정정·삭제·처리 정지 요청과 그 밖의 문의는 아래로
+  보내주시면 접수 후 영업일 기준 7일 이내에 처리하고 회신드립니다.
+
+  문의: $contactEmail
 
 6. 방침의 변경
   내용이 바뀌면 시행 7일 전까지 앱 안에서 알립니다.

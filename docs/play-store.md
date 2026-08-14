@@ -54,9 +54,8 @@ Play Console에도 같은 아이콘을 따로 올린다.
 ## 2. 공개 URL
 
 ✅ 페이지는 `docs/`에 만들어져 있다. 올리는 방법은 `docs/README.md` 참고.
+✅ 문의 주소 기재 완료 (`terms_documents.dart`의 `contactEmail`)
 
-- ☐ `tool/generate_legal_pages.dart`의 `contactEmail`을 실제 주소로 바꾸고
-  `dart run tool/generate_legal_pages.dart` 다시 실행
 - ☐ GitHub Pages(또는 Netlify 등)로 공개
 - ☐ Play Console에 두 주소 입력
 

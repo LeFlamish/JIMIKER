@@ -11,9 +11,8 @@ import 'dart:io';
 
 import 'package:jimiker/features/auth/terms/terms_documents.dart';
 
-/// 문의를 받을 주소. 플레이스토어 등록 전에 실제 주소로 바꿔야 한다.
-/// 개인정보 보호책임자 연락처이자 계정 삭제 요청을 받는 곳이다.
-const String contactEmail = 'TODO-이메일을-적어주세요@example.com';
+// 문의 주소(contactEmail)는 약관 원문과 같은 값을 써야 하므로
+// terms_documents.dart에서 그대로 가져온다.
 
 /// 약관 시행일.
 const String effectiveDate = '2026년 8월 14일';
@@ -34,13 +33,7 @@ void main() {
   _write('index.html', _indexPage());
 
   stdout.writeln('$outputDir/ 에 ${legalDocuments.length + 2}개 파일을 만들었습니다.');
-
-  if (contactEmail.startsWith('TODO')) {
-    stdout.writeln(
-      '\n⚠️  contactEmail이 아직 자리표시자입니다. '
-      'tool/generate_legal_pages.dart 위쪽을 고치고 다시 실행해주세요.',
-    );
-  }
+  stdout.writeln('문의 주소: $contactEmail');
 }
 
 void _write(String name, String contents) {

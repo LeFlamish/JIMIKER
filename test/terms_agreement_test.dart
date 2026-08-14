@@ -100,6 +100,21 @@ void main() {
       // 사용자 문서에 저장돼서 "동의 기록 없음(0)"과 구분된다.
       expect(termsVersion, greaterThan(0));
     });
+
+    test('문의 주소가 자리표시자가 아니다', () {
+      // 이 값이 공개 웹페이지와 개인정보 처리방침에 그대로 실린다.
+      // 자리표시자인 채로 스토어에 올라가면 안 된다.
+      expect(contactEmail, contains('@'));
+      expect(contactEmail, isNot(contains('example.com')));
+      expect(contactEmail.toUpperCase(), isNot(contains('TODO')));
+    });
+
+    test('개인정보 처리방침에 연락처가 들어 있다', () {
+      final privacy = legalDocuments.firstWhere(
+        (doc) => doc.id == 'privacy',
+      );
+      expect(privacy.body, contains(contactEmail));
+    });
   });
 
   group('TermsAgreementScreen', () {
