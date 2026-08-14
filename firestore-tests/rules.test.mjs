@@ -32,6 +32,8 @@ import {
 const ALICE = 'alice';
 const BOB = 'bob';
 const CAROL = 'carol';
+const BOSS = 'boss';   // 매니저
+
 
 const testEnv = await initializeTestEnvironment({
   projectId: 'jimiker-rules-test',
@@ -45,6 +47,7 @@ const testEnv = await initializeTestEnvironment({
 const asAlice = () => testEnv.authenticatedContext(ALICE).firestore();
 const asBob = () => testEnv.authenticatedContext(BOB).firestore();
 const asCarol = () => testEnv.authenticatedContext(CAROL).firestore();
+const asBoss = () => testEnv.authenticatedContext(BOSS).firestore();
 const asGuest = () => testEnv.unauthenticatedContext().firestore();
 
 /** 규칙을 끄고 초기 데이터를 심는다. */
@@ -56,6 +59,14 @@ async function seed(fn) {
 
 test.beforeEach(async () => {
   await testEnv.clearFirestore();
+  // 매니저 계정은 대부분의 테스트에서 쓰이므로 매번 심어둔다.
+  await seed(async (db) => {
+    await setDoc(doc(db, 'users', BOSS), {
+      uid: BOSS,
+      nickName: '관리자',
+      userType: 'manager',
+    });
+  });
 });
 
 test.after(async () => {
@@ -533,6 +544,132 @@ test('reservations: 제3자는 남의 예약을 지울 수 없다', async () => 
   });
 
   await assertFails(deleteDoc(doc(asCarol(), 'reservations', 'r1')));
+});
+
+// ------------------------------------------------------------- 관리자
+
+test('users: 매니저만 사용자 목록을 볼 수 있다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'users', ALICE), {uid: ALICE, userType: 'user'});
+  });
+
+  await assertSucceeds(getDocs(collection(asBoss(), 'users')));
+  await assertFails(getDocs(collection(asAlice(), 'users')));
+});
+
+test('storages: 주인도 심사 필드는 건드릴 수 없다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'storages', 's1'), {
+      ownerId: ALICE,
+      approved: false,
+      reviewStatus: 'pending',
+    });
+  });
+
+  await assertFails(
+    updateDoc(doc(asAlice(), 'storages', 's1'), {reviewStatus: 'approved'}),
+  );
+  await assertFails(
+    updateDoc(doc(asAlice(), 'storages', 's1'), {rejectReason: ''}),
+  );
+  // 심사와 무관한 수정은 그대로 된다.
+  await assertSucceeds(
+    updateDoc(doc(asAlice(), 'storages', 's1'), {detailAddress: '101호'}),
+  );
+});
+
+test('storages: 매니저도 규칙으로는 승인할 수 없다 (Functions 전용)', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'storages', 's1'), {
+      ownerId: ALICE,
+      approved: false,
+      reviewStatus: 'pending',
+    });
+  });
+
+  await assertFails(
+    updateDoc(doc(asBoss(), 'storages', 's1'), {approved: true}),
+  );
+});
+
+test('정지된 계정은 예약과 창고 등록이 막힌다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'users', ALICE), {
+      uid: ALICE,
+      userType: 'user',
+      suspended: true,
+    });
+  });
+
+  await assertFails(
+    setDoc(doc(asAlice(), 'reservations', 'r1'), {
+      userId: ALICE,
+      ownerId: BOB,
+      storageId: 's1',
+      status: 'waiting',
+    }),
+  );
+  await assertFails(
+    setDoc(doc(asAlice(), 'storages', 's9'), {
+      ownerId: ALICE,
+      approved: false,
+    }),
+  );
+});
+
+test('정지된 계정도 채팅과 읽기는 된다', async () => {
+  const roomId = `dm_${ALICE}_${BOB}`;
+  await seed(async (db) => {
+    await setDoc(doc(db, 'users', ALICE), {
+      uid: ALICE,
+      userType: 'user',
+      suspended: true,
+    });
+    await setDoc(doc(db, 'chat_rooms', roomId), {
+      participantUids: [ALICE, BOB],
+      lastMessage: 'hi',
+    });
+  });
+
+  // 진행 중인 거래를 정리하려면 대화는 열려 있어야 한다.
+  await assertSucceeds(
+    setDoc(doc(asAlice(), `chat_rooms/${roomId}/messages`, 'm1'), {
+      uid: ALICE,
+      message: '정리하겠습니다',
+    }),
+  );
+  await assertSucceeds(getDoc(doc(asAlice(), 'storages', 's1')));
+});
+
+test('정지되지 않은 계정은 그대로 예약할 수 있다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'users', ALICE), {uid: ALICE, userType: 'user'});
+  });
+
+  await assertSucceeds(
+    setDoc(doc(asAlice(), 'reservations', 'r1'), {
+      userId: ALICE,
+      ownerId: BOB,
+      storageId: 's1',
+      status: 'waiting',
+    }),
+  );
+});
+
+test('admin_logs: 매니저만 읽고 아무도 쓰지 못한다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'admin_logs', 'l1'), {
+      actorUid: BOSS,
+      action: 'approveStorage',
+      targetId: 's1',
+    });
+  });
+
+  await assertSucceeds(getDocs(collection(asBoss(), 'admin_logs')));
+  await assertFails(getDocs(collection(asAlice(), 'admin_logs')));
+  await assertFails(
+    setDoc(doc(asBoss(), 'admin_logs', 'l2'), {action: '위조'}),
+  );
 });
 
 // -------------------------------------------------------- usages / endeds

@@ -11,6 +11,7 @@ import {
   onDocumentUpdated,
 } from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {initializeApp} from "firebase-admin/app";
 import {
   DocumentSnapshot,
@@ -364,3 +365,214 @@ export const migrateFinishedUsages = onSchedule(
     if (moved > 0) logger.info(`${moved}개의 이용이 종료 처리되었습니다.`);
   },
 );
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * 관리자(매니저) 기능
+ * ─────────────────────────────────────────────────────────────
+ *
+ * 승인·반려·정지는 모두 여기서 처리한다. 보안 규칙에는 매니저 쓰기 권한을
+ * 아예 넣지 않는다. 앱을 뜯어 고쳐도 남의 창고를 승인할 수 없고,
+ * 나중에 웹 관리자 화면을 붙일 때도 이 함수를 그대로 부르면 된다.
+ */
+
+/**
+ * 호출자가 매니저인지 확인한다.
+ * @param {string | undefined} uid 호출자 uid
+ * @return {Promise<string>} 확인된 매니저 uid
+ */
+async function requireManager(uid: string | undefined): Promise<string> {
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+
+  const snapshot = await db.collection("users").doc(uid).get();
+  if (snapshot.data()?.userType !== "manager") {
+    throw new HttpsError("permission-denied", "관리자만 할 수 있습니다.");
+  }
+  return uid;
+}
+
+/**
+ * 관리자 조치를 기록한다. 매니저가 여러 명이 되면
+ * "누가 이걸 반려했지?"에 답할 수 있어야 한다.
+ * @param {string} actorUid 조치한 매니저
+ * @param {string} action 조치 종류
+ * @param {string} targetId 대상 문서 id
+ * @param {Record<string, unknown>} extra 사유 등 부가 정보
+ * @return {Promise<void>}
+ */
+async function writeAdminLog(
+  actorUid: string,
+  action: string,
+  targetId: string,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
+  await db.collection("admin_logs").add({
+    actorUid,
+    action,
+    targetId,
+    ...extra,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
+/**
+ * 시스템 채팅방으로 알림 메시지를 보낸다.
+ * @param {string} uid 받는 사람
+ * @param {string} message 보낼 문구
+ * @return {Promise<void>}
+ */
+async function sendSystemMessage(
+  uid: string,
+  message: string,
+): Promise<void> {
+  const roomRef = db.collection("chat_rooms").doc(`system_${uid}`);
+  const messageRef = roomRef.collection("messages").doc();
+
+  await db.runTransaction(async (transaction) => {
+    const room = await transaction.get(roomRef);
+
+    transaction.set(messageRef, {
+      uid: "system",
+      displayName: "지미커(시스템)",
+      message,
+      createdAt: FieldValue.serverTimestamp(),
+      read: false,
+    });
+
+    transaction.set(
+      roomRef,
+      {
+        roomName: "지미커(시스템)",
+        participantUids: ["system", uid],
+        lastMessage: message,
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(room.exists ? {} : {createdAt: FieldValue.serverTimestamp()}),
+      },
+      {merge: true},
+    );
+  });
+}
+
+/** 창고를 승인한다. 등록자 알림은 onStorageApproved가 이어서 보낸다. */
+export const approveStorage = onCall(async (request) => {
+  const managerUid = await requireManager(request.auth?.uid);
+  const storageId = String(request.data?.storageId ?? "");
+
+  if (!storageId) {
+    throw new HttpsError("invalid-argument", "창고를 찾을 수 없습니다.");
+  }
+
+  const storageRef = db.collection("storages").doc(storageId);
+  if (!(await storageRef.get()).exists) {
+    throw new HttpsError("not-found", "창고를 찾을 수 없습니다.");
+  }
+
+  await storageRef.set(
+    {
+      approved: true,
+      reviewStatus: "approved",
+      reviewedAt: FieldValue.serverTimestamp(),
+      reviewedBy: managerUid,
+      rejectReason: "",
+    },
+    {merge: true},
+  );
+
+  await writeAdminLog(managerUid, "approveStorage", storageId);
+  return {ok: true};
+});
+
+/** 창고를 반려한다. 사유를 등록자에게 그대로 전달한다. */
+export const rejectStorage = onCall(async (request) => {
+  const managerUid = await requireManager(request.auth?.uid);
+  const storageId = String(request.data?.storageId ?? "");
+  const reason = String(request.data?.reason ?? "").trim();
+
+  if (!storageId) {
+    throw new HttpsError("invalid-argument", "창고를 찾을 수 없습니다.");
+  }
+  if (!reason) {
+    throw new HttpsError("invalid-argument", "반려 사유를 적어주세요.");
+  }
+
+  const storageRef = db.collection("storages").doc(storageId);
+  const snapshot = await storageRef.get();
+  if (!snapshot.exists) {
+    throw new HttpsError("not-found", "창고를 찾을 수 없습니다.");
+  }
+
+  await storageRef.set(
+    {
+      approved: false,
+      reviewStatus: "rejected",
+      reviewedAt: FieldValue.serverTimestamp(),
+      reviewedBy: managerUid,
+      rejectReason: reason,
+    },
+    {merge: true},
+  );
+
+  const ownerId = snapshot.data()?.ownerId as string | undefined;
+  if (ownerId) {
+    await sendSystemMessage(
+      ownerId,
+      `등록하신 창고가 반려되었습니다.\n사유: ${reason}`,
+    );
+  }
+
+  await writeAdminLog(managerUid, "rejectStorage", storageId, {reason});
+  return {ok: true};
+});
+
+/** 사용자 이용을 정지하거나 해제한다. */
+export const setUserSuspended = onCall(async (request) => {
+  const managerUid = await requireManager(request.auth?.uid);
+  const targetUid = String(request.data?.uid ?? "");
+  const suspended = request.data?.suspended === true;
+  const reason = String(request.data?.reason ?? "").trim();
+
+  if (!targetUid) {
+    throw new HttpsError("invalid-argument", "사용자를 찾을 수 없습니다.");
+  }
+  if (targetUid === managerUid) {
+    throw new HttpsError("invalid-argument", "자기 계정은 정지할 수 없습니다.");
+  }
+  if (suspended && !reason) {
+    throw new HttpsError("invalid-argument", "정지 사유를 적어주세요.");
+  }
+
+  const userRef = db.collection("users").doc(targetUid);
+  const snapshot = await userRef.get();
+  if (!snapshot.exists) {
+    throw new HttpsError("not-found", "사용자를 찾을 수 없습니다.");
+  }
+  if (snapshot.data()?.userType === "manager") {
+    throw new HttpsError("permission-denied", "관리자는 정지할 수 없습니다.");
+  }
+
+  await userRef.set(
+    {
+      suspended,
+      suspendedAt: suspended ? FieldValue.serverTimestamp() : null,
+      suspendReason: suspended ? reason : "",
+    },
+    {merge: true},
+  );
+
+  await sendSystemMessage(
+    targetUid,
+    suspended ?
+      `계정 이용이 정지되었습니다.\n사유: ${reason}` :
+      "계정 이용 정지가 해제되었습니다.",
+  );
+
+  await writeAdminLog(
+    managerUid,
+    suspended ? "suspendUser" : "unsuspendUser",
+    targetUid,
+    {reason},
+  );
+  return {ok: true};
+});

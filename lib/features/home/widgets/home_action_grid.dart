@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/features/admin/screens/admin_home_screen.dart';
 import 'package:jimiker/features/home/menu/chat/screens/chat_screen.dart';
 import 'package:jimiker/features/home/menu/my_reservation/screens/my_reservation_screen.dart';
 import 'package:jimiker/features/home/menu/my_storages/screens/my_storages_screen.dart';
@@ -16,6 +17,9 @@ class HomeActionGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authController = ref.read(authControllerProvider.notifier);
+    // 매니저에게만 관리자 타일을 하나 더 보여준다.
+    // (실제 권한은 Cloud Functions가 다시 확인하므로 여기서는 노출만 판단한다.)
+    final isManager = ref.watch(isManagerProvider);
 
     final actions = [
       // 1행
@@ -175,6 +179,19 @@ class HomeActionGrid extends ConsumerWidget {
           }
         },
       ),
+      if (isManager)
+        _HomeActionItem(
+          icon: Icons.shield_outlined,
+          label: '관리자',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AdminHomeScreen(),
+              ),
+            );
+          },
+        ),
     ];
 
     return GridView.builder(

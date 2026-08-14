@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum ReviewStatus { pending, approved, rejected }
+
 class Storage {
   final String? id;
   final String locationId;
@@ -22,6 +24,15 @@ class Storage {
   final bool deleted;
   final DateTime? deletedAt;
 
+  /// 관리자 심사 상태.
+  ///
+  /// [approved] 하나로는 "아직 심사 안 함"과 "반려됨"이 똑같이 false라
+  /// 구분되지 않아서 따로 둔다. approved는 지도·목록이 계속 쓰므로 그대로 유지한다.
+  final ReviewStatus reviewStatus;
+  final DateTime? reviewedAt;
+  final String reviewedBy;
+  final String rejectReason;
+
   Storage({
     this.id,
     required this.locationId,
@@ -39,6 +50,10 @@ class Storage {
     required this.approved,
     this.deleted = false,
     this.deletedAt,
+    this.reviewStatus = ReviewStatus.pending,
+    this.reviewedAt,
+    this.reviewedBy = '',
+    this.rejectReason = '',
   });
 
   factory Storage.fromDoc(DocumentSnapshot doc) {
@@ -91,7 +106,24 @@ class Storage {
       approved: data['approved'] ?? false,
       deleted: data['deleted'] ?? false,
       deletedAt: (data['deletedAt'] as Timestamp?)?.toDate().toLocal(),
+      // 예전 문서에는 reviewStatus가 없다. 그때는 approved로 판단한다.
+      reviewStatus: _readReviewStatus(data),
+      reviewedAt: (data['reviewedAt'] as Timestamp?)?.toDate().toLocal(),
+      reviewedBy: data['reviewedBy']?.toString() ?? '',
+      rejectReason: data['rejectReason']?.toString() ?? '',
     );
+  }
+
+  static ReviewStatus _readReviewStatus(Map<String, dynamic> data) {
+    final raw = data['reviewStatus']?.toString();
+    if (raw != null) {
+      for (final status in ReviewStatus.values) {
+        if (status.name == raw) return status;
+      }
+    }
+    return (data['approved'] == true)
+        ? ReviewStatus.approved
+        : ReviewStatus.pending;
   }
 
   Map<String, dynamic> toMap() {
@@ -117,6 +149,7 @@ class Storage {
       },
       'approved': approved,
       'deleted': deleted,
+      'reviewStatus': reviewStatus.name,
       if (deletedAt != null)
         'deletedAt': Timestamp.fromDate(deletedAt!.toUtc()),
     };
@@ -155,6 +188,10 @@ class Storage {
       approved: approved,
       deleted: deleted ?? this.deleted,
       deletedAt: deletedAt ?? this.deletedAt,
+      reviewStatus: reviewStatus,
+      reviewedAt: reviewedAt,
+      reviewedBy: reviewedBy,
+      rejectReason: rejectReason,
     );
   }
 }

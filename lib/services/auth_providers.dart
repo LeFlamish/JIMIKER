@@ -53,6 +53,26 @@ final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepositoryImpl(ref.read(userDataSourceProvider));
 });
 
+/// 지금 로그인한 사람의 AppUser. 로그인/로그아웃과 문서 변경을 모두 따라간다.
+///
+/// authControllerProvider는 checkSignIn을 거쳐야 채워져서, 앱을 새로 켰을 때는
+/// 비어 있다. 등급(userType)처럼 시작하자마자 필요한 값은 여기서 읽는다.
+final currentAppUserProvider = StreamProvider<AppUser?>((ref) {
+  final auth = ref.watch(firebaseAuthProvider);
+  final repo = ref.watch(userRepositoryProvider);
+
+  return auth.authStateChanges().asyncExpand((user) {
+    if (user == null) return Stream<AppUser?>.value(null);
+    return repo.watchUser(user.uid);
+  });
+});
+
+/// 관리자 화면을 보여줄지 판단한다.
+/// (실제 승인·정지 권한은 Cloud Functions가 다시 확인한다.)
+final isManagerProvider = Provider<bool>((ref) {
+  return ref.watch(currentAppUserProvider).value?.isManager ?? false;
+});
+
 // 4) uid로 AppUser 실시간 스트림 불러오기 (family)
 final userStreamProvider = StreamProvider.family
     .autoDispose<AppUser?, String>((ref, uid) {

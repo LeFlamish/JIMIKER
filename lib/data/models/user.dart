@@ -11,9 +11,16 @@ class AppUser {
   final bool advertisement;
   final UserType userType;
 
+  /// 관리자가 이용을 정지시킨 계정. 로그인은 되지만 예약·창고 등록이 막힌다.
+  final bool suspended;
+  final DateTime? suspendedAt;
+  final String suspendReason;
+
   // ✅ Firestore에도 저장하는 필드면 모델에도 포함
   final DateTime? createdAt;
   final DateTime? lastLoginAt;
+
+  bool get isManager => userType == UserType.manager;
 
   AppUser({
     required this.uid,
@@ -23,6 +30,9 @@ class AppUser {
     required this.fcmToken,
     required this.advertisement,
     required this.userType,
+    this.suspended = false,
+    this.suspendedAt,
+    this.suspendReason = '',
     this.createdAt,
     this.lastLoginAt,
   });
@@ -72,6 +82,13 @@ class AppUser {
         (t) => t.name == userTypeStr,
         orElse: () => UserType.user,
       ),
+      suspended: (data['suspended'] is bool)
+          ? data['suspended'] as bool
+          : false,
+      suspendedAt: tsToDt(data['suspendedAt']),
+      suspendReason: (data['suspendReason'] is String)
+          ? data['suspendReason'] as String
+          : '',
       createdAt: tsToDt(data['createdAt']),
       lastLoginAt: tsToDt(data['lastLoginAt']),
     );
@@ -89,6 +106,7 @@ class AppUser {
       'fcmToken': fcmToken,
       'advertisement': advertisement,
       'userType': userType.name,
+      'suspended': suspended,
       // DateTime -> Timestamp로 저장
       if (createdAt != null)
         'createdAt': Timestamp.fromDate(createdAt!.toUtc()),
@@ -105,6 +123,7 @@ class AppUser {
     String? fcmToken,
     bool? advertisement,
     UserType? userType,
+    bool? suspended,
     DateTime? createdAt,
     DateTime? lastLoginAt,
   }) {
@@ -116,6 +135,9 @@ class AppUser {
       fcmToken: fcmToken ?? this.fcmToken,
       advertisement: advertisement ?? this.advertisement,
       userType: userType ?? this.userType,
+      suspended: suspended ?? this.suspended,
+      suspendedAt: suspendedAt,
+      suspendReason: suspendReason,
       createdAt: createdAt ?? this.createdAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
     );
