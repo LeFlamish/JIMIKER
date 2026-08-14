@@ -1,4 +1,4 @@
-package com.example.jimiker
+package com.jimiker.app
 
 import io.flutter.embedding.android.FlutterActivity
 

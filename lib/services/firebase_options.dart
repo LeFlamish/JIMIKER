@@ -58,12 +58,18 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBGdGO7UYnz058HpY8w6Sc-u_n471KwjKI',
-    appId: '1:307056666844:android:7c7a25bc2e5e5658b36c19',
+    // com.jimiker.app 으로 등록된 앱. (예전 com.example.jimiker 앱은
+    // 1:307056666844:android:7c7a25bc2e5e5658b36c19 이었다)
+    appId: '1:307056666844:android:dfff25d8248259f4b36c19',
     messagingSenderId: '307056666844',
     projectId: 'jimiker-ssdev',
     storageBucket: 'jimiker-ssdev.firebasestorage.app',
   );
 
+  // iOS는 아직 손대지 않았다. GoogleService-Info.plist도 없고 APNs도
+  // 설정 전이라, 지금 번들 id만 바꾸면 Firebase에 등록된 iOS 앱
+  // (com.example.jimiker)과 어긋나기만 한다.
+  // iOS를 실제로 낼 때 Firebase에 iOS 앱을 새로 등록하고 여기까지 함께 고칠 것.
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyAe6BaU5p-FHklTbpq-9vYJHLv50E1-DXw',
     appId: '1:307056666844:ios:3b04f19968717ea7b36c19',

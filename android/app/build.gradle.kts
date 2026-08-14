@@ -24,7 +24,7 @@ val keystoreProperties = Properties().apply {
 val hasUploadKey = keystoreProperties.getProperty("storeFile") != null
 
 android {
-    namespace = "com.example.jimiker"
+    namespace = "com.jimiker.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -42,10 +42,9 @@ android {
     }
 
     defaultConfig {
-        // ⚠️ 스토어에 올리기 전에 반드시 바꿔야 한다.
-        // Play는 com.example로 시작하는 패키지를 받지 않고, 한 번 올리면
-        // 영원히 못 바꾼다. 바꿀 때 같이 할 일은 docs/play-store.md 참고.
-        applicationId = "com.example.jimiker"
+        // 스토어에 한 번 올리면 영원히 못 바꾸는 값이다. 손대지 말 것.
+        // 바꿔야 한다면 Firebase 앱 등록과 Maps 키 제한도 같이 손봐야 한다.
+        applicationId = "com.jimiker.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

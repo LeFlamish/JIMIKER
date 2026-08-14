@@ -7,18 +7,47 @@
 
 ## 1. 업로드가 막히는 것
 
-### ☐ 패키지명 (`com.example.jimiker`)
+### ✅ 패키지명 → `com.jimiker.app`
 
-Play는 `com.example`로 시작하는 패키지를 **받지 않는다.**
-한 번 올리면 **영원히 못 바꾸므로** 첫 업로드 전에 정해야 한다.
+`com.example.jimiker`에서 바꿨다. Play는 `com.example`로 시작하는 패키지를
+받지 않는다. **한 번 올리면 영원히 못 바꾸므로 다시 손대지 말 것.**
 
-바꿀 때 같이 해야 하는 일:
-1. Firebase 콘솔 → 프로젝트 설정 → **앱 추가 → Android** (프로젝트는 그대로,
-   앱 등록만 새로 한다. 기존 등록은 지우지 말 것 — 개발 빌드가 깨진다)
-2. 새 `google-services.json` 받아서 `android/app/`에 덮어쓰기
-3. Google Cloud Console → Maps 키 제한을 새 패키지명 + SHA-1로 변경
+바뀐 곳:
+- `android/app/build.gradle.kts` — applicationId, namespace
+- `android/app/src/main/kotlin/com/jimiker/app/MainActivity.kt` — 패키지 · 경로
+- `android/app/google-services.json` — 새 앱 등록 포함
+- `lib/services/firebase_options.dart` · `firebase.json` — android appId
 
-Firestore 데이터, Storage 파일, Auth 가입자, Functions는 **그대로 남는다.**
+Firestore 데이터, Storage 파일, Auth 가입자(UID 포함), Functions는 그대로다.
+
+#### ☐ 새 패키지의 SHA-1 등록 (안 하면 구글 로그인이 안 된다)
+
+받은 `google-services.json`의 `com.jimiker.app` 항목에는 웹 클라이언트
+(`client_type: 3`)만 있고 **Android 클라이언트(`client_type: 1`)가 없다.**
+= SHA-1이 등록되지 않았다는 뜻이다.
+
+```bash
+cd C:\JIMIKER\android
+gradlew signingReport      # Variant: debug 의 SHA1 복사
+```
+
+Firebase 콘솔 → 프로젝트 설정 → `com.jimiker.app` 앱 → **디지털 지문 추가**
+
+> `google-services.json`을 다시 받지 않아도 된다. SHA-1은 구글 서버 쪽
+> 설정이고, 앱에 들어가는 값이 아니다. (다시 받아도 무해하다)
+
+#### ☐ Maps 키 제한 변경
+
+Google Cloud Console → 사용자 인증 정보 → Maps 키 →
+애플리케이션 제한을 `com.jimiker.app` + 같은 SHA-1로 바꾼다.
+안 바꾸면 지도가 회색으로 나온다.
+
+#### iOS는 아직 그대로
+
+`GoogleService-Info.plist`도 없고 APNs도 설정 전이라 번들 id를 바꾸면
+Firebase에 등록된 iOS 앱과 어긋나기만 한다. iOS를 실제로 낼 때
+Firebase에 iOS 앱을 새로 등록하면서 `project.pbxproj`와
+`firebase_options.dart`의 `iosBundleId`를 함께 고친다.
 
 ### ☐ 업로드 키스토어
 
