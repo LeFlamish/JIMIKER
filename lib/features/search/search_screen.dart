@@ -11,14 +11,23 @@ class SearchScreen extends ConsumerStatefulWidget {
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
-  @override
-  void initState() {
-    super.initState();
+  /// 키보드의 '검색'을 눌렀을 때. 자동완성 첫 번째 후보로 넘어간다.
+  ///
+  /// 구글 자동완성은 입력한 글자와 정확히 같은 장소를 보장하지 않아서,
+  /// 임의로 지오코딩하는 것보다 후보를 고르게 하는 편이 정확하다.
+  /// 아직 후보가 없으면 아무 일도 하지 않는다.
+  void _submit() {
+    final predictions = ref.read(searchProvider).predictions;
+    if (predictions.isEmpty) return;
+
+    PredictionList.selectPrediction(context, predictions.first);
   }
 
   @override
   Widget build(BuildContext context) {
-    final searchRef = ref.watch(searchProvider);
+    // 자동완성 결과가 바뀌면 목록을 다시 그려야 한다.
+    final search = ref.watch(searchProvider);
+
     return Scaffold(
       // 메인 바디 (배경 그라데이션 + 검색창)
       body: Container(
@@ -86,15 +95,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       fontSize: 16,
                       color: Colors.black87,
                     ),
-                    onSubmitted: (value) {
-                      // TODO: 검색 실행 로직 작성
-                      print("검색어: $value");
-                    },
+                    onSubmitted: (_) => _submit(),
                   ),
                 ),
-                PredictionList(
-                  predictions: ref.read(searchProvider).predictions,
-                ),
+                PredictionList(predictions: search.predictions),
               ],
             ),
           ),

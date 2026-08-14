@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_google_places_hoc081098/google_maps_webservice_places.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/core/config/app_config.dart';
 
 class SearchProviderData {
   List<Prediction> predictions;
@@ -32,12 +33,9 @@ class SearchNotifier extends Notifier<SearchProviderData> {
     return SearchProviderData();
   }
 
-  static const double _maxDistanceMeters = 10000;
   Timer? _debounce;
 
-  final _places = GoogleMapsPlaces(
-    apiKey: 'AIzaSyAuhd1aQTSgjtgnydP3_wgD3SDD2QD-VGU',
-  );
+  final _places = GoogleMapsPlaces(apiKey: googleMapsApiKey);
 
   void onChanged(String value) {
     _debounce?.cancel();
@@ -47,13 +45,18 @@ class SearchNotifier extends Notifier<SearchProviderData> {
         return;
       }
 
-      final response = await _places.autocomplete(
-        value,
-        language: 'ko',
-        components: [Component(Component.country, "kr")],
-      );
-      if (response.isOkay) {
-        state = state.copyWith(predictions: response.predictions);
+      try {
+        final response = await _places.autocomplete(
+          value,
+          language: 'ko',
+          components: [Component(Component.country, "kr")],
+        );
+        if (response.isOkay) {
+          state = state.copyWith(predictions: response.predictions);
+        }
+      } catch (_) {
+        // 네트워크가 끊겼거나 키 제한에 걸린 경우.
+        // 이전 결과를 그대로 두고 조용히 넘어간다.
       }
     });
   }

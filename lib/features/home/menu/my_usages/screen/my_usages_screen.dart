@@ -11,18 +11,16 @@ enum UsageStatus { active, endingSoon }
 class UsageCard extends StatelessWidget {
   final Usage usage;
   final Storage storage;
-  final VoidCallback? onSmartKeyTap;
   final VoidCallback? onExtendTap;
 
   /// 카드 윗부분(창고 정보)을 누르면 이용 상세로 이동한다.
-  /// 아래 스마트키/연장 버튼은 각자 동작이 있어서 제외한다.
+  /// 아래 연장 버튼은 따로 동작이 있어서 제외한다.
   final VoidCallback? onTap;
 
   const UsageCard({
     super.key,
     required this.usage,
     required this.storage,
-    this.onSmartKeyTap,
     this.onExtendTap,
     this.onTap,
   });
@@ -177,74 +175,34 @@ class UsageCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1, color: Color(0xFFEEEEEE)),
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: onSmartKeyTap,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(20),
+          InkWell(
+            onTap: onExtendTap,
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(20),
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.update_rounded,
+                    color: Colors.grey[600],
+                    size: 20,
                   ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: Color(0xFFEEEEEE)),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.lock_open_rounded,
-                          color: statusColor,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          "스마트키",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                      ],
+                  const SizedBox(width: 8),
+                  Text(
+                    "이용 연장",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
                     ),
                   ),
-                ),
+                ],
               ),
-              Expanded(
-                child: InkWell(
-                  onTap: onExtendTap,
-                  borderRadius: const BorderRadius.only(
-                    bottomRight: Radius.circular(20),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.update_rounded,
-                          color: Colors.grey[600],
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          "이용 연장",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -314,17 +272,16 @@ class _UsageListScreenState extends ConsumerState<UsageListScreen> {
                           ),
                         ),
                       ),
-                      onSmartKeyTap: () {
+                      // 연장은 아직 화면이 없다. 실제로 되는 것처럼
+                      // 보이지 않게 안내만 하고, 주인과 이야기하도록 넘긴다.
+                      onExtendTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
+                          const SnackBar(
                             content: Text(
-                              '${item.usage.containerIndex} 보관함 문이 열렸습니다!',
+                              '연장은 준비 중이에요. 창고 주인에게 1:1 문의로 요청해주세요.',
                             ),
                           ),
                         );
-                      },
-                      onExtendTap: () {
-                        debugPrint('연장하기 클릭: ${item.usage.id}');
                       },
                     );
                   },

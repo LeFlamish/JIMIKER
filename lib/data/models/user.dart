@@ -16,6 +16,11 @@ class AppUser {
   final DateTime? suspendedAt;
   final String suspendReason;
 
+  /// 가입할 때 동의한 약관 버전과 시각.
+  /// 약관을 고쳐 다시 동의를 받아야 할 때 누가 옛 버전인지 가려낸다.
+  final int termsVersion;
+  final DateTime? agreedAt;
+
   // ✅ Firestore에도 저장하는 필드면 모델에도 포함
   final DateTime? createdAt;
   final DateTime? lastLoginAt;
@@ -33,6 +38,8 @@ class AppUser {
     this.suspended = false,
     this.suspendedAt,
     this.suspendReason = '',
+    this.termsVersion = 0,
+    this.agreedAt,
     this.createdAt,
     this.lastLoginAt,
   });
@@ -89,6 +96,9 @@ class AppUser {
       suspendReason: (data['suspendReason'] is String)
           ? data['suspendReason'] as String
           : '',
+      // 약관 도입 전에 가입한 문서에는 없다. 0이면 "동의 기록 없음"이다.
+      termsVersion: (data['termsVersion'] as num?)?.toInt() ?? 0,
+      agreedAt: tsToDt(data['agreedAt']),
       createdAt: tsToDt(data['createdAt']),
       lastLoginAt: tsToDt(data['lastLoginAt']),
     );
@@ -138,6 +148,8 @@ class AppUser {
       suspended: suspended ?? this.suspended,
       suspendedAt: suspendedAt,
       suspendReason: suspendReason,
+      termsVersion: termsVersion,
+      agreedAt: agreedAt,
       createdAt: createdAt ?? this.createdAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
     );

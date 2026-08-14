@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/features/auth/terms/terms_document_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
 class SignInScreen extends ConsumerWidget {
@@ -99,15 +100,17 @@ class SignInScreen extends ConsumerWidget {
                         // 4. 구글 로그인 버튼
                         _googleLoginButton(
                           onPressed: () async {
+                            // 처음 오는 사람은 약관 동의 화면을 거친다.
+                            // 동의하지 않으면 false가 돌아온다.
                             final loginResult = await authController
-                                .signInWithGoogle();
-                            if (loginResult) {
-                              if (context.mounted) {
-                                Navigator.of(context).pop(true);
-                              }
+                                .signInWithGoogle(context);
+                            if (loginResult && context.mounted) {
+                              Navigator.of(context).pop(true);
                             }
                           },
                         ),
+                        const SizedBox(height: 18),
+                        _buildTermsNotice(context),
                       ],
                     ),
                   ),
@@ -119,6 +122,38 @@ class SignInScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// 로그인 화면에서도 약관을 미리 볼 수 있게 한다.
+  /// (플레이스토어는 가입 전에 정책을 확인할 수 있기를 요구한다)
+  Widget _buildTermsNotice(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          '처음 로그인하시면 약관 동의 후 가입됩니다.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 4),
+        TextButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const TermsListScreen()),
+          ),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          child: const Text(
+            '약관 및 개인정보 처리방침 보기',
+            style: TextStyle(
+              fontSize: 12,
+              decoration: TextDecoration.underline,
+              color: Color(0xFF6B7AF5),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

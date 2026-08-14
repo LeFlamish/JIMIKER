@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/data/services/deletion_service.dart';
+import 'package:jimiker/features/auth/terms/terms_document_screen.dart';
 import 'package:jimiker/features/home/menu/my_information/profile_edit/screens/profile_edit_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
@@ -95,7 +96,15 @@ class MyInformationScreen extends ConsumerWidget {
                       Icons.headset_mic_outlined,
                       "고객센터 / 문의하기",
                     ),
-                    _buildMenuTile(Icons.info_outline, "약관 및 정책"),
+                    _buildMenuTile(
+                      Icons.info_outline,
+                      "약관 및 정책",
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const TermsListScreen(),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
