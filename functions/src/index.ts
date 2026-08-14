@@ -3,6 +3,19 @@
  *
  * 모든 함수는 서울 리전(asia-northeast3)에서 돈다. 사용자가 국내에 있어
  * 지연이 짧고, 기존에 배포된 함수들도 같은 리전이라 하나로 맞춰둔다.
+ *
+ * ── 배포 주의 ──────────────────────────────────────────────
+ * firebase.json의 functions.predeploy(npm install + npm run build)를
+ * 절대 지우지 말 것.
+ *
+ * firebase CLI는 package.json의 main(= lib/index.js)을 "로컬에서" 읽어
+ * 무엇을 배포할지 정한다. 컴파일 결과물인 lib/이 낡아 있으면 새로 만든
+ * 함수가 목록에 안 잡히고, 그런데도 배포는 오류 없이 성공한다.
+ * 그러면 콘솔에는 옛 함수만 남고 앱에서는 NOT_FOUND가 난다.
+ *
+ * package.json의 gcp-build도 tsc를 돌리지만 그건 Cloud Build 안에서,
+ * 즉 CLI가 목록을 정한 "뒤"라 이 문제를 막지 못한다.
+ * ───────────────────────────────────────────────────────────
  */
 
 import {logger, setGlobalOptions} from "firebase-functions/v2";
