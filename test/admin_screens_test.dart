@@ -7,7 +7,9 @@ import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/user.dart';
 import 'package:jimiker/features/admin/screens/admin_home_screen.dart';
 import 'package:jimiker/features/admin/screens/admin_users_screen.dart';
+import 'package:jimiker/features/admin/screens/storage_review_screen.dart';
 import 'package:jimiker/features/admin/services/admin_providers.dart';
+import 'package:jimiker/services/storage_zones_provider.dart';
 
 AppUser _user({
   String uid = 'u1',
@@ -129,6 +131,63 @@ void main() {
 
       expect(find.textContaining('승인 대기 '), findsNothing);
       expect(find.textContaining('기간이 지난 이용'), findsNothing);
+    });
+  });
+
+  group('StorageReviewDetailScreen 버튼 상태', () {
+    // 지금 상태에서 의미 없는 동작은 아예 보이지 않아야 한다.
+    Storage storage(ReviewStatus status) => Storage(
+      id: 's1',
+      locationId: 'l1',
+      lat: 37.5,
+      lng: 127,
+      address: '서울시 어딘가',
+      detailAddress: '지하 1층',
+      count: 2,
+      createdAt: DateTime(2026, 5, 1),
+      images: const [],
+      ownerId: 'owner',
+      width: 300,
+      height: 240,
+      layout: const {},
+      approved: status == ReviewStatus.approved,
+      reviewStatus: status,
+    );
+
+    Future<void> pumpDetail(
+      WidgetTester tester,
+      ReviewStatus status,
+    ) async {
+      await _pump(
+        tester,
+        StorageReviewDetailScreen(storage: storage(status)),
+        overrides: [
+          storageZonesProvider('s1').overrideWith((ref) async => []),
+        ],
+      );
+    }
+
+    testWidgets('대기중이면 승인과 반려 둘 다 나온다', (tester) async {
+      await pumpDetail(tester, ReviewStatus.pending);
+
+      expect(find.widgetWithText(ElevatedButton, '승인'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, '반려'), findsOneWidget);
+    });
+
+    testWidgets('이미 승인된 창고에는 승인 버튼이 없다', (tester) async {
+      await pumpDetail(tester, ReviewStatus.approved);
+
+      expect(find.textContaining('승인으로 변경'), findsNothing);
+      expect(find.text('승인'), findsNothing);
+      // 반려로 되돌리는 것은 가능해야 한다.
+      expect(find.text('반려로 변경'), findsOneWidget);
+    });
+
+    testWidgets('반려된 창고에는 반려 버튼이 없다', (tester) async {
+      await pumpDetail(tester, ReviewStatus.rejected);
+
+      expect(find.textContaining('반려로 변경'), findsNothing);
+      expect(find.text('승인으로 변경'), findsOneWidget);
     });
   });
 

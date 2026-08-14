@@ -127,13 +127,18 @@ class AdminHomeScreen extends ConsumerWidget {
         ],
         if (summary.pendingStorages > 0 || summary.overdueUsages > 0)
           const SizedBox(height: 16),
-        GridView.count(
+        GridView(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          childAspectRatio: 1.9,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
+          // 비율(childAspectRatio)로 두면 화면 폭에 따라 높이가 같이 줄어
+          // 좁은 기기에서 내용이 넘친다. 높이를 직접 고정한다.
+          gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisExtent: 92,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+              ),
           children: [
             _StatCard(
               label: '승인 대기',
@@ -265,41 +270,53 @@ class _StatCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            label,
-            style: TextStyle(fontSize: 12.5, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+      // 시스템 글꼴을 크게 쓰는 기기에서도 넘치지 않도록 줄여서 맞춘다.
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '$value',
+                label,
                 style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+                  fontSize: 12.5,
+                  color: Colors.grey[600],
                 ),
               ),
-              if (caption != null) ...[
-                const SizedBox(width: 6),
-                Text(
-                  caption!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[500],
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '$value',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
                   ),
-                ),
-              ],
+                  if (caption != null) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      caption!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

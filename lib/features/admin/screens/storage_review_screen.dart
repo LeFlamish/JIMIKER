@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
@@ -285,10 +286,19 @@ class _StorageReviewDetailScreenState
   }
 
   String _readableError(Object error) {
-    final text = error.toString();
-    // FirebaseFunctionsException의 message만 뽑아 보여준다.
-    final match = RegExp(r'message:\s*(.+?)[,)]').firstMatch(text);
-    return match?.group(1) ?? text;
+    if (error is FirebaseFunctionsException) {
+      // 서버가 보낸 안내 문구를 그대로 쓴다.
+      final message = error.message;
+      if (message != null && message.isNotEmpty) return message;
+
+      return switch (error.code) {
+        'unauthenticated' => '로그인이 필요합니다.',
+        'permission-denied' => '관리자 권한이 없습니다.',
+        'not-found' => '함수를 찾을 수 없습니다. 배포했는지 확인해주세요.',
+        _ => error.code,
+      };
+    }
+    return error.toString();
   }
 
   Future<bool?> _confirm({
@@ -586,8 +596,14 @@ class _StorageReviewDetailScreenState
     );
   }
 
+  /// 지금 상태에서 의미 있는 동작만 보여준다.
+  ///
+  /// 이미 승인된 창고에 '승인' 버튼을 또 두면 눌러도 바뀌는 게 없고,
+  /// 반려된 창고에 '반려' 버튼도 마찬가지다.
   Widget _buildBottomBar() {
-    final isPending = _storage.reviewStatus == ReviewStatus.pending;
+    final status = _storage.reviewStatus;
+    final canApprove = status != ReviewStatus.approved;
+    final canReject = status != ReviewStatus.rejected;
 
     return SafeArea(
       top: false,
@@ -599,63 +615,67 @@ class _StorageReviewDetailScreenState
         ),
         child: Row(
           children: [
-            Expanded(
-              child: SizedBox(
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: _isWorking ? null : _reject,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFD32F2F)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+            if (canReject)
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _isWorking ? null : _reject,
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFD32F2F)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    isPending ? '반려' : '반려로 변경',
-                    style: const TextStyle(
-                      color: Color(0xFFD32F2F),
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                    child: Text(
+                      status == ReviewStatus.pending ? '반려' : '반려로 변경',
+                      style: const TextStyle(
+                        color: Color(0xFFD32F2F),
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              flex: 2,
-              child: SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _isWorking ? null : _approve,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
-                    disabledBackgroundColor: const Color(0xFFA5C7A7),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+            if (canReject && canApprove) const SizedBox(width: 10),
+            if (canApprove)
+              Expanded(
+                flex: canReject ? 2 : 1,
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isWorking ? null : _approve,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E7D32),
+                      disabledBackgroundColor: const Color(0xFFA5C7A7),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
+                    child: _isWorking
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Text(
+                            status == ReviewStatus.pending
+                                ? '승인'
+                                : '승인으로 변경',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
-                  child: _isWorking
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                      : Text(
-                          isPending ? '승인' : '승인으로 변경',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
                 ),
               ),
-            ),
           ],
         ),
       ),
