@@ -14,12 +14,16 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        // flutter_local_notifications가 요구한다.
+        // (알림 예약 기능을 옛 안드로이드에서도 쓰기 위해 desugaring을 쓴다)
+        isCoreLibraryDesugaringEnabled = true
+        // 이 플러그인이 Java 17로 빌드돼 있어 앱도 17로 맞춘다.
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
@@ -31,6 +35,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // desugaring으로 메서드 수가 늘어나 64K 한도를 넘을 수 있다.
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -44,4 +50,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
