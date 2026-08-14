@@ -53,11 +53,35 @@ Play Console에도 같은 아이콘을 따로 올린다.
 
 ## 2. 공개 URL
 
-✅ 페이지는 `docs/`에 만들어져 있다. 올리는 방법은 `docs/README.md` 참고.
-✅ 문의 주소 기재 완료 (`terms_documents.dart`의 `contactEmail`)
+✅ 페이지 생성 (`docs/`, 원본은 `terms_documents.dart`)
+✅ 문의 주소 기재 (`qordudduq@gmail.com`)
+✅ 공개 완료 — https://yeoby97.github.io/JIMIKER-legal/
 
-- ☐ GitHub Pages(또는 Netlify 등)로 공개
+앱 저장소가 비공개라 약관용 공개 저장소를 따로 뒀다.
+**약관을 고치면 그쪽에도 복사해야 한다.** 순서는 `docs/README.md` 참고.
+
+Play Console에 넣을 두 주소:
+
+```
+개인정보처리방침
+https://yeoby97.github.io/JIMIKER-legal/privacy.html
+
+계정 삭제 요청
+https://yeoby97.github.io/JIMIKER-legal/account-deletion.html
+```
+
 - ☐ Play Console에 두 주소 입력
+
+### 올리고 나서 직접 확인할 것
+
+심사자는 **로그인하지 않은 상태로** 이 주소를 연다. 시크릿 창에서 확인한다.
+
+- ☐ 시크릿 창에서 두 주소가 모두 열리는가 (404가 아닌가)
+- ☐ 첫 화면(`/`)의 링크 5개가 모두 열리는가
+      (service · privacy · location · marketing · account-deletion)
+- ☐ 각 페이지 왼쪽 위 "지미커"를 누르면 첫 화면으로 돌아가는가
+- ☐ 하단 문의 메일 주소가 맞는가
+- ☐ 휴대폰에서 열었을 때 글자가 잘리지 않는가
 
 ---
 
