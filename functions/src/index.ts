@@ -15,6 +15,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {initializeApp} from "firebase-admin/app";
 import {
   DocumentSnapshot,
+  QueryDocumentSnapshot,
   getFirestore,
   FieldValue,
   Timestamp,
@@ -455,6 +456,133 @@ async function sendSystemMessage(
   });
 }
 
+/**
+ * ─────────────────────────────────────────────────────────────
+ * 승인된 창고를 반려로 되돌릴 때의 뒷정리
+ * ─────────────────────────────────────────────────────────────
+ *
+ * 이미 짐을 넣고 쓰고 있는 사람(usages)과, 아직 시작 전인 예약(reservations)은
+ * 처지가 다르다.
+ *
+ *  - 이용 중  : 손대지 않는다. 물건이 안에 들어 있는데 관리자 판단으로
+ *               계약을 끊으면 이용자가 갈 곳이 없다. 기간이 끝나면
+ *               migrateFinishedUsages가 평소대로 이용 내역으로 넘긴다.
+ *  - 예약     : 취소한다. 반려된 창고는 지도·목록에서 사라져서 이용자가
+ *               상세를 다시 볼 수도 없고, 시작일이 되면 이용 중으로
+ *               넘어가버리기 때문에 그냥 두면 안 된다.
+ *
+ * 새 예약이 더 들어오는 것은 보안 규칙(storageIsOpen)이 막는다.
+ */
+
+/** 한 번에 읽어올 예약 수. 다 처리할 때까지 페이지를 넘긴다. */
+const CASCADE_PAGE_SIZE = 300;
+
+/** 창고 반려로 무엇이 영향받았는지 */
+interface RejectImpact {
+  /** 취소된 예약 건수 */
+  cancelledReservations: number;
+  /** 그대로 유지한 이용 중 건수 */
+  keptUsages: number;
+}
+
+/**
+ * 한 창고에 걸린 예약을 페이지 단위로 훑는다.
+ *
+ * storageId 하나로만 거르고 정렬은 문서 id로 한다. 자동 색인만으로 돌아가서
+ * 색인을 따로 만들 필요가 없다. (status까지 쿼리로 거르면 복합 색인이 필요하고,
+ * != 조건은 필드가 아예 없는 옛 문서를 빼먹는다.)
+ * @param {string} storageId 대상 창고
+ * @param {Function} handle 한 페이지를 받아 처리하는 함수
+ * @return {Promise<void>}
+ */
+async function forEachReservationOfStorage(
+  storageId: string,
+  handle: (docs: QueryDocumentSnapshot[]) => Promise<void>,
+): Promise<void> {
+  let cursor: QueryDocumentSnapshot | undefined;
+
+  for (;;) {
+    let query = db
+      .collection("reservations")
+      .where("storageId", "==", storageId)
+      .orderBy("__name__")
+      .limit(CASCADE_PAGE_SIZE);
+
+    if (cursor) query = query.startAfter(cursor);
+
+    const snapshot = await query.get();
+    if (snapshot.empty) return;
+
+    await handle(snapshot.docs);
+
+    if (snapshot.size < CASCADE_PAGE_SIZE) return;
+    cursor = snapshot.docs[snapshot.size - 1];
+  }
+}
+
+/**
+ * 반려된 창고에 남아 있는 예약을 모두 취소한다.
+ * @param {string} storageId 반려된 창고
+ * @return {Promise<number>} 취소한 예약 수
+ */
+async function cancelReservationsForStorage(
+  storageId: string,
+): Promise<number> {
+  let cancelled = 0;
+  // 한 사람이 여러 구역을 잡아뒀어도 안내는 한 번만 보낸다.
+  const affectedUsers = new Set<string>();
+
+  await forEachReservationOfStorage(storageId, async (docs) => {
+    const targets = docs.filter((doc) => doc.data().status !== "rejected");
+    if (targets.length === 0) return;
+
+    const batch = db.batch();
+    for (const doc of targets) {
+      batch.set(
+        doc.ref,
+        {
+          status: "rejected",
+          // 주인이 거절한 것과 구분하려고 남긴다.
+          rejectedBy: "system",
+          rejectedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+      );
+
+      const userId = doc.data().userId;
+      if (typeof userId === "string" && userId) affectedUsers.add(userId);
+    }
+
+    await batch.commit();
+    cancelled += targets.length;
+  });
+
+  // 심사 사유는 등록자에게 쓴 내부 메모라 이용자에게는 옮기지 않는다.
+  for (const uid of affectedUsers) {
+    await sendSystemMessage(
+      uid,
+      "예약하신 창고가 관리자 심사에서 반려되어 예약이 취소되었습니다.\n" +
+        "결제 전이라 청구되는 금액은 없습니다. 다른 창고를 찾아주세요.",
+    );
+  }
+
+  return cancelled;
+}
+
+/**
+ * 창고에 걸린 이용 중 건수를 센다. (내용은 건드리지 않는다)
+ * @param {string} storageId 대상 창고
+ * @return {Promise<number>} 이용 중 건수
+ */
+async function countUsagesForStorage(storageId: string): Promise<number> {
+  const snapshot = await db
+    .collection("usages")
+    .where("storageId", "==", storageId)
+    .count()
+    .get();
+  return snapshot.data().count;
+}
+
 /** 창고를 승인한다. 등록자 알림은 onStorageApproved가 이어서 보낸다. */
 export const approveStorage = onCall(async (request) => {
   const managerUid = await requireManager(request.auth?.uid);
@@ -484,7 +612,10 @@ export const approveStorage = onCall(async (request) => {
   return {ok: true};
 });
 
-/** 창고를 반려한다. 사유를 등록자에게 그대로 전달한다. */
+/**
+ * 창고를 반려한다. 사유를 등록자에게 그대로 전달하고,
+ * 이미 승인돼 있던 창고라면 걸려 있는 예약까지 정리한다.
+ */
 export const rejectStorage = onCall(async (request) => {
   const managerUid = await requireManager(request.auth?.uid);
   const storageId = String(request.data?.storageId ?? "");
@@ -503,6 +634,8 @@ export const rejectStorage = onCall(async (request) => {
     throw new HttpsError("not-found", "창고를 찾을 수 없습니다.");
   }
 
+  // 먼저 노출을 끊는다. 뒷정리 중에 새 예약이 들어오면 안 된다.
+  // (보안 규칙이 approved == false인 창고의 예약 생성을 막아준다.)
   await storageRef.set(
     {
       approved: false,
@@ -514,16 +647,34 @@ export const rejectStorage = onCall(async (request) => {
     {merge: true},
   );
 
+  const impact: RejectImpact = {
+    cancelledReservations: await cancelReservationsForStorage(storageId),
+    keptUsages: await countUsagesForStorage(storageId),
+  };
+
   const ownerId = snapshot.data()?.ownerId as string | undefined;
   if (ownerId) {
-    await sendSystemMessage(
-      ownerId,
-      `등록하신 창고가 반려되었습니다.\n사유: ${reason}`,
-    );
+    const lines = ["등록하신 창고가 반려되었습니다.", `사유: ${reason}`];
+
+    if (impact.cancelledReservations > 0) {
+      lines.push(
+        `아직 시작하지 않은 예약 ${impact.cancelledReservations}건이 함께 취소되었습니다.`,
+      );
+    }
+    if (impact.keptUsages > 0) {
+      lines.push(
+        `이미 이용 중인 ${impact.keptUsages}건은 기간이 끝날 때까지 그대로 유지됩니다.`,
+      );
+    }
+
+    await sendSystemMessage(ownerId, lines.join("\n"));
   }
 
-  await writeAdminLog(managerUid, "rejectStorage", storageId, {reason});
-  return {ok: true};
+  await writeAdminLog(managerUid, "rejectStorage", storageId, {
+    reason,
+    ...impact,
+  });
+  return {ok: true, ...impact};
 });
 
 /** 사용자 이용을 정지하거나 해제한다. */

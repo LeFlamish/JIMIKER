@@ -211,6 +211,48 @@ class _StorageRow extends StatelessWidget {
   }
 }
 
+/// 반려했을 때 이용 중과 예약이 각각 어떻게 되는지 알려주는 안내문.
+class _ImpactNotice extends StatelessWidget {
+  const _ImpactNotice({required this.impact});
+
+  final StorageTradeImpact impact;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = <String>[];
+    if (impact.activeUsages > 0) {
+      lines.add(
+        '이용 중 ${impact.activeUsages}건은 그대로 둡니다. '
+        '짐이 들어가 있어서 중간에 끊으면 이용자가 갈 곳이 없어요. '
+        '기간이 끝나면 평소처럼 이용 내역으로 넘어갑니다.',
+      );
+    }
+    if (impact.openReservations > 0) {
+      lines.add(
+        '아직 시작하지 않은 예약 ${impact.openReservations}건은 취소되고, '
+        '예약자에게 안내가 갑니다.',
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        lines.join('\n\n'),
+        style: const TextStyle(
+          fontSize: 12.5,
+          height: 1.55,
+          color: Color(0xFF8D6E00),
+        ),
+      ),
+    );
+  }
+}
+
 /// 창고 하나를 자세히 보고 승인/반려한다.
 class StorageReviewDetailScreen extends ConsumerStatefulWidget {
   const StorageReviewDetailScreen({super.key, required this.storage});
@@ -233,48 +275,63 @@ class _StorageReviewDetailScreenState
       '.${date.day.toString().padLeft(2, '0')}';
 
   Future<void> _approve() async {
+    // 반려됐던 창고를 되살리는 경우, 그때 취소된 예약은 돌아오지 않는다.
+    final reviving = _storage.reviewStatus == ReviewStatus.rejected;
     final confirmed = await _confirm(
-      title: '이 창고를 승인할까요?',
-      message: '승인하면 지도와 목록에 바로 노출되고, 등록자에게 알림이 갑니다.',
+      title: reviving ? '이 창고를 다시 승인할까요?' : '이 창고를 승인할까요?',
+      message: reviving
+          ? '승인하면 지도와 목록에 다시 노출됩니다.\n'
+                '반려할 때 취소된 예약은 되살아나지 않아요. 새로 예약해야 합니다.'
+          : '승인하면 지도와 목록에 바로 노출되고, 등록자에게 알림이 갑니다.',
       actionLabel: '승인',
       actionColor: const Color(0xFF2E7D32),
     );
     if (confirmed != true) return;
 
-    await _run(
-      () => ref
+    await _run(() async {
+      await ref
           .read(adminActionsProvider)
-          .approveStorage(_storage.id ?? ''),
-      done: '승인했어요.',
-    );
+          .approveStorage(_storage.id ?? '');
+      return '승인했어요.';
+    });
   }
 
   Future<void> _reject() async {
     final reason = await _askReason();
     if (reason == null || reason.isEmpty) return;
 
-    await _run(
-      () => ref
+    await _run(() async {
+      final result = await ref
           .read(adminActionsProvider)
           .rejectStorage(
             storageId: _storage.id ?? '',
             reason: reason,
-          ),
-      done: '반려했어요. 등록자에게 사유를 보냈어요.',
-    );
+          );
+
+      final notes = <String>['반려했어요. 등록자에게 사유를 보냈어요.'];
+      if (result.cancelledReservations > 0) {
+        notes.add('예약 ${result.cancelledReservations}건을 취소했어요.');
+      }
+      if (result.keptUsages > 0) {
+        notes.add('이용 중 ${result.keptUsages}건은 그대로 뒀어요.');
+      }
+      return notes.join(' ');
+    });
   }
 
-  Future<void> _run(
-    Future<void> Function() action, {
-    required String done,
-  }) async {
+  /// 성공하면 안내 문구를 돌려주는 동작을 실행한다.
+  ///
+  /// 서버가 실제로 몇 건을 정리했는지는 끝나봐야 알기 때문에
+  /// 문구를 미리 정하지 않고 결과에서 만든다.
+  Future<void> _run(Future<String> Function() action) async {
     setState(() => _isWorking = true);
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      await action();
+      final done = await action();
       ref.invalidate(adminSummaryProvider);
+      ref.invalidate(storageTradeImpactProvider(_storage.id ?? ''));
       navigator.pop();
       messenger.showSnackBar(SnackBar(content: Text(done)));
     } catch (error) {
@@ -287,14 +344,22 @@ class _StorageReviewDetailScreenState
 
   String _readableError(Object error) {
     if (error is FirebaseFunctionsException) {
+      final message = error.message?.trim() ?? '';
+
+      // 함수 자체가 없으면 Firebase가 영문 NOT_FOUND를 그대로 돌려준다.
+      // 우리가 던지는 not-found에는 한글 안내가 붙으므로 이걸로 구분된다.
+      if (error.code == 'not-found' &&
+          (message.isEmpty || message.toUpperCase() == 'NOT_FOUND')) {
+        return '이 기능이 서버에 아직 배포되지 않았어요.\n'
+            'firebase deploy --only functions 를 실행해주세요.';
+      }
+
       // 서버가 보낸 안내 문구를 그대로 쓴다.
-      final message = error.message;
-      if (message != null && message.isNotEmpty) return message;
+      if (message.isNotEmpty) return message;
 
       return switch (error.code) {
         'unauthenticated' => '로그인이 필요합니다.',
         'permission-denied' => '관리자 권한이 없습니다.',
-        'not-found' => '함수를 찾을 수 없습니다. 배포했는지 확인해주세요.',
         _ => error.code,
       };
     }
@@ -340,6 +405,10 @@ class _StorageReviewDetailScreenState
 
   Future<String?> _askReason() {
     final controller = TextEditingController();
+    // 이미 거래가 걸려 있는 창고라면 무엇이 어떻게 되는지 먼저 알려준다.
+    final impact = ref
+        .read(storageTradeImpactProvider(_storage.id ?? ''))
+        .value;
 
     return showDialog<String>(
       context: context,
@@ -356,6 +425,10 @@ class _StorageReviewDetailScreenState
               '적으신 내용이 등록자에게 그대로 전달됩니다.\n무엇을 고쳐야 다시 올릴 수 있는지 적어주세요.',
               style: TextStyle(fontSize: 13.5, height: 1.5),
             ),
+            if (impact != null && !impact.isEmpty) ...[
+              const SizedBox(height: 12),
+              _ImpactNotice(impact: impact),
+            ],
             const SizedBox(height: 14),
             TextField(
               controller: controller,
@@ -402,6 +475,9 @@ class _StorageReviewDetailScreenState
     final zonesAsync = ref.watch(
       storageZonesProvider(_storage.id ?? ''),
     );
+    final impactAsync = ref.watch(
+      storageTradeImpactProvider(_storage.id ?? ''),
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -431,6 +507,14 @@ class _StorageReviewDetailScreenState
           children: [
             _buildStatusBanner(),
             const SizedBox(height: 16),
+            // 진행 중인 거래가 있으면 반려 버튼을 누르기 전에 보이게 둔다.
+            ...switch (impactAsync.value) {
+              final impact? when !impact.isEmpty => [
+                _buildTradeCard(impact),
+                const SizedBox(height: 16),
+              ],
+              _ => const <Widget>[],
+            },
             if (_storage.images.isNotEmpty) ...[
               DetailPhotoCarousel(images: _storage.images),
               const SizedBox(height: 16),
@@ -482,6 +566,32 @@ class _StorageReviewDetailScreenState
         background: const Color(0xFFFFEBEE),
       ),
     };
+  }
+
+  /// 이 창고에 걸려 있는 거래. 반려가 무엇을 건드리는지 미리 보여준다.
+  Widget _buildTradeCard(StorageTradeImpact impact) {
+    return DetailCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const DetailSectionTitle('진행 중인 거래'),
+          const SizedBox(height: 14),
+          if (impact.activeUsages > 0)
+            DetailInfoRow(
+              label: '이용 중',
+              value: '${impact.activeUsages}건 (반려해도 유지)',
+            ),
+          if (impact.openReservations > 0)
+            DetailInfoRow(
+              label: '예약',
+              value: '${impact.openReservations}건 (반려하면 취소)',
+              valueColor: const Color(0xFFD32F2F),
+            ),
+          const SizedBox(height: 10),
+          _ImpactNotice(impact: impact),
+        ],
+      ),
+    );
   }
 
   Widget _buildZonePrices(AsyncValue<List<dynamic>> zonesAsync) {

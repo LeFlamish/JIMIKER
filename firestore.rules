@@ -207,20 +207,42 @@ service cloud.firestore {
     // 읽기는 로그인한 사용자 전체에 열어둔다.
     // 날짜만 공개하고 싶다면 예약 기간만 담은 별도 컬렉션을 두고
     // 여기 read를 본인/주인으로 좁히는 게 좋다.
+
+    // 지금 예약을 받을 수 있는 창고인지.
+    // 심사에서 반려됐거나 주인이 내린 창고는 목록에서 사라지지만,
+    // 상세 화면을 이미 열어둔 사람은 그대로 신청할 수 있다. 그걸 막는다.
+    // 필드가 빠진 옛 문서에서도 터지지 않게 get(키, 기본값)으로 읽는다.
+    // (없는 키를 점으로 바로 읽으면 규칙 평가가 오류로 끝난다.)
+    function storageIsOpen(storageId) {
+      return exists(/databases/$(database)/documents/storages/$(storageId))
+             && get(/databases/$(database)/documents/storages/$(storageId))
+                  .data.get('approved', false) == true
+             && get(/databases/$(database)/documents/storages/$(storageId))
+                  .data.get('deleted', false) != true;
+    }
+
     match /reservations/{reservationId} {
       allow read: if isSignedIn();
 
-      // 예약 신청은 본인 이름으로만, 항상 대기 상태로 시작한다.
+      // 예약 신청은 본인 이름으로만, 항상 대기 상태로, 살아 있는 창고에만.
       allow create: if isSelf(request.resource.data.userId)
                     && request.resource.data.status == 'waiting'
-                    && isNotSuspended();
+                    && isNotSuspended()
+                    && storageIsOpen(request.resource.data.storageId);
 
       // 승인/거절은 창고 주인이, 취소는 예약자가 한다.
       // 예약자와 창고는 바뀔 수 없다.
+      //
+      // 반려된 창고의 예약은 확정할 수 없다. 정리(거절·취소)는 언제든 된다.
+      // 그렇지 않으면 관리자가 취소해둔 예약을 주인이 되살릴 수 있다.
       allow update: if (isSelf(resource.data.ownerId) || isSelf(resource.data.userId))
                     && unchanged('userId')
                     && unchanged('ownerId')
-                    && unchanged('storageId');
+                    && unchanged('storageId')
+                    && (
+                         request.resource.data.status != 'approved'
+                         || storageIsOpen(resource.data.storageId)
+                       );
 
       // 확정(approved)된 예약은 예약자가 마음대로 지울 수 없다.
       // 주인이 이미 그 기간을 비워둔 상태라, 취소는 문의로 요청하고

@@ -156,13 +156,20 @@ void main() {
 
     Future<void> pumpDetail(
       WidgetTester tester,
-      ReviewStatus status,
-    ) async {
+      ReviewStatus status, {
+      StorageTradeImpact impact = const StorageTradeImpact(
+        activeUsages: 0,
+        openReservations: 0,
+      ),
+    }) async {
       await _pump(
         tester,
         StorageReviewDetailScreen(storage: storage(status)),
         overrides: [
           storageZonesProvider('s1').overrideWith((ref) async => []),
+          storageTradeImpactProvider('s1').overrideWith(
+            (ref) async => impact,
+          ),
         ],
       );
     }
@@ -188,6 +195,124 @@ void main() {
 
       expect(find.textContaining('반려로 변경'), findsNothing);
       expect(find.text('승인으로 변경'), findsOneWidget);
+    });
+  });
+
+  group('반려가 건드리는 범위', () {
+    Storage approvedStorage() => Storage(
+      id: 's1',
+      locationId: 'l1',
+      lat: 37.5,
+      lng: 127,
+      address: '서울시 어딘가',
+      detailAddress: '지하 1층',
+      count: 2,
+      createdAt: DateTime(2026, 5, 1),
+      images: const [],
+      ownerId: 'owner',
+      width: 300,
+      height: 240,
+      layout: const {},
+      approved: true,
+      reviewStatus: ReviewStatus.approved,
+    );
+
+    Future<void> pumpWithImpact(
+      WidgetTester tester,
+      StorageTradeImpact impact,
+    ) async {
+      await _pump(
+        tester,
+        StorageReviewDetailScreen(storage: approvedStorage()),
+        overrides: [
+          storageZonesProvider('s1').overrideWith((ref) async => []),
+          storageTradeImpactProvider('s1').overrideWith(
+            (ref) async => impact,
+          ),
+        ],
+      );
+    }
+
+    testWidgets('진행 중인 거래를 반려 전에 보여준다', (tester) async {
+      await pumpWithImpact(
+        tester,
+        const StorageTradeImpact(activeUsages: 2, openReservations: 3),
+      );
+
+      expect(find.text('진행 중인 거래'), findsOneWidget);
+      expect(find.text('2건 (반려해도 유지)'), findsOneWidget);
+      expect(find.text('3건 (반려하면 취소)'), findsOneWidget);
+    });
+
+    testWidgets('걸린 거래가 없으면 카드를 띄우지 않는다', (tester) async {
+      await pumpWithImpact(
+        tester,
+        const StorageTradeImpact(activeUsages: 0, openReservations: 0),
+      );
+
+      expect(find.text('진행 중인 거래'), findsNothing);
+    });
+
+    testWidgets('반려 사유를 물을 때 무엇이 어떻게 되는지 알려준다', (tester) async {
+      await pumpWithImpact(
+        tester,
+        const StorageTradeImpact(activeUsages: 1, openReservations: 2),
+      );
+
+      await tester.tap(find.text('반려로 변경'));
+      await tester.pumpAndSettle();
+
+      // 이용 중은 유지, 예약은 취소 — 둘을 구분해서 안내해야 한다.
+      expect(
+        find.textContaining('이용 중 1건은 그대로 둡니다'),
+        findsWidgets,
+      );
+      expect(
+        find.textContaining('예약 2건은 취소되고'),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('반려된 창고를 되살릴 때 예약은 안 돌아온다고 알린다', (tester) async {
+      await _pump(
+        tester,
+        StorageReviewDetailScreen(
+          storage: Storage(
+            id: 's1',
+            locationId: 'l1',
+            lat: 37.5,
+            lng: 127,
+            address: '서울시 어딘가',
+            detailAddress: '지하 1층',
+            count: 2,
+            createdAt: DateTime(2026, 5, 1),
+            images: const [],
+            ownerId: 'owner',
+            width: 300,
+            height: 240,
+            layout: const {},
+            approved: false,
+            reviewStatus: ReviewStatus.rejected,
+          ),
+        ),
+        overrides: [
+          storageZonesProvider('s1').overrideWith((ref) async => []),
+          storageTradeImpactProvider('s1').overrideWith(
+            (ref) async => const StorageTradeImpact(
+              activeUsages: 0,
+              openReservations: 0,
+            ),
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('승인으로 변경'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('취소된 예약은 되살아나지 않아요'),
+        findsOneWidget,
+      );
     });
   });
 

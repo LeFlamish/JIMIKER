@@ -9,6 +9,12 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # Cloud Functions·규칙 테스트의 npm 패키지. firebase-tools 안에 Dart
+    # 템플릿 파일이 들어 있어서, 빼두지 않으면 남의 코드가 분석 결과에 섞인다.
+    - "**/node_modules/**"
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

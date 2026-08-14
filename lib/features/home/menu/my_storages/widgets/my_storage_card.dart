@@ -78,12 +78,7 @@ class StorageWithReservationsCard extends StatelessWidget {
                         mainAxisAlignment:
                             MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildBadge(
-                            text: storage.approved
-                                ? "승인 완료"
-                                : "승인 대기",
-                            isApproved: storage.approved,
-                          ),
+                          _buildBadge(storage.reviewStatus),
                           // 편집 / 삭제 버튼
                           Row(
                             mainAxisSize: MainAxisSize.min,
@@ -159,6 +154,10 @@ class StorageWithReservationsCard extends StatelessWidget {
               ],
             ),
           ),
+
+          if (storage.reviewStatus == ReviewStatus.rejected &&
+              storage.rejectReason.isNotEmpty)
+            _buildRejectReason(),
 
           // 구분선
           const Divider(height: 1, color: Color(0xFFEEEEEE)),
@@ -281,16 +280,33 @@ class StorageWithReservationsCard extends StatelessWidget {
     );
   }
 
-  Widget _buildBadge({
-    required String text,
-    required bool isApproved,
-  }) {
+  /// 심사 상태 배지.
+  ///
+  /// approved 하나만 보면 "아직 안 봤다"와 "반려됐다"가 똑같이 보여서
+  /// 주인은 왜 지도에 안 뜨는지 알 수가 없다. 셋을 구분해서 보여준다.
+  Widget _buildBadge(ReviewStatus status) {
+    final (text, color, background) = switch (status) {
+      ReviewStatus.approved => (
+        "승인 완료",
+        const Color(0xFF2E7D32),
+        const Color(0xFFE8F5E9),
+      ),
+      ReviewStatus.pending => (
+        "승인 대기",
+        const Color(0xFFFF9800),
+        const Color(0xFFFFF3E0),
+      ),
+      ReviewStatus.rejected => (
+        "반려됨",
+        const Color(0xFFD32F2F),
+        const Color(0xFFFFEBEE),
+      ),
+    };
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isApproved
-            ? const Color(0xFFE8F5E9)
-            : const Color(0xFFFFF3E0),
+        color: background,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -298,10 +314,48 @@ class StorageWithReservationsCard extends StatelessWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.bold,
-          color: isApproved
-              ? const Color(0xFF2E7D32)
-              : const Color(0xFFFF9800),
+          color: color,
         ),
+      ),
+    );
+  }
+
+  /// 반려 사유. 무엇을 고쳐야 다시 올라가는지 카드에서 바로 보이게 한다.
+  Widget _buildRejectReason() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "반려 사유",
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFD32F2F),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            storage.rejectReason,
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.5,
+              color: Color(0xFFB71C1C),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "편집에서 고친 뒤 다시 심사를 요청할 수 있어요.",
+            style: TextStyle(fontSize: 11.5, color: Color(0xFFB71C1C)),
+          ),
+        ],
       ),
     );
   }

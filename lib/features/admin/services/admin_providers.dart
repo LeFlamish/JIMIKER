@@ -28,14 +28,25 @@ class AdminActions {
     });
   }
 
-  Future<void> rejectStorage({
+  /// 창고를 반려한다. 서버가 예약까지 정리한 뒤 실제 건수를 돌려준다.
+  Future<RejectResult> rejectStorage({
     required String storageId,
     required String reason,
   }) async {
-    await _functions.httpsCallable('rejectStorage').call({
+    final result = await _functions.httpsCallable('rejectStorage').call({
       'storageId': storageId,
       'reason': reason,
     });
+
+    // 예전 버전 함수는 {ok: true}만 돌려준다. 그때는 0으로 둔다.
+    final data = result.data;
+    int read(String key) =>
+        data is Map ? (data[key] as num?)?.toInt() ?? 0 : 0;
+
+    return RejectResult(
+      cancelledReservations: read('cancelledReservations'),
+      keptUsages: read('keptUsages'),
+    );
   }
 
   Future<void> setUserSuspended({
@@ -49,6 +60,20 @@ class AdminActions {
       'reason': reason,
     });
   }
+}
+
+/// 반려가 실제로 정리한 것들.
+class RejectResult {
+  const RejectResult({
+    required this.cancelledReservations,
+    required this.keptUsages,
+  });
+
+  /// 함께 취소된 예약 수
+  final int cancelledReservations;
+
+  /// 손대지 않고 그대로 둔 이용 중 건수
+  final int keptUsages;
 }
 
 /// 심사 상태별 창고 목록.
@@ -134,6 +159,56 @@ final adminSummaryProvider = FutureProvider.autoDispose<AdminSummary>((
     suspendedUsers: users.where((user) => user.suspended).length,
   );
 });
+
+/// 창고 하나를 반려하면 무엇이 영향을 받는지.
+///
+/// 이용 중인 건은 그대로 두고 예약만 취소하기 때문에, 관리자가 누르기 전에
+/// "몇 명이 짐을 넣어둔 상태인지"를 보고 판단할 수 있어야 한다.
+class StorageTradeImpact {
+  const StorageTradeImpact({
+    required this.activeUsages,
+    required this.openReservations,
+  });
+
+  /// 이용 중 — 반려해도 기간이 끝날 때까지 유지된다.
+  final int activeUsages;
+
+  /// 아직 시작 전인 예약(대기 + 확정) — 반려하면 취소된다.
+  final int openReservations;
+
+  bool get isEmpty => activeUsages == 0 && openReservations == 0;
+}
+
+final storageTradeImpactProvider = FutureProvider.autoDispose
+    .family<StorageTradeImpact, String>((ref, storageId) async {
+      if (storageId.isEmpty) {
+        return const StorageTradeImpact(
+          activeUsages: 0,
+          openReservations: 0,
+        );
+      }
+
+      final firestore = ref.watch(firestoreProvider);
+      final results = await Future.wait([
+        firestore
+            .collection('usages')
+            .where('storageId', isEqualTo: storageId)
+            .get(),
+        firestore
+            .collection('reservations')
+            .where('storageId', isEqualTo: storageId)
+            .get(),
+      ]);
+
+      return StorageTradeImpact(
+        activeUsages: results[0].docs.length,
+        // 이미 거절된 건은 취소할 것도 없다.
+        openReservations: results[1].docs
+            .map(Reservation.fromDoc)
+            .where((r) => r.status != Status.rejected)
+            .length,
+      );
+    });
 
 /// 사용자 목록. 가입일 최신순.
 final adminUsersProvider = StreamProvider.autoDispose<List<AppUser>>((
