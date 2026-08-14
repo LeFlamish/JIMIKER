@@ -1,5 +1,5 @@
 name: jimiker
-description: "A new Flutter project."
+description: "지미커 - 보관 공간을 빌려주고 빌려 쓰는 창고 중개 앱"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

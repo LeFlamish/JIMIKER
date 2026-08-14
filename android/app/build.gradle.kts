@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -7,6 +9,19 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// 업로드 키 정보. 저장소에 올리지 않는 android/key.properties에서 읽는다.
+//
+// 플레이스토어는 디버그 키로 서명된 파일을 받지 않는다. 이 파일을 만들어두면
+// 릴리스 빌드가 자동으로 그 키로 서명된다. 없으면(개발 중이거나 남의 PC라면)
+// 예전처럼 디버그 키를 쓰므로 빌드가 깨지지 않는다.
+//
+// 만드는 방법은 docs/play-store.md 참고.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val hasUploadKey = keystoreProperties.getProperty("storeFile") != null
 
 android {
     namespace = "com.example.jimiker"
@@ -27,7 +42,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // ⚠️ 스토어에 올리기 전에 반드시 바꿔야 한다.
+        // Play는 com.example로 시작하는 패키지를 받지 않고, 한 번 올리면
+        // 영원히 못 바꾼다. 바꿀 때 같이 할 일은 docs/play-store.md 참고.
         applicationId = "com.example.jimiker"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -39,11 +56,26 @@ android {
         multiDexEnabled = true
     }
 
+    signingConfigs {
+        if (hasUploadKey) {
+            create("upload") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // key.properties가 있으면 업로드 키로, 없으면 디버그 키로 서명한다.
+            // 스토어에 올릴 파일은 반드시 업로드 키로 서명돼야 한다.
+            signingConfig = if (hasUploadKey) {
+                signingConfigs.getByName("upload")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

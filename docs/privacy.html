@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개인정보 처리방침 | 지미커</title>
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --card: #ffffff;
+    --text: #222222;
+    --muted: #666666;
+    --line: #e6e7ee;
+    --accent: #6b7af5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171c;
+      --card: #1e1f26;
+      --text: #e8e8ea;
+      --muted: #a0a0a8;
+      --line: #2e2f38;
+      --accent: #8c98ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 64px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+      "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    line-height: 1.7;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { margin-bottom: 22px; }
+  .brand {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-decoration: none;
+  }
+  h1 { font-size: 25px; margin: 10px 0 6px; line-height: 1.35; }
+  .meta { font-size: 13px; color: var(--muted); margin: 0; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px 22px;
+  }
+  .doc {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 14.5px;
+    margin: 0;
+    font-family: inherit;
+  }
+  h2 { font-size: 17px; margin: 26px 0 8px; }
+  h2:first-child { margin-top: 0; }
+  p { margin: 0 0 12px; font-size: 14.5px; }
+  ul { margin: 0 0 12px; padding-left: 20px; font-size: 14.5px; }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .list { list-style: none; padding: 0; margin: 0; }
+  .list li { margin: 0 0 10px; }
+  .list a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 18px;
+    text-decoration: none;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .list .tag {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .callout {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 14px;
+    margin: 0 0 16px;
+  }
+  footer {
+    margin-top: 34px;
+    font-size: 12.5px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="./">지미커</a>
+    <h1>개인정보 처리방침</h1>
+    <p class="meta">시행일: 2026년 8월 14일</p>
+  </header>
+  <div class="card"><div class="doc">지미커(이하 "회사")는 이용자의 개인정보를 중요하게 생각하며, 관련 법령을
+지키기 위해 노력합니다.
+
+1. 수집하는 항목과 이유
+
+  가. 구글 계정으로 로그인할 때
+     - 이메일, 이름, 프로필 사진
+     - 회원 식별과 상대방에게 보여줄 프로필 표시에 씁니다.
+
+  나. 서비스를 이용하는 동안
+     - 위치 정보(단말의 정확한 위치)
+       내 주변 창고를 지도에 보여주는 데만 씁니다. 앱이 화면에 떠 있는
+       동안에만 확인하며, 위치 자체를 서버에 저장하지 않습니다.
+     - 창고 사진, 채팅에 올린 사진
+     - 예약·이용·대화 기록
+     - 기기 알림 토큰(FCM)
+       예약 상태 변경과 새 메시지를 알리는 데 씁니다.
+
+  다. 자동으로 쌓이는 항목
+     - 앱 이용 기록, 접속 기기 정보(Firebase Analytics)
+     - 광고 식별자(광고 ID) — 서비스 이용 통계를 보기 위한 용도이며,
+       맞춤형 광고에는 쓰지 않습니다.
+
+2. 보관 기간
+  - 회원 정보: 회원 탈퇴 시까지
+  - 예약·이용 기록: 거래 당사자 양쪽의 기록이므로, 탈퇴하더라도
+    상대방의 내역에서는 남습니다. 이때 이름은 "탈퇴한 사용자"로
+    바뀌고 이메일·프로필 사진은 지워집니다.
+  - 법령이 별도 보관을 요구하는 경우 그 기간을 따릅니다.
+
+3. 제3자 제공
+  회사는 개인정보를 제3자에게 팔거나 넘기지 않습니다.
+  다만 서비스 운영을 위해 아래 업체의 시스템을 이용합니다.
+     - Google LLC (Firebase 인증·데이터베이스·저장소·알림·분석, 지도)
+       처리 위치: 구글이 운영하는 데이터센터
+
+4. 이용자의 권리
+  - 앱의 [내 정보]에서 프로필을 언제든 고칠 수 있습니다.
+  - [내 정보 &gt; 회원 탈퇴]에서 계정을 직접 삭제할 수 있습니다.
+    탈퇴하면 계정과 프로필 사진이 지워지고, 등록한 창고 중 거래 기록이
+    없는 것은 사진까지 함께 삭제됩니다.
+  - 열람·정정·삭제·처리 정지를 요청하실 수 있습니다.
+
+5. 개인정보 보호책임자
+  문의: (앱 등록 전 담당자 이메일을 기재해주세요)
+
+6. 방침의 변경
+  내용이 바뀌면 시행 7일 전까지 앱 안에서 알립니다.</div></div>
+  <footer>지미커 · 문의 <a href="mailto:TODO-이메일을-적어주세요@example.com">TODO-이메일을-적어주세요@example.com</a></footer>
+</div>
+</body>
+</html>
