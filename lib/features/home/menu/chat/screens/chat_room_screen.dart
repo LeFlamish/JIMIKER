@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:jimiker/core/utils/image_pick.dart';
 import 'package:jimiker/core/utils/kst_time.dart';
 import 'package:jimiker/services/notification_service.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
@@ -79,12 +79,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _sendPhoto(ChatService chatService) async {
     if (_isSending) return;
 
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      // 원본 그대로 올리면 데이터도 로딩도 부담이라 적당히 줄인다.
-      maxWidth: 1600,
-      imageQuality: 85,
-    );
+    final picked = await pickPhoto();
     if (picked == null) return;
 
     final user = FirebaseAuth.instance.currentUser;
@@ -161,6 +156,41 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     ).showSnackBar(SnackBar(content: Text(text)));
   }
 
+  /// 보고 있는 동안 도착한 메시지를 읽음으로 바꾼다.
+  ///
+  /// 화면을 그리는 도중이라 바로 쓰기를 걸면 안 되고, 프레임이 끝난 뒤에
+  /// 보낸다. 실패해도 대화에는 지장이 없으므로 조용히 넘어간다.
+  void _markAsRead(
+    ChatService chatService,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    String? uid,
+  ) {
+    if (uid == null || _isMarkingRead) return;
+
+    final hasUnread = docs.any((doc) {
+      final data = doc.data();
+      return data['uid'] != uid && data['read'] != true;
+    });
+    if (!hasUnread) return;
+
+    _isMarkingRead = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await chatService.markRoomAsRead(
+          roomId: widget.roomId,
+          uid: uid,
+          messages: docs,
+        );
+      } catch (_) {
+        // 네트워크 문제 등. 다음 스냅샷에서 다시 시도된다.
+      } finally {
+        _isMarkingRead = false;
+      }
+    });
+  }
+
+  bool _isMarkingRead = false;
+
   @override
   Widget build(BuildContext context) {
     final chatService = ChatService(FirebaseFirestore.instance);
@@ -180,14 +210,24 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   );
                 }
 
-                final docs = snapshot.data?.docs ?? [];
-                if (docs.isEmpty) {
+                final messages = snapshot.data?.docs;
+                if (messages == null || messages.isEmpty) {
                   return const Center(child: Text('첫 메시지를 남겨보세요.'));
                 }
 
-                final currentUser = FirebaseAuth.instance.currentUser;
+                final docs = ChatService.sortNewestFirst(
+                  messages,
+                  (doc) => doc.data()['createdAt'] as Timestamp?,
+                );
 
+                final currentUser = FirebaseAuth.instance.currentUser;
+                _markAsRead(chatService, docs, currentUser?.uid);
+
+                // reverse: true면 index 0이 화면 맨 아래에 그려진다.
+                // 최신순으로 받은 목록을 그대로 넘기면 새 메시지가 아래에
+                // 쌓이고, 방을 열었을 때도 가장 최근 대화가 보인다.
                 return ListView.separated(
+                  reverse: true,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,

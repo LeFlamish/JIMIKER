@@ -154,10 +154,21 @@ service cloud.firestore {
       // 방은 첫 메시지를 보낼 때 만들어진다. 만드는 사람이 참여자여야 한다.
       allow create: if isRoomMember(request.resource.data);
 
+      // 안 읽은 메시지 수는 Functions가 올리고, 각자 자기 것만 0으로 되돌린다.
+      // 막지 않으면 상대의 안 읽음 표시를 내가 지워버릴 수 있다.
+      function unreadCountsUntouchedOrMine() {
+        return !request.resource.data.diff(resource.data)
+                  .affectedKeys().hasAny(['unreadCounts'])
+               || request.resource.data.unreadCounts
+                    .diff(resource.data.get('unreadCounts', {}))
+                    .affectedKeys().hasOnly([request.auth.uid]);
+      }
+
       // 참여자만 수정 가능하고, 수정 후에도 본인이 참여자로 남아 있어야 한다.
       // (상대를 참여자로 추가하는 건 허용 — 첫 메시지에 상대가 들어간다.)
       allow update: if isRoomMember(resource.data)
-                    && isRoomMember(request.resource.data);
+                    && isRoomMember(request.resource.data)
+                    && unreadCountsUntouchedOrMine();
 
       allow delete: if false;
 

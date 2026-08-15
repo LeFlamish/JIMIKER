@@ -113,10 +113,25 @@ export const onChatMessageCreated = onDocumentCreated(
     }
 
     const roomRef = db.collection("chat_rooms").doc(event.params.roomId);
+
+    // 목록에 띄울 안 읽은 수. 받는 사람 것만 하나 올린다.
+    // 세는 일을 앱에서 하면 방 개수만큼 쿼리가 나가고, 앱을 고쳐서
+    // 남의 것을 건드릴 수도 있다. 서버가 세고 앱은 자기 것만 0으로 되돌린다.
+    const senderUid = messageData.uid as string | undefined;
+    const participantUids = (await roomRef.get()).data()
+      ?.participantUids as string[] | undefined;
+
+    const unreadCounts: Record<string, FirebaseFirestore.FieldValue> = {};
+    for (const uid of participantUids ?? []) {
+      if (uid === senderUid || uid === "system") continue;
+      unreadCounts[uid] = FieldValue.increment(1);
+    }
+
     await roomRef.set(
       {
         lastMessage: messagePreview(messageData),
         updatedAt: FieldValue.serverTimestamp(),
+        ...(Object.keys(unreadCounts).length > 0 ? {unreadCounts} : {}),
       },
       {merge: true},
     );

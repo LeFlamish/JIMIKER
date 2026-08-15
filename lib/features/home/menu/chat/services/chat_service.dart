@@ -66,6 +66,14 @@ class ChatService {
         .snapshots();
   }
 
+  /// 한 번에 보여줄 메시지 수.
+  static const int messagePageSize = 200;
+
+  /// 최근 메시지부터 [messagePageSize]개.
+  ///
+  /// 오름차순으로 자르면 "가장 오래된 200개"가 잡혀서, 대화가 200개를 넘는
+  /// 순간부터 새 메시지가 영영 안 보인다. 최신순으로 자른 뒤 화면에서
+  /// 뒤집어(reverse) 보여준다.
   Stream<QuerySnapshot<Map<String, dynamic>>> streamMessages(
     String roomId,
   ) {
@@ -73,9 +81,56 @@ class ChatService {
         .collection('chat_rooms')
         .doc(roomId)
         .collection('messages')
-        .orderBy('createdAt')
-        .limit(200)
+        .orderBy('createdAt', descending: true)
+        .limit(messagePageSize)
         .snapshots();
+  }
+
+  /// 최신이 앞에 오도록 정렬한다.
+  ///
+  /// 방금 보낸 메시지는 서버 시각(serverTimestamp)이 아직 안 찍혀
+  /// createdAt이 비어 있다. Firestore는 그런 문서를 정렬에서 가장 앞으로
+  /// 보내는데, 그대로 두면 내가 쓴 말이 대화 맨 끝에 잠깐 나타난다.
+  /// 아직 안 찍힌 것은 "가장 최신"으로 본다.
+  static List<T> sortNewestFirst<T>(
+    Iterable<T> items,
+    Timestamp? Function(T item) createdAt,
+  ) {
+    // 어떤 실제 시각보다도 뒤. Timestamp가 다룰 수 있는 범위를 넘는다.
+    const pending = 1 << 62;
+
+    int sentAt(T item) =>
+        createdAt(item)?.millisecondsSinceEpoch ?? pending;
+
+    return [...items]..sort((a, b) => sentAt(b).compareTo(sentAt(a)));
+  }
+
+  /// 상대가 보낸 안 읽은 메시지를 읽음으로 바꾼다.
+  ///
+  /// 규칙상 메시지에서 고칠 수 있는 건 read 하나뿐이라 그것만 건드린다.
+  /// 방 문서의 안 읽은 수도 0으로 되돌린다. (세는 건 Functions가 한다)
+  Future<void> markRoomAsRead({
+    required String roomId,
+    required String uid,
+    required Iterable<QueryDocumentSnapshot<Map<String, dynamic>>>
+    messages,
+  }) async {
+    final unread = messages.where((doc) {
+      final data = doc.data();
+      return data['uid'] != uid && data['read'] != true;
+    }).toList();
+
+    if (unread.isEmpty) return;
+
+    final batch = _firestore.batch();
+    for (final doc in unread) {
+      batch.update(doc.reference, {'read': true});
+    }
+    batch.set(_firestore.collection('chat_rooms').doc(roomId), {
+      'unreadCounts': {uid: 0},
+    }, SetOptions(merge: true));
+
+    await batch.commit();
   }
 
   /// 메시지를 보낸다. 방 문서가 없으면 이 시점에 만들어진다.

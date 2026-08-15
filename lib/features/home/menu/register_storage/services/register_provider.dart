@@ -13,6 +13,7 @@ import '../../../../../data/models/zone.dart';
 import '../../../../../services/auth_providers.dart';
 import '../../../../search/search_screen.dart';
 import '../../../../draw/draw_provider.dart';
+import 'package:jimiker/core/utils/image_pick.dart';
 
 class RegisterData {
   final String? address;
@@ -66,8 +67,7 @@ class RegisterNotifier extends Notifier<RegisterData> {
   }
 
   Future<void> pickImage() async {
-    final picker = ImagePicker();
-    final newImages = await picker.pickMultiImage();
+    final newImages = await pickPhotos();
     if (newImages.isNotEmpty) {
       final remainingSlots = 10 - state.existingImageUrls.length;
       if (remainingSlots <= 0) {

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/services/auth_providers.dart';
+import 'package:jimiker/core/utils/image_pick.dart';
 
 class ProfileEditScreen extends ConsumerStatefulWidget {
   const ProfileEditScreen({super.key});
@@ -55,8 +56,7 @@ class _ProfileEditScreenState
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
+    final image = await pickAvatar();
     if (image == null) return;
 
     setState(() {

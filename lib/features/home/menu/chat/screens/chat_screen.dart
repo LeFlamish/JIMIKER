@@ -78,6 +78,7 @@ class ChatScreen extends StatelessWidget {
                       data['lastMessage']?.toString() ?? '메시지가 없습니다.',
                   // 목록 우측 시간 = 마지막으로 메시지가 오간 시각
                   updatedAt: data['updatedAt'] as Timestamp?,
+                  unreadCount: _unreadCount(data, user.uid),
                   onTap: (opponentName) {
                     Navigator.push(
                       context,
@@ -104,6 +105,16 @@ class ChatScreen extends StatelessWidget {
   bool _hasMessage(Map<String, dynamic> data) {
     final lastMessage = data['lastMessage'];
     return lastMessage is String && lastMessage.trim().isNotEmpty;
+  }
+
+  /// 내가 안 읽은 메시지 수. Functions가 방 문서에 세어 둔 값을 읽는다.
+  ///
+  /// 함수가 아직 배포되지 않았거나 예전에 만들어진 방에는 이 값이 없다.
+  /// 그때는 0으로 보고 뱃지를 띄우지 않는다. (틀린 숫자를 보여주느니 낫다)
+  int _unreadCount(Map<String, dynamic> data, String uid) {
+    final counts = data['unreadCounts'];
+    if (counts is! Map) return 0;
+    return (counts[uid] as num?)?.toInt() ?? 0;
   }
 
   int _sortTime(Map<String, dynamic> data) {

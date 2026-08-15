@@ -817,3 +817,69 @@ test('locations: 읽기는 공개, 쓰기는 로그인 필요', async () => {
 });
 
 assert.ok(true);
+
+// ------------------------------------------------- 채팅 안 읽은 수
+
+test('chat_rooms: 내 안 읽은 수만 0으로 되돌릴 수 있다', async () => {
+  const roomId = `dm_${ALICE}_${BOB}`;
+  await seed(async (db) => {
+    await setDoc(doc(db, 'chat_rooms', roomId), {
+      participantUids: [ALICE, BOB],
+      lastMessage: 'hi',
+      unreadCounts: {[ALICE]: 3, [BOB]: 1},
+    });
+  });
+
+  await assertSucceeds(
+    updateDoc(doc(asAlice(), 'chat_rooms', roomId), {
+      [`unreadCounts.${ALICE}`]: 0,
+    }),
+  );
+
+  // 상대의 안 읽음 표시를 지워버릴 수 없어야 한다.
+  await assertFails(
+    updateDoc(doc(asAlice(), 'chat_rooms', roomId), {
+      [`unreadCounts.${BOB}`]: 0,
+    }),
+  );
+  // 내 것과 남의 것을 한꺼번에 바꾸는 것도 막힌다.
+  await assertFails(
+    updateDoc(doc(asAlice(), 'chat_rooms', roomId), {
+      unreadCounts: {[ALICE]: 0, [BOB]: 0},
+    }),
+  );
+});
+
+test('chat_rooms: 안 읽은 수가 없던 방에도 내 것을 넣을 수 있다', async () => {
+  // Functions 배포 전에 만들어진 방에는 unreadCounts 자체가 없다.
+  const roomId = `dm_${ALICE}_${BOB}`;
+  await seed(async (db) => {
+    await setDoc(doc(db, 'chat_rooms', roomId), {
+      participantUids: [ALICE, BOB],
+      lastMessage: 'hi',
+    });
+  });
+
+  await assertSucceeds(
+    updateDoc(doc(asAlice(), 'chat_rooms', roomId), {
+      unreadCounts: {[ALICE]: 0},
+    }),
+  );
+});
+
+test('chat_rooms: 제3자는 안 읽은 수를 못 건드린다', async () => {
+  const roomId = `dm_${ALICE}_${BOB}`;
+  await seed(async (db) => {
+    await setDoc(doc(db, 'chat_rooms', roomId), {
+      participantUids: [ALICE, BOB],
+      lastMessage: 'hi',
+      unreadCounts: {[ALICE]: 2},
+    });
+  });
+
+  await assertFails(
+    updateDoc(doc(asCarol(), 'chat_rooms', roomId), {
+      [`unreadCounts.${CAROL}`]: 0,
+    }),
+  );
+});

@@ -48,13 +48,19 @@ class FindStorageNotifier extends Notifier<FindStorageState> {
 
     try {
       final firestore = ref.read(firestoreProvider);
-      final snapshot = await firestore.collection('storages').get();
+      // 승인된 것만 받아온다. 전부 받아서 앱에서 거르면 심사 대기·반려된
+      // 창고까지 읽게 되는데, Firestore는 읽은 문서 수로 과금한다.
+      // (내린 창고는 문서 수가 적어 앱에서 거르는 편이 색인 추가보다 싸다)
+      final snapshot = await firestore
+          .collection('storages')
+          .where('approved', isEqualTo: true)
+          .get();
 
       final storages = <String, Storage>{};
       for (final doc in snapshot.docs) {
         final storage = Storage.fromDoc(doc);
         // 주인이 내린 창고(deleted)는 지도에 띄우지 않는다.
-        if (storage.approved && !storage.deleted) {
+        if (!storage.deleted) {
           storages[doc.id] = storage;
         }
       }

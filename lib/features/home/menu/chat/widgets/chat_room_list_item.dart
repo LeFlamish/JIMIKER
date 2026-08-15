@@ -15,6 +15,7 @@ class ChatRoomListItem extends StatefulWidget {
     required this.lastMessage,
     required this.updatedAt,
     required this.onTap,
+    this.unreadCount = 0,
   });
 
   final String opponentUid;
@@ -23,6 +24,9 @@ class ChatRoomListItem extends StatefulWidget {
   final String fallbackName;
   final String lastMessage;
   final Timestamp? updatedAt;
+
+  /// 이 방에서 내가 아직 안 읽은 메시지 수
+  final int unreadCount;
 
   /// 화면에 보이는 상대 이름을 그대로 채팅방 제목으로 넘겨준다.
   final void Function(String opponentName) onTap;
@@ -86,6 +90,7 @@ class _ChatRoomListItemState extends State<ChatRoomListItem> {
       photoUrl: photoUrl,
       lastMessage: widget.lastMessage,
       updatedAt: widget.updatedAt,
+      unreadCount: widget.unreadCount,
       onTap: () => widget.onTap(name),
     );
   }
