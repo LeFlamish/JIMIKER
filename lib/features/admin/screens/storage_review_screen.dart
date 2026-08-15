@@ -1,6 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/core/utils/space_units.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/core/widgets/detail_section.dart';
 import 'package:jimiker/core/widgets/storage_detail_sections.dart';
@@ -631,7 +632,9 @@ class _StorageReviewDetailScreenState
                   for (final zone in zones)
                     DetailInfoRow(
                       label: '${zone.index} 구역',
-                      value: '${zone.price}원',
+                      value:
+                          '${formatZoneSize(zone.width, zone.height)}'
+                          ' · 월 ${formatWon(zone.price)}',
                     ),
                 ],
               );

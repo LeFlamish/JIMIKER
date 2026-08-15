@@ -231,8 +231,8 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
         'lng': updatedLng,
         'locationId': updatedLocationRef.id,
         'count': zones.length,
-        'width': drawState.width,
-        'height': drawState.height,
+        'widthM': drawState.width,
+        'heightM': drawState.height,
         'layout': {
           'lines': drawState.lines
               .map((line) => line.toMap())

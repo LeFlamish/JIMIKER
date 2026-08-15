@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -22,14 +21,24 @@ class ZoneNotifier extends Notifier<List<Zone>> {
     state = List<Zone>.from(zones);
   }
 
+  /// 아직 안 쓰인 첫 번째 이름(A, B, …, Z, AA, AB, …)을 준다.
+  ///
+  /// 개수 기반으로 만들면 A·B·C에서 B를 지운 뒤 추가할 때 다시 C가 나와
+  /// 이름이 겹친다. 실제로 비어 있는 이름을 찾아야 한다.
   String nextIndex() {
-    final count = state.length;
-    if (count < 26) {
-      return String.fromCharCode(65 + count);
+    final used = state.map((zone) => zone.index).toSet();
+
+    for (var i = 0; ; i++) {
+      final String candidate;
+      if (i < 26) {
+        candidate = String.fromCharCode(65 + i);
+      } else {
+        final prefix = String.fromCharCode(65 + (i ~/ 26) - 1);
+        final suffix = String.fromCharCode(65 + (i % 26));
+        candidate = '$prefix$suffix';
+      }
+      if (!used.contains(candidate)) return candidate;
     }
-    final prefix = String.fromCharCode(65 + (count ~/ 26) - 1);
-    final suffix = String.fromCharCode(65 + (count % 26));
-    return '$prefix$suffix';
   }
 
   void addZone(Zone zone) {
@@ -45,16 +54,5 @@ class ZoneNotifier extends Notifier<List<Zone>> {
 
   void removeZone(String index) {
     state = state.where((zone) => zone.index != index).toList();
-  }
-
-  void shiftZones(Offset offset) {
-    if (offset == Offset.zero) {
-      return;
-    }
-
-    state = [
-      for (final zone in state)
-        zone.copyWith(x: zone.x + offset.dx, y: zone.y + offset.dy),
-    ];
   }
 }

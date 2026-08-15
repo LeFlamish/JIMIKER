@@ -2,11 +2,21 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/core/utils/space_units.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/features/draw/draw_provider.dart';
 import 'package:jimiker/features/draw/touch_counter.dart';
 import 'package:jimiker/features/draw/zone_provider.dart';
+
+/// 도면 에디터.
+///
+/// 모델 좌표는 전부 미터(m), 원점은 건물 좌상단이다. 화면에는 1m를
+/// [kPixelsPerMeter]픽셀로 그리고, 격자 한 칸은 [kGridCellMeters]다.
+/// 제스처가 들어오면 곧바로 m로 바꿔서 다루므로, 저장되는 값에는
+/// 픽셀이 섞이지 않는다.
+const double kGridCellMeters = 0.5;
+const double kPixelsPerMeter = 60.0;
 
 class DrawScreen extends ConsumerStatefulWidget {
   const DrawScreen({super.key});
@@ -16,61 +26,89 @@ class DrawScreen extends ConsumerStatefulWidget {
 }
 
 class _DrawScreenState extends ConsumerState<DrawScreen> {
-  static const double _gridSize = 30.0;
-  static const double _canvasSize = 1000.0;
+  static const double _cellM = kGridCellMeters;
+  static const double _ppm = kPixelsPerMeter;
+
+  /// 건물 둘레 여백(px). 화면 표시용일 뿐 저장 좌표에는 들어가지 않는다.
+  static const double _marginPx = 60.0;
 
   bool _isLayoutEditing = true;
 
-  Offset? _startPoint;
-  final ValueNotifier<Offset?> _previewPoint = ValueNotifier(null);
+  Offset? _startPointM;
+  final ValueNotifier<Offset?> _previewPointM = ValueNotifier(null);
   final TransformationController _transform =
       TransformationController();
 
   Line? _focusLine;
-  bool checkBoolChange = false;
 
-  // ✅ 드래그 시작 기준(포인터/오프셋) 저장해서 튐/누적 오차 방지
+  // 드래그 시작 기준(포인터/오프셋)을 저장해서 튐·누적 오차를 막는다.
   final Map<String, Offset> _zoneDragStartOffsets = {};
   final Map<String, Offset> _zoneDragStartPointers = {};
+  final Map<String, Size> _zoneResizeStartSizes = {};
+  final Map<String, Offset> _zoneResizeStartPointers = {};
+
+  double get _buildingW => ref.read(drawProvider).width;
+  double get _buildingH => ref.read(drawProvider).height;
+
+  Size get _canvasSize => Size(
+    _buildingW * _ppm + _marginPx * 2,
+    _buildingH * _ppm + _marginPx * 2,
+  );
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _centerDrawingOnCanvas();
+      _centerCanvasInViewport();
     });
   }
 
   @override
   void dispose() {
-    _previewPoint.dispose();
+    _previewPointM.dispose();
     _transform.dispose();
     super.dispose();
   }
 
+  // ==========================
+  // 좌표 변환
+  // ==========================
+
+  Offset _toMeters(Offset localPx) => Offset(
+    (localPx.dx - _marginPx) / _ppm,
+    (localPx.dy - _marginPx) / _ppm,
+  );
+
+  Offset _toPx(Offset meters) => Offset(
+    meters.dx * _ppm + _marginPx,
+    meters.dy * _ppm + _marginPx,
+  );
+
+  double _snapValue(double m) => (m / _cellM).round() * _cellM;
+
+  /// 격자에 스냅하고 건물 안으로 가둔다.
+  Offset _snapM(Offset m) => Offset(
+    _snapValue(m.dx).clamp(0.0, _buildingW),
+    _snapValue(m.dy).clamp(0.0, _buildingH),
+  );
+
+  double get _viewScale => _transform.value.getMaxScaleOnAxis();
+
   @override
   Widget build(BuildContext context) {
     final fingerCount = ref.watch(touchCounterNotifier);
-
-    // ✅ 1손가락: 그리기/구역 드래그
     final canOneFingerAction = fingerCount <= 1;
-
-    // ✅ 2손가락: 이동/확대(InteractiveViewer)
     final canPanZoomWithTwoFingers = fingerCount >= 2;
 
-    final scale = _transform.value.getMaxScaleOnAxis();
-    final scaledSize = _canvasSize / scale;
-
+    final drawState = ref.watch(drawProvider);
     final zones = ref.watch(zoneProvider);
+    final canvas = _canvasSize;
 
-    return WillPopScope(
-      onWillPop: () async {
-        final offset = ref
-            .read(drawProvider.notifier)
-            .getTransformedDataWithMargin(_gridSize);
-        ref.read(zoneProvider.notifier).shiftZones(offset);
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        // 좌표가 처음부터 건물 기준 m라서 예전처럼 나갈 때
+        // 좌표계를 재정렬할 일이 없다.
         ref.read(drawProvider.notifier).drawChange(false);
-        return true;
       },
       child: Scaffold(
         body: Listener(
@@ -84,27 +122,22 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
               .onPointerCancel(),
           child: Stack(
             children: [
-              Center(
-                child: SizedBox(
-                  width: _canvasSize,
-                  height: _canvasSize,
-                  child: ClipRect(
-                    child: InteractiveViewer(
-                      transformationController: _transform,
-
-                      // ✅ 핵심: 구역 수정 모드에서도 2손가락이면 pan/zoom 허용
-                      panEnabled: canPanZoomWithTwoFingers,
-                      scaleEnabled: canPanZoomWithTwoFingers,
-
-                      minScale: 0.5,
-                      maxScale: 3.0,
-                      constrained: false,
-                      clipBehavior: Clip.none,
+              Positioned.fill(
+                child: ClipRect(
+                  child: InteractiveViewer(
+                    transformationController: _transform,
+                    panEnabled: canPanZoomWithTwoFingers,
+                    scaleEnabled: canPanZoomWithTwoFingers,
+                    minScale: 0.2,
+                    maxScale: 3.0,
+                    constrained: false,
+                    clipBehavior: Clip.none,
+                    child: SizedBox(
+                      width: canvas.width,
+                      height: canvas.height,
                       child: GestureDetector(
                         behavior: HitTestBehavior.translucent,
                         onTapUp: _isLayoutEditing ? _focus : null,
-
-                        // ✅ 도면 수정 모드 + 1손가락일 때만 선 그리기
                         onPanStart:
                             _isLayoutEditing && canOneFingerAction
                             ? _onPanStart
@@ -117,7 +150,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                             _isLayoutEditing && canOneFingerAction
                             ? _onPanEnd
                             : null,
-
                         onDoubleTapDown: _isLayoutEditing
                             ? _handleDoubleTap
                             : null,
@@ -125,29 +157,29 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                             ? _handleLongPress
                             : null,
                         child: ValueListenableBuilder<Offset?>(
-                          valueListenable: _previewPoint,
+                          valueListenable: _previewPointM,
                           builder: (context, preview, _) => Stack(
                             children: [
                               CustomPaint(
-                                size: Size(scaledSize, scaledSize),
+                                size: canvas,
                                 painter: GridPainter(
-                                  width: _canvasSize,
-                                  height: _canvasSize,
-                                  gridSize: _gridSize,
-                                  lines: ref.read(drawProvider).lines,
-                                  previewStart: _startPoint,
+                                  widthM: drawState.width,
+                                  heightM: drawState.height,
+                                  originPx: const Offset(
+                                    _marginPx,
+                                    _marginPx,
+                                  ),
+                                  lines: drawState.lines,
+                                  doors: drawState.doors,
+                                  previewStart: _startPointM,
                                   previewEnd: preview,
-                                  doors: ref.read(drawProvider).doors,
                                   lineToFocus: _focusLine,
+                                  showLengths: true,
                                 ),
                               ),
-
-                              // ✅ 구역 수정 모드에서만 구역 표시
                               if (!_isLayoutEditing)
                                 ..._buildZoneOverlays(
                                   zones: zones,
-                                  // ✅ 핵심: 1손가락일 때만 드래그 가능
-                                  // 2손가락이면 IgnorePointer로 터치 통과 -> InteractiveViewer가 받음
                                   enableDrag: canOneFingerAction,
                                 ),
                             ],
@@ -159,15 +191,36 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                 ),
               ),
 
-              // 하단 버튼들
+              // 축척 안내
+              Positioned(
+                top: 12,
+                left: 16,
+                child: SafeArea(
+                  child: _InfoChip(
+                    text:
+                        '건물 ${formatMeters(drawState.width)}×'
+                        '${formatMeters(drawState.height)}m · '
+                        '한 칸 ${formatMeters(_cellM)}m',
+                  ),
+                ),
+              ),
+
+              // 선택한 벽 조작 패널
+              if (_isLayoutEditing && _focusLine != null)
+                Positioned(
+                  top: 56,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(child: _buildFocusedWallPanel()),
+                ),
+
+              // 하단 모드 버튼
               Positioned(
                 left: 16,
                 bottom: 24,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    setState(() {
-                      _isLayoutEditing = true;
-                    });
+                    setState(() => _isLayoutEditing = true);
                   },
                   icon: const Icon(Icons.draw_outlined),
                   label: const Text("도면 수정"),
@@ -188,6 +241,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                       : () {
                           setState(() {
                             _isLayoutEditing = false;
+                            _focusLine = null;
                           });
                         },
                   icon: const Icon(Icons.dashboard_customize),
@@ -208,151 +262,109 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   }
 
   // ==========================
-  // Layout draw handlers
+  // 화면 초기 위치
   // ==========================
 
-  void _centerDrawingOnCanvas() {
-    final drawState = ref.read(drawProvider);
-    if (drawState.lines.isEmpty) {
-      return;
-    }
-
-    final zones = ref.read(zoneProvider);
-    final points = <Offset>[
-      ...drawState.lines.expand((line) => [line.start, line.end]),
-      ...drawState.doors,
-      ...zones.expand(
-        (zone) => [
-          Offset(zone.x, zone.y),
-          Offset(
-            zone.x + (zone.width * _gridSize),
-            zone.y + (zone.height * _gridSize),
-          ),
-        ],
-      ),
-    ];
-
-    final minX = points.map((point) => point.dx).reduce(min);
-    final minY = points.map((point) => point.dy).reduce(min);
-    final maxX = points.map((point) => point.dx).reduce(max);
-    final maxY = points.map((point) => point.dy).reduce(max);
-
-    final contentCenter = Offset(
-      (minX + maxX) / 2,
-      (minY + maxY) / 2,
-    );
-    final canvasCenter = const Offset(
-      _canvasSize / 2,
-      _canvasSize / 2,
-    );
-    final rawTranslation = canvasCenter - contentCenter;
-    final translation = Offset(
-      (rawTranslation.dx / _gridSize).round() * _gridSize,
-      (rawTranslation.dy / _gridSize).round() * _gridSize,
-    );
-
-    ref.read(drawProvider.notifier).shiftDrawing(translation);
-    ref.read(zoneProvider.notifier).shiftZones(translation);
-    if (!mounted) {
-      return;
-    }
-
+  void _centerCanvasInViewport() {
+    if (!mounted) return;
     final renderBox = context.findRenderObject() as RenderBox?;
     final viewportSize = renderBox?.size;
-    if (viewportSize == null) {
-      _transform.value = Matrix4.identity();
-      return;
-    }
+    if (viewportSize == null) return;
 
-    final viewportCenter = Offset(
-      viewportSize.width / 2,
-      viewportSize.height / 2,
+    final canvas = _canvasSize;
+
+    // 건물이 화면보다 크면 한눈에 들어오게 줄여서 시작한다.
+    final fitScale = min(
+      viewportSize.width / canvas.width,
+      viewportSize.height / canvas.height,
+    ).clamp(0.2, 1.0);
+
+    final translation = Offset(
+      (viewportSize.width - canvas.width * fitScale) / 2,
+      (viewportSize.height - canvas.height * fitScale) / 2,
     );
-    final viewportTranslation = viewportCenter - canvasCenter;
+
     _transform.value = Matrix4.identity()
-      ..translate(viewportTranslation.dx, viewportTranslation.dy);
+      ..translateByDouble(translation.dx, translation.dy, 0, 1)
+      ..scaleByDouble(fitScale, fitScale, 1, 1);
   }
 
+  // ==========================
+  // 벽 그리기
+  // ==========================
+
   void _onPanStart(DragStartDetails details) {
-    final local = details.localPosition;
-    _startPoint = snapToGrid(local);
-    _previewPoint.value = local;
+    final localM = _toMeters(details.localPosition);
+    _startPointM = _snapM(localM);
+    _previewPointM.value = localM;
 
-    Set<Offset>? doorsToRemove;
-    if (_focusLine != null) {
-      if (_focusLine!.start == _startPoint ||
-          _focusLine!.end == _startPoint) {
-        doorsToRemove = ref.read(drawProvider).doors.where((door) {
-          return distanceToSegment(
-                door,
-                _focusLine!.start,
-                _focusLine!.end,
-              ) <
-              5.0;
-        }).toSet();
+    // 선택한 벽의 끝점에서 다시 그리기 시작하면, 그 벽을 지우고
+    // 반대쪽 끝점부터 이어 그린다. (벽을 잡아 늘이는 느낌)
+    final focused = _focusLine;
+    if (focused != null) {
+      const epsilon = 0.01;
+      final fromStart =
+          (focused.start - _startPointM!).distance < epsilon;
+      final fromEnd = (focused.end - _startPointM!).distance < epsilon;
 
-        if (_focusLine!.start == _startPoint) {
-          _startPoint = _focusLine!.end;
-        } else {
-          _startPoint = _focusLine!.start;
-        }
+      if (fromStart || fromEnd) {
+        final doorsToRemove = _doorsNearLine(focused, 0.15);
+        _startPointM = fromStart ? focused.end : focused.start;
 
-        // NOTE: 원 코드 유지(직접 remove). 가능하면 notifier로 통일 권장.
-        ref.read(drawProvider).lines.remove(_focusLine);
+        ref.read(drawProvider.notifier).removeLine(focused);
+        ref
+            .read(drawProvider.notifier)
+            .removeAllDoors(doorsToRemove);
         _focusLine = null;
       }
-    }
-
-    checkBoolChange = !checkBoolChange;
-    if (doorsToRemove != null) {
-      ref.read(drawProvider).doors.removeAll(doorsToRemove);
     }
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
-    _previewPoint.value = details.localPosition;
+    _previewPointM.value = _toMeters(details.localPosition);
   }
 
   void _onPanEnd(DragEndDetails details) {
-    if (_startPoint != null && _previewPoint.value != null) {
-      final snappedEnd = snapToGrid(_previewPoint.value!);
-      final newLine = Line(start: _startPoint!, end: snappedEnd);
+    final start = _startPointM;
+    final previewM = _previewPointM.value;
+    if (start != null && previewM != null) {
+      final snappedEnd = _snapM(previewM);
 
-      if (_startPoint! != snappedEnd) {
-        ref.read(drawProvider.notifier).addLine(newLine);
+      if (start != snappedEnd) {
+        ref
+            .read(drawProvider.notifier)
+            .addLine(Line(start: start, end: snappedEnd));
       }
-
-      _startPoint = null;
-      _previewPoint.value = null;
     }
+    _startPointM = null;
+    _previewPointM.value = null;
   }
 
   void _handleDoubleTap(TapDownDetails details) {
-    final location = details.localPosition;
-    final nearbyLine = findNearestLine(location, 15.0);
+    final locationM = _toMeters(details.localPosition);
+    final nearbyLine = _findNearestLine(locationM, 0.25);
     if (nearbyLine == null) return;
 
-    final projected = projectPointOntoSegment(
-      location,
+    final projected = _projectOntoSegment(
+      locationM,
       nearbyLine.start,
       nearbyLine.end,
     );
-    final clamped = clampPointOnLineSegment(
+    final clamped = _clampOnSegment(
       projected,
       nearbyLine.start,
       nearbyLine.end,
-      10.0,
+      0.2,
     );
 
     final existing = ref
         .read(drawProvider)
         .doors
         .firstWhere(
-          (door) => (door - clamped).distance < 15.0,
+          (door) => (door - clamped).distance < 0.25,
           orElse: () => Offset.infinite,
         );
 
-    checkBoolChange = !checkBoolChange;
     if (existing != Offset.infinite) {
       ref.read(drawProvider.notifier).removeDoor(existing);
     } else {
@@ -361,54 +373,196 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   }
 
   void _handleLongPress(LongPressStartDetails details) {
-    _focusLine = null;
-    final sceneTap = details.localPosition;
-
-    final lineToRemove = ref
-        .read(drawProvider)
-        .lines
-        .firstWhere(
-          (line) =>
-              distanceToSegment(sceneTap, line.start, line.end) <
-              10.0,
-          orElse: () => Line(start: Offset.zero, end: Offset.zero),
-        );
-
-    if (lineToRemove.start == Offset.zero &&
-        lineToRemove.end == Offset.zero) {
-      return;
-    }
-
-    final doorsToRemove = ref.read(drawProvider).doors.where((door) {
-      return distanceToSegment(
-            door,
-            lineToRemove.start,
-            lineToRemove.end,
-          ) <
-          5.0;
-    }).toSet();
+    final tapM = _toMeters(details.localPosition);
+    final lineToRemove = _findNearestLine(tapM, 0.2);
+    if (lineToRemove == null) return;
 
     ref.read(drawProvider.notifier).removeLine(lineToRemove);
-    ref.read(drawProvider.notifier).removeAllDoors(doorsToRemove);
-    checkBoolChange = !checkBoolChange;
+    ref
+        .read(drawProvider.notifier)
+        .removeAllDoors(_doorsNearLine(lineToRemove, 0.15));
+
+    if (_focusLine == lineToRemove) {
+      setState(() => _focusLine = null);
+    }
+  }
+
+  void _focus(TapUpDetails details) {
+    final locationM = _toMeters(details.localPosition);
+    setState(() {
+      _focusLine = _findNearestLine(locationM, 0.2);
+    });
   }
 
   // ==========================
-  // Geometry helpers
+  // 선택한 벽: 길이 수정
   // ==========================
 
-  Offset snapToGrid(Offset point) {
-    final x = (point.dx / _gridSize).round() * _gridSize;
-    final y = (point.dy / _gridSize).round() * _gridSize;
-    return Offset(x, y);
+  Widget _buildFocusedWallPanel() {
+    final line = _focusLine!;
+    final length = (line.end - line.start).distance;
+
+    return Center(
+      child: Material(
+        elevation: 3,
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '선택한 벽 ${length.toStringAsFixed(1)}m',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13.5,
+                ),
+              ),
+              TextButton(
+                onPressed: _editFocusedWallLength,
+                child: const Text('길이 수정'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final target = _focusLine;
+                  if (target == null) return;
+                  ref.read(drawProvider.notifier).removeLine(target);
+                  ref
+                      .read(drawProvider.notifier)
+                      .removeAllDoors(_doorsNearLine(target, 0.15));
+                  setState(() => _focusLine = null);
+                },
+                child: const Text(
+                  '삭제',
+                  style: TextStyle(color: Color(0xFFD32F2F)),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () => setState(() => _focusLine = null),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  Line? findNearestLine(Offset point, double tolerance) {
+  Future<void> _editFocusedWallLength() async {
+    final line = _focusLine;
+    if (line == null) return;
+
+    final oldLength = (line.end - line.start).distance;
+    final controller = TextEditingController(
+      text: oldLength.toStringAsFixed(1),
+    );
+
+    final entered = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('벽 길이'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(
+            decimal: true,
+          ),
+          decoration: const InputDecoration(
+            suffixText: 'm',
+            helperText: '시작점은 그대로 두고 끝점이 이동합니다.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('취소', style: TextStyle(color: Colors.grey[700])),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              double.tryParse(controller.text.trim()),
+            ),
+            child: const Text('적용'),
+          ),
+        ],
+      ),
+    );
+
+    if (entered == null || entered <= 0 || oldLength == 0) return;
+
+    // 방향을 유지한 채 끝점만 옮긴다. 건물 밖으로는 못 나간다.
+    final direction = (line.end - line.start) / oldLength;
+    var newEnd = line.start + direction * entered;
+    newEnd = Offset(
+      newEnd.dx.clamp(0.0, _buildingW),
+      newEnd.dy.clamp(0.0, _buildingH),
+    );
+    // 부동소수 찌꺼기가 좌표에 쌓이지 않게 0.1m로 다듬는다.
+    newEnd = Offset(
+      (newEnd.dx * 10).roundToDouble() / 10,
+      (newEnd.dy * 10).roundToDouble() / 10,
+    );
+
+    final newLine = Line(start: line.start, end: newEnd);
+    final newLength = (newEnd - line.start).distance;
+
+    // 이 벽에 붙어 있던 문은 시작점에서의 거리를 유지한 채 따라온다.
+    // 새 벽이 더 짧아져 밀려나면 벽 끝 안쪽으로 붙인다.
+    final oldDoors = _doorsNearLine(line, 0.15);
+    final movedDoors = <Offset>{};
+    for (final door in oldDoors) {
+      final projected = _projectOntoSegment(
+        door,
+        line.start,
+        line.end,
+      );
+      final distanceFromStart = (projected - line.start).distance;
+      final kept = distanceFromStart
+          .clamp(0.2, max(newLength - 0.2, 0.1))
+          .toDouble();
+      movedDoors.add(line.start + direction * kept);
+    }
+
+    final notifier = ref.read(drawProvider.notifier);
+    notifier.replaceLine(line, newLine);
+    notifier.removeAllDoors(oldDoors);
+    for (final door in movedDoors) {
+      notifier.addDoor(door);
+    }
+
+    setState(() => _focusLine = newLine);
+  }
+
+  // ==========================
+  // 기하 헬퍼 (전부 m 단위)
+  // ==========================
+
+  Set<Offset> _doorsNearLine(Line line, double tolerance) {
+    return ref
+        .read(drawProvider)
+        .doors
+        .where(
+          (door) =>
+              _distanceToSegment(door, line.start, line.end) <
+              tolerance,
+        )
+        .toSet();
+  }
+
+  Line? _findNearestLine(Offset point, double tolerance) {
     Line? closestLine;
     double minDistance = double.infinity;
 
     for (final line in ref.read(drawProvider).lines) {
-      final distance = distanceToSegment(point, line.start, line.end);
+      final distance = _distanceToSegment(
+        point,
+        line.start,
+        line.end,
+      );
       if (distance < minDistance && distance <= tolerance) {
         minDistance = distance;
         closestLine = line;
@@ -417,30 +571,34 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
     return closestLine;
   }
 
-  double distanceToSegment(Offset p, Offset a, Offset b) {
+  double _distanceToSegment(Offset p, Offset a, Offset b) {
     final ap = p - a;
     final ab = b - a;
     final abLenSq = ab.dx * ab.dx + ab.dy * ab.dy;
     if (abLenSq == 0.0) return (p - a).distance;
 
-    final t = (ap.dx * ab.dx + ap.dy * ab.dy) / abLenSq;
-    final clampedT = t.clamp(0.0, 1.0);
-    final projection = a + ab * clampedT;
+    final t = ((ap.dx * ab.dx + ap.dy * ab.dy) / abLenSq).clamp(
+      0.0,
+      1.0,
+    );
+    final projection = a + ab * t;
     return (p - projection).distance;
   }
 
-  Offset projectPointOntoSegment(Offset p, Offset a, Offset b) {
+  Offset _projectOntoSegment(Offset p, Offset a, Offset b) {
     final ap = p - a;
     final ab = b - a;
     final abLenSq = ab.dx * ab.dx + ab.dy * ab.dy;
     if (abLenSq == 0.0) return a;
 
-    final t = (ap.dx * ab.dx + ap.dy * ab.dy) / abLenSq;
-    final clampedT = t.clamp(0.0, 1.0);
-    return a + ab * clampedT;
+    final t = ((ap.dx * ab.dx + ap.dy * ab.dy) / abLenSq).clamp(
+      0.0,
+      1.0,
+    );
+    return a + ab * t;
   }
 
-  Offset clampPointOnLineSegment(
+  Offset _clampOnSegment(
     Offset p,
     Offset a,
     Offset b,
@@ -459,102 +617,126 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
     return a + ab * clampedT;
   }
 
-  Offset? getIntersectionPoint(
-    Offset p1,
-    Offset p2,
-    Offset p3,
-    Offset p4,
-  ) {
-    final a1 = p2.dy - p1.dy;
-    final b1 = p1.dx - p2.dx;
-    final c1 = a1 * p1.dx + b1 * p1.dy;
-
-    final a2 = p4.dy - p3.dy;
-    final b2 = p3.dx - p4.dx;
-    final c2 = a2 * p3.dx + b2 * p3.dy;
-
-    final delta = a1 * b2 - a2 * b1;
-    if (delta.abs() < 1e-6) return null;
-
-    final x = (b2 * c1 - b1 * c2) / delta;
-    final y = (a1 * c2 - a2 * c1) / delta;
-    return Offset(x, y);
-  }
-
-  void _focus(TapUpDetails details) {
-    final location = details.localPosition;
-
-    final lineToFocus = ref
-        .read(drawProvider)
-        .lines
-        .firstWhere(
-          (line) =>
-              distanceToSegment(location, line.start, line.end) <
-              10.0,
-          orElse: () => Line(start: Offset.zero, end: Offset.zero),
-        );
-
-    setState(() {
-      _focusLine = lineToFocus;
-    });
-  }
-
   // ==========================
-  // Zone overlays
+  // 구역 오버레이 (이동·크기 조절·복제)
   // ==========================
 
   List<Widget> _buildZoneOverlays({
     required List<Zone> zones,
     required bool enableDrag,
   }) {
-    if (zones.isEmpty) return [];
-
-    const layoutSize = Size(_canvasSize, _canvasSize);
-
     return zones.map((zone) {
-      final zoneWidth = zone.width * _gridSize;
-      final zoneHeight = zone.height * _gridSize;
-
-      final position = _clampZoneOffset(
-        Offset(zone.x, zone.y),
-        Size(zoneWidth, zoneHeight),
-        layoutSize,
-      );
-
-      if (position.dx != zone.x || position.dy != zone.y) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref
-              .read(zoneProvider.notifier)
-              .updateZone(
-                zone.copyWith(x: position.dx, y: position.dy),
-              );
-        });
-      }
+      final zonePx = Size(zone.width * _ppm, zone.height * _ppm);
+      final positionPx = _toPx(Offset(zone.x, zone.y));
 
       final content = Container(
-        width: zoneWidth,
-        height: zoneHeight,
+        width: zonePx.width,
+        height: zonePx.height,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: const Color(0x336B66FF),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: const Color(0xFF6B66FF)),
         ),
-        child: Text(
-          zone.index,
-          style: const TextStyle(
-            color: Color(0xFF6B66FF),
-            fontWeight: FontWeight.bold,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              zone.index,
+              style: const TextStyle(
+                color: Color(0xFF6B66FF),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (zonePx.width >= 56 && zonePx.height >= 44)
+              Text(
+                formatZoneSize(zone.width, zone.height),
+                style: const TextStyle(
+                  color: Color(0xFF6B66FF),
+                  fontSize: 10,
+                ),
+              ),
+          ],
         ),
       );
 
+      final withHandle = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          content,
+          // 우하단 크기 조절 핸들. 끌면 0.5m 단위로 늘고 준다.
+          Positioned(
+            right: -6,
+            bottom: -6,
+            child: GestureDetector(
+              onPanStart: (details) {
+                _zoneResizeStartSizes[zone.index] = Size(
+                  zone.width,
+                  zone.height,
+                );
+                _zoneResizeStartPointers[zone.index] =
+                    details.globalPosition;
+              },
+              onPanUpdate: (details) {
+                final startSize =
+                    _zoneResizeStartSizes[zone.index] ??
+                    Size(zone.width, zone.height);
+                final startPointer =
+                    _zoneResizeStartPointers[zone.index] ??
+                    details.globalPosition;
+
+                final deltaPx =
+                    (details.globalPosition - startPointer) /
+                    _viewScale;
+
+                final newWidth = _snapValue(
+                  startSize.width + deltaPx.dx / _ppm,
+                ).clamp(_cellM, _buildingW - zone.x);
+                final newHeight = _snapValue(
+                  startSize.height + deltaPx.dy / _ppm,
+                ).clamp(_cellM, _buildingH - zone.y);
+
+                ref
+                    .read(zoneProvider.notifier)
+                    .updateZone(
+                      zone.copyWith(
+                        width: newWidth,
+                        height: newHeight,
+                      ),
+                    );
+              },
+              onPanEnd: (_) {
+                _zoneResizeStartSizes.remove(zone.index);
+                _zoneResizeStartPointers.remove(zone.index);
+              },
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF6B66FF),
+                    width: 2,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.open_in_full,
+                  size: 12,
+                  color: Color(0xFF6B66FF),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+
       return Positioned(
-        left: position.dx,
-        top: position.dy,
+        left: positionPx.dx,
+        top: positionPx.dy,
         child: enableDrag
             ? GestureDetector(
-                // ✅ globalPosition 기준으로 드래그(줌/팬 상태에서도 안정적)
+                onLongPress: () => _showZoneMenu(zone),
                 onPanStart: (details) {
                   _zoneDragStartOffsets[zone.index] = Offset(
                     zone.x,
@@ -571,15 +753,13 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                       _zoneDragStartPointers[zone.index] ??
                       details.globalPosition;
 
-                  final delta = details.globalPosition - startPointer;
+                  final deltaPx =
+                      (details.globalPosition - startPointer) /
+                      _viewScale;
 
-                  final updated = _clampZoneOffset(
-                    Offset(
-                      startOffset.dx + delta.dx,
-                      startOffset.dy + delta.dy,
-                    ),
-                    Size(zoneWidth, zoneHeight),
-                    layoutSize,
+                  final updated = _clampZonePosition(
+                    startOffset + deltaPx / _ppm,
+                    Size(zone.width, zone.height),
                   );
 
                   ref
@@ -592,129 +772,277 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                   _zoneDragStartOffsets.remove(zone.index);
                   _zoneDragStartPointers.remove(zone.index);
                 },
-                child: content,
+                child: withHandle,
               )
-            // ✅ 핵심: 2손가락이면 구역이 터치를 먹지 않게 통과시켜서 InteractiveViewer가 받게 함
-            : IgnorePointer(ignoring: true, child: content),
+            : IgnorePointer(ignoring: true, child: withHandle),
       );
     }).toList();
   }
 
-  Offset _clampZoneOffset(
-    Offset offset,
-    Size zoneSize,
-    Size layoutSize,
-  ) {
+  void _showZoneMenu(Zone zone) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                '${zone.index} 구역 · '
+                '${formatZoneSize(zone.width, zone.height)} · '
+                '${formatWon(zone.price)}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_outlined),
+              title: const Text('같은 크기·가격으로 하나 더'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _duplicateZone(zone);
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline,
+                color: Color(0xFFD32F2F),
+              ),
+              title: const Text(
+                '이 구역 삭제',
+                style: TextStyle(color: Color(0xFFD32F2F)),
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                ref.read(zoneProvider.notifier).removeZone(zone.index);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 같은 건물 안에서는 같은 크기 구역이 반복되는 경우가 많다.
+  /// (같은 선반을 여러 줄 놓는 식) 복제로 배치를 빠르게 한다.
+  void _duplicateZone(Zone zone) {
+    final notifier = ref.read(zoneProvider.notifier);
+    final index = notifier.nextIndex();
+    final position = _findFreePosition(
+      Size(zone.width, zone.height),
+      ref.read(zoneProvider),
+    );
+
+    notifier.addZone(
+      zone.copyWith(index: index, x: position.dx, y: position.dy),
+    );
+  }
+
+  Offset _clampZonePosition(Offset positionM, Size zoneSizeM) {
     final snapped = Offset(
-      _snapToGrid(offset.dx),
-      _snapToGrid(offset.dy),
+      _snapValue(positionM.dx),
+      _snapValue(positionM.dy),
     );
-
-    final maxX = (layoutSize.width - zoneSize.width).clamp(
+    final maxX = (_buildingW - zoneSizeM.width).clamp(
       0.0,
-      layoutSize.width,
+      _buildingW,
     );
-    final maxY = (layoutSize.height - zoneSize.height).clamp(
+    final maxY = (_buildingH - zoneSizeM.height).clamp(
       0.0,
-      layoutSize.height,
+      _buildingH,
     );
-
     return Offset(
       snapped.dx.clamp(0.0, maxX),
       snapped.dy.clamp(0.0, maxY),
     );
   }
 
-  double _snapToGrid(double value) {
-    return (value / _gridSize).round() * _gridSize;
+  Offset _findFreePosition(Size zoneSizeM, List<Zone> zones) {
+    final maxX = (_buildingW - zoneSizeM.width).clamp(
+      0.0,
+      _buildingW,
+    );
+    final maxY = (_buildingH - zoneSizeM.height).clamp(
+      0.0,
+      _buildingH,
+    );
+
+    for (double y = 0; y <= maxY; y += _cellM) {
+      for (double x = 0; x <= maxX; x += _cellM) {
+        final rect = Rect.fromLTWH(
+          x,
+          y,
+          zoneSizeM.width,
+          zoneSizeM.height,
+        );
+        final overlaps = zones.any(
+          (other) => rect.overlaps(
+            Rect.fromLTWH(other.x, other.y, other.width, other.height),
+          ),
+        );
+        if (!overlaps) return Offset(x, y);
+      }
+    }
+    return Offset.zero;
   }
 }
 
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF444444),
+        ),
+      ),
+    );
+  }
+}
+
+/// 도면을 그리는 페인터. 에디터·미리보기·보기 전용 화면이 같이 쓴다.
+///
+/// 입력 좌표는 전부 미터고, [kPixelsPerMeter]를 곱해 픽셀로 바꾼다.
+/// [originPx]는 캔버스 안에서 건물 좌상단이 놓일 픽셀 위치다.
 class GridPainter extends CustomPainter {
-  final double gridSize;
-  final double width;
-  final double height;
+  /// 건물 크기(m)
+  final double widthM;
+  final double heightM;
+
+  final Offset originPx;
   final List<Line> lines;
+  final Set<Offset> doors;
   final Offset? previewStart;
   final Offset? previewEnd;
-  final Set<Offset> doors;
   final Line? lineToFocus;
+
+  /// true면 격자를 생략한다. (보기 전용 화면)
   final bool transparent;
 
+  /// 벽 길이 라벨 표시 여부
+  final bool showLengths;
+
   GridPainter({
-    this.gridSize = 30.0,
-    required this.doors,
+    required this.widthM,
+    required this.heightM,
     required this.lines,
-    required this.width,
-    required this.height,
+    required this.doors,
+    this.originPx = Offset.zero,
     this.previewStart,
     this.previewEnd,
     this.lineToFocus,
     this.transparent = false,
+    this.showLengths = false,
   });
+
+  static const double _ppm = kPixelsPerMeter;
+  static const double _cellM = kGridCellMeters;
+
+  Offset _px(Offset meters) => Offset(
+    meters.dx * _ppm + originPx.dx,
+    meters.dy * _ppm + originPx.dy,
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.save();
+    final buildingRect = Rect.fromLTWH(
+      originPx.dx,
+      originPx.dy,
+      widthM * _ppm,
+      heightM * _ppm,
+    );
 
-    final gridPaint = Paint()
-      ..color = Colors.grey[300]!
-      ..strokeWidth = 1.0;
+    // 건물 바닥과 외곽. 이 사각형이 곧 실측 크기다.
+    canvas.drawRect(
+      buildingRect,
+      Paint()..color = Colors.white,
+    );
 
     if (!transparent) {
-      for (double x = 0; x <= width; x += gridSize) {
-        canvas.drawLine(Offset(x, 0), Offset(x, height), gridPaint);
-      }
-      for (double y = 0; y <= height; y += gridSize) {
-        canvas.drawLine(Offset(0, y), Offset(width, y), gridPaint);
-      }
-      final double lastX = (width / gridSize).floor() * gridSize;
-      canvas.drawLine(
-        Offset(lastX, 0),
-        Offset(lastX, height),
-        gridPaint,
-      );
+      final gridPaint = Paint()
+        ..color = Colors.grey[300]!
+        ..strokeWidth = 1.0;
 
-      final double lastY = (height / gridSize).floor() * gridSize;
-      canvas.drawLine(
-        Offset(0, lastY),
-        Offset(width, lastY),
-        gridPaint,
-      );
+      for (double x = 0; x <= widthM + 0.001; x += _cellM) {
+        canvas.drawLine(
+          _px(Offset(x, 0)),
+          _px(Offset(x, heightM)),
+          gridPaint,
+        );
+      }
+      for (double y = 0; y <= heightM + 0.001; y += _cellM) {
+        canvas.drawLine(
+          _px(Offset(0, y)),
+          _px(Offset(widthM, y)),
+          gridPaint,
+        );
+      }
     }
+
+    canvas.drawRect(
+      buildingRect,
+      Paint()
+        ..color = Colors.grey[500]!
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
 
     final linePaint = Paint()
       ..color = Colors.blue
       ..strokeWidth = 3.0;
 
-    final dotPaint = Paint()..color = Colors.transparent;
-
     for (final line in lines) {
-      canvas.drawLine(line.start, line.end, linePaint);
-      canvas.drawCircle(line.start, 5, dotPaint);
-      canvas.drawCircle(line.end, 5, dotPaint);
+      canvas.drawLine(_px(line.start), _px(line.end), linePaint);
     }
 
-    if (previewStart != null && previewEnd != null) {
+    if (showLengths) {
+      for (final line in lines) {
+        _drawLengthLabel(canvas, line.start, line.end);
+      }
+    }
+
+    final start = previewStart;
+    final end = previewEnd;
+    if (start != null && end != null) {
       final previewPaint = Paint()
         ..color = Colors.blue.withAlpha(75)
         ..strokeWidth = 2.0;
-      canvas.drawCircle(
-        previewStart!,
-        5,
-        Paint()..color = Colors.red,
-      );
-      canvas.drawLine(previewStart!, previewEnd!, previewPaint);
+      canvas.drawCircle(_px(start), 5, Paint()..color = Colors.red);
+      canvas.drawLine(_px(start), _px(end), previewPaint);
+      // 끌고 있는 선의 길이를 실시간으로 보여준다.
+      _drawLengthLabel(canvas, start, end, emphasized: true);
     }
 
     final doorPaint = Paint()..color = Colors.brown;
-
     for (final door in doors) {
       Line? nearestLine;
       double minDistance = double.infinity;
 
       for (final line in lines) {
-        final distance = distanceToSegment(
+        final distance = _distanceToSegment(
           door,
           line.start,
           line.end,
@@ -724,54 +1052,98 @@ class GridPainter extends CustomPainter {
           nearestLine = line;
         }
       }
-
       if (nearestLine == null) continue;
 
-      final dx = nearestLine.end.dx - nearestLine.start.dx;
-      final dy = nearestLine.end.dy - nearestLine.start.dy;
-      final angle = atan2(dy, dx);
+      final direction = nearestLine.end - nearestLine.start;
+      final angle = atan2(direction.dy, direction.dx);
+      final doorPx = _px(door);
 
       canvas.save();
-      canvas.translate(door.dx, door.dy);
+      canvas.translate(doorPx.dx, doorPx.dy);
       canvas.rotate(angle);
-
-      final rect = Rect.fromCenter(
-        center: Offset.zero,
-        width: gridSize * 0.8,
-        height: gridSize * 0.3,
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: _cellM * _ppm * 0.8,
+          height: _cellM * _ppm * 0.3,
+        ),
+        doorPaint,
       );
-      canvas.drawRect(rect, doorPaint);
       canvas.restore();
     }
 
-    if (lineToFocus != null) {
-      canvas.drawCircle(
-        lineToFocus!.start,
-        5,
-        Paint()..color = Colors.red,
-      );
-      canvas.drawCircle(
-        lineToFocus!.end,
-        5,
-        Paint()..color = Colors.red,
-      );
+    final focused = lineToFocus;
+    if (focused != null) {
+      final focusPaint = Paint()..color = Colors.red;
+      canvas.drawCircle(_px(focused.start), 5, focusPaint);
+      canvas.drawCircle(_px(focused.end), 5, focusPaint);
     }
+  }
 
-    canvas.restore();
+  /// 벽 중앙에 "4.5m" 라벨을 붙인다. 너무 짧은 벽은 생략한다.
+  void _drawLengthLabel(
+    Canvas canvas,
+    Offset startM,
+    Offset endM, {
+    bool emphasized = false,
+  }) {
+    final lengthM = (endM - startM).distance;
+    if (lengthM < _cellM * 1.5) return;
+
+    final text = '${lengthM.toStringAsFixed(1)}m';
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: emphasized ? 13 : 11,
+          fontWeight: FontWeight.w600,
+          color: emphasized
+              ? const Color(0xFFD32F2F)
+              : const Color(0xFF5A5F6E),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    // 벽 중앙에서 법선 방향으로 살짝 띄운다.
+    final midPx = _px((startM + endM) / 2);
+    final direction = (endM - startM) / lengthM;
+    final normal = Offset(-direction.dy, direction.dx);
+    final at =
+        midPx +
+        normal * 11 -
+        Offset(painter.width / 2, painter.height / 2);
+
+    final background = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        at.dx - 3,
+        at.dy - 1,
+        painter.width + 6,
+        painter.height + 2,
+      ),
+      const Radius.circular(4),
+    );
+    canvas.drawRRect(
+      background,
+      Paint()..color = Colors.white.withValues(alpha: 0.85),
+    );
+    painter.paint(canvas, at);
   }
 
   @override
   bool shouldRepaint(covariant GridPainter oldDelegate) => true;
 
-  double distanceToSegment(Offset p, Offset a, Offset b) {
+  double _distanceToSegment(Offset p, Offset a, Offset b) {
     final ap = p - a;
     final ab = b - a;
     final abLenSq = ab.dx * ab.dx + ab.dy * ab.dy;
     if (abLenSq == 0.0) return (p - a).distance;
 
-    final t = (ap.dx * ab.dx + ap.dy * ab.dy) / abLenSq;
-    final clampedT = t.clamp(0.0, 1.0);
-    final projection = a + ab * clampedT;
+    final t = ((ap.dx * ab.dx + ap.dy * ab.dy) / abLenSq).clamp(
+      0.0,
+      1.0,
+    );
+    final projection = a + ab * t;
     return (p - projection).distance;
   }
 }

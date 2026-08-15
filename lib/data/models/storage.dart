@@ -14,8 +14,17 @@ class Storage {
   final DateTime createdAt;
   final List<String> images;
   final String ownerId;
+
+  /// 건물 실측 크기(m). 도면·구역 좌표도 전부 m 단위다.
+  ///
+  /// 예전 스키마는 화면 픽셀을 저장했고 Firestore 키도 width/height였다.
+  /// 새 스키마는 widthM/heightM 키를 쓴다. 예전 문서를 읽으면 이 값이 0이
+  /// 되어 지형도가 "정보 없음"으로 표시된다. (픽셀을 m로 오해하는 것보다 낫다)
   final double width;
   final double height;
+
+  /// {lines: List<Line>, doors: Set<Offset>} — 좌표는 전부 m,
+  /// 원점은 건물 좌상단이다.
   final Map<String, dynamic> layout;
   final bool approved;
 
@@ -66,8 +75,10 @@ class Storage {
       throw const FormatException('lat/lng is missing or invalid');
     }
 
-    final width = (data['width'] as num?)?.toDouble() ?? 0;
-    final height = (data['height'] as num?)?.toDouble() ?? 0;
+    // 미터 스키마. 예전(픽셀) 문서에는 widthM이 없어 0으로 읽히고,
+    // 화면은 0을 보고 지형도를 그리지 않는다.
+    final width = (data['widthM'] as num?)?.toDouble() ?? 0;
+    final height = (data['heightM'] as num?)?.toDouble() ?? 0;
     final count = (data['count'] as num?)?.toInt() ?? 0;
     final createdAt =
         (data['createdAt'] as Timestamp?)?.toDate().toLocal() ??
@@ -137,8 +148,8 @@ class Storage {
       'createdAt': Timestamp.fromDate(createdAt.toUtc()),
       'images': images,
       'ownerId': ownerId,
-      'width': width,
-      'height': height,
+      'widthM': width,
+      'heightM': height,
       'layout': {
         'lines': (layout['lines'] as List<Line>)
             .map((line) => line.toMap())

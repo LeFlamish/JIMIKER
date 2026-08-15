@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:jimiker/core/utils/space_units.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/zone.dart';
-import 'package:jimiker/features/draw/draw_screen.dart' show GridPainter;
+import 'package:jimiker/features/draw/draw_screen.dart'
+    show GridPainter, kPixelsPerMeter;
 
 /// 창고 지형도를 "보기 전용"으로 그린다.
 ///
@@ -16,15 +18,16 @@ class StorageLayoutView extends StatelessWidget {
     required this.storage,
     required this.zones,
     required this.highlightedZoneIndex,
-    this.gridSize = 30.0,
     this.maxHeight = 320,
   });
 
   final Storage storage;
   final List<Zone> zones;
   final String? highlightedZoneIndex;
-  final double gridSize;
   final double maxHeight;
+
+  /// 좌표(m)를 그릴 때 쓰는 배율. FittedBox가 다시 영역에 맞춘다.
+  static const double _ppm = kPixelsPerMeter;
 
   static const Color _highlightColor = Color(0xFF6B7AF5);
   static const Color _mutedColor = Color(0xFF9AA0AE);
@@ -38,8 +41,9 @@ class StorageLayoutView extends StatelessWidget {
         (storage.layout['doors'] as Set<dynamic>?)?.cast<Offset>() ??
         const <Offset>{};
 
-    final layoutWidth = storage.width;
-    final layoutHeight = storage.height;
+    // 건물 실측 크기(m). 예전 픽셀 스키마 문서는 0으로 읽혀 여기서 걸러진다.
+    final layoutWidth = storage.width * _ppm;
+    final layoutHeight = storage.height * _ppm;
 
     if (layoutWidth <= 0 || layoutHeight <= 0) {
       return _buildEmpty('지형도 정보가 없어요.');
@@ -64,8 +68,9 @@ class StorageLayoutView extends StatelessWidget {
                     child: CustomPaint(
                       painter: GridPainter(
                         transparent: true,
-                        width: layoutWidth,
-                        height: layoutHeight,
+                        showLengths: true,
+                        widthM: storage.width,
+                        heightM: storage.height,
                         lines: lines,
                         doors: doors,
                       ),
@@ -84,13 +89,15 @@ class StorageLayoutView extends StatelessWidget {
   Widget _buildZone(Zone zone) {
     final isMine = zone.index == highlightedZoneIndex;
     final color = isMine ? _highlightColor : _mutedColor;
+    final zoneW = zone.width * _ppm;
+    final zoneH = zone.height * _ppm;
 
     return Positioned(
-      left: zone.x,
-      top: zone.y,
+      left: zone.x * _ppm,
+      top: zone.y * _ppm,
       child: Container(
-        width: zone.width * gridSize,
-        height: zone.height * gridSize,
+        width: zoneW,
+        height: zoneH,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isMine
@@ -99,12 +106,25 @@ class StorageLayoutView extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: color, width: isMine ? 2.5 : 1),
         ),
-        child: Text(
-          zone.index,
-          style: TextStyle(
-            color: isMine ? Colors.white : _mutedColor,
-            fontWeight: FontWeight.bold,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              zone.index,
+              style: TextStyle(
+                color: isMine ? Colors.white : _mutedColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (zoneW >= 56 && zoneH >= 44)
+              Text(
+                formatZoneSize(zone.width, zone.height),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isMine ? Colors.white : _mutedColor,
+                ),
+              ),
+          ],
         ),
       ),
     );

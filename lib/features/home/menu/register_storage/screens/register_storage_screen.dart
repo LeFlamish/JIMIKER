@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -9,6 +7,7 @@ import 'package:jimiker/data/models/zone_form_data.dart';
 import 'package:jimiker/features/home/menu/chat/services/chat_service.dart';
 import 'package:jimiker/features/home/menu/my_storages/services/my_storages_provider.dart';
 import 'package:jimiker/features/home/menu/my_storages/services/storage_edit_config.dart';
+import 'package:jimiker/core/utils/space_units.dart';
 import 'package:jimiker/features/draw/draw_screen.dart';
 import 'package:jimiker/features/draw/draw_provider.dart';
 import 'package:jimiker/features/home/menu/register_storage/services/register_provider.dart';
@@ -31,16 +30,14 @@ class RegisterStorageScreen extends ConsumerStatefulWidget {
 
 class _RegisterStorageScreenState
     extends ConsumerState<RegisterStorageScreen> {
-  static const double _gridSize = 30.0;
-  static const double _editorCanvasSize = 1000.0;
+  /// 도면 좌표(m)를 미리보기에 그릴 때 쓰는 배율
+  static const double _ppm = kPixelsPerMeter;
+  static const double _cellM = kGridCellMeters;
 
   late final TextEditingController _addressController;
   late final TextEditingController _detailAddressController;
   late final FocusNode _detailAddressFocusNode;
 
-  // ✅ 편집 화면 진입 직전 provider를 1000 캔버스 기준으로 shift할 때,
-  // 프리뷰(작은 레이아웃)가 clamp로 zone을 다시 “잘라서” 옮기지 않게 막는 플래그
-  bool _suspendPreviewZoneClamp = false;
   bool _isLoadingEditData = false;
 
   @override
@@ -238,12 +235,12 @@ class _RegisterStorageScreenState
   Widget _buildStructureEditorArea(DrawProviderData drawState) {
     final zones = ref.watch(zoneProvider);
 
-    final double layoutW = drawState.width.toDouble();
-    final double layoutH = drawState.height.toDouble();
+    final double layoutW = drawState.width * _ppm;
+    final double layoutH = drawState.height * _ppm;
 
     return Container(
       width: double.infinity,
-      height: layoutH + 100.0,
+      height: 300,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -258,32 +255,27 @@ class _RegisterStorageScreenState
                     width: double.infinity,
                     height: double.infinity,
                     color: Colors.blueGrey[50],
-                    child: Center(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: SizedBox(
-                          width: layoutW,
-                          height: layoutH,
-                          child: Stack(
-                            children: [
-                              Positioned.fill(
-                                child: CustomPaint(
-                                  painter: GridPainter(
-                                    gridSize: _gridSize,
-                                    width: layoutW,
-                                    height: layoutH,
-                                    lines: drawState.lines,
-                                    doors: drawState.doors,
-                                  ),
+                    padding: const EdgeInsets.all(12),
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: SizedBox(
+                        width: layoutW,
+                        height: layoutH,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: GridPainter(
+                                  widthM: drawState.width,
+                                  heightM: drawState.height,
+                                  lines: drawState.lines,
+                                  doors: drawState.doors,
+                                  showLengths: true,
                                 ),
                               ),
-                              ..._buildZoneOverlays(
-                                drawState: drawState,
-                                zones: zones,
-                                enableDrag: false,
-                              ),
-                            ],
-                          ),
+                            ),
+                            ..._buildZoneOverlays(zones: zones),
+                          ],
                         ),
                       ),
                     ),
@@ -383,10 +375,21 @@ class _RegisterStorageScreenState
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "크기 ${zone.width}m × ${zone.height}m · ${zone.price}원",
+                        '${formatZoneSize(zone.width, zone.height)} · '
+                        '${formatArea(zone.width * zone.height)}',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '월 ${formatWon(zone.price)} · '
+                        '${formatPricePerSqm(zone.price, zone.width * zone.height)}',
+                        style: const TextStyle(
+                          color: Color(0xFF6B66FF),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -412,115 +415,50 @@ class _RegisterStorageScreenState
     );
   }
 
-  List<Widget> _buildZoneOverlays({
-    required DrawProviderData drawState,
-    required List<Zone> zones,
-    required bool enableDrag,
-  }) {
-    if (zones.isEmpty) return [];
-
-    final layoutSize = Size(
-      drawState.width.toDouble(),
-      drawState.height.toDouble(),
-    );
-
+  List<Widget> _buildZoneOverlays({required List<Zone> zones}) {
+    // 보기 전용 미리보기. 좌표는 에디터가 이미 건물 안으로 가둬서 저장하므로
+    // 여기서 다시 보정하지 않는다.
     return zones.map((zone) {
-      final zoneWidth = zone.width.toDouble() * _gridSize;
-      final zoneHeight = zone.height.toDouble() * _gridSize;
+      final zoneW = zone.width * _ppm;
+      final zoneH = zone.height * _ppm;
 
-      // ✅ 편집 진입 직전에는 provider 좌표가 1000 기준으로 shift되므로
-      // 프리뷰에서 clamp+update가 돌면 zone이 “잘려서” 한 곳에 모임.
-      // 그래서 그 순간만 clamp/update를 잠깐 멈춤.
-      final Offset position = _suspendPreviewZoneClamp
-          ? Offset(zone.x.toDouble(), zone.y.toDouble())
-          : _clampZoneOffset(
-              Offset(zone.x.toDouble(), zone.y.toDouble()),
-              Size(zoneWidth, zoneHeight),
-              layoutSize,
-            );
-
-      if (!_suspendPreviewZoneClamp &&
-          (position.dx != zone.x || position.dy != zone.y)) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref
-              .read(zoneProvider.notifier)
-              .updateZone(
-                zone.copyWith(x: position.dx, y: position.dy),
-              );
-        });
-      }
-
-      final content = Container(
-        width: zoneWidth,
-        height: zoneHeight,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: const Color(0x336B66FF),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: const Color(0xFF6B66FF)),
-        ),
-        child: Text(
-          zone.index,
-          style: const TextStyle(
-            color: Color(0xFF6B66FF),
-            fontWeight: FontWeight.bold,
+      return Positioned(
+        left: zone.x * _ppm,
+        top: zone.y * _ppm,
+        child: IgnorePointer(
+          child: Container(
+            width: zoneW,
+            height: zoneH,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0x336B66FF),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFF6B66FF)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  zone.index,
+                  style: const TextStyle(
+                    color: Color(0xFF6B66FF),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (zoneW >= 56 && zoneH >= 44)
+                  Text(
+                    formatZoneSize(zone.width, zone.height),
+                    style: const TextStyle(
+                      color: Color(0xFF6B66FF),
+                      fontSize: 10,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       );
-
-      return Positioned(
-        left: position.dx,
-        top: position.dy,
-        child: enableDrag
-            ? GestureDetector(
-                onPanUpdate: (details) {
-                  final updated = _clampZoneOffset(
-                    Offset(
-                      zone.x.toDouble() + details.delta.dx,
-                      zone.y.toDouble() + details.delta.dy,
-                    ),
-                    Size(zoneWidth, zoneHeight),
-                    layoutSize,
-                  );
-
-                  ref
-                      .read(zoneProvider.notifier)
-                      .updateZone(
-                        zone.copyWith(x: updated.dx, y: updated.dy),
-                      );
-                },
-                child: content,
-              )
-            : IgnorePointer(child: content),
-      );
     }).toList();
-  }
-
-  Offset _clampZoneOffset(
-    Offset offset,
-    Size zoneSize,
-    Size layoutSize,
-  ) {
-    final snapped = Offset(
-      _snapToGrid(offset.dx),
-      _snapToGrid(offset.dy),
-    );
-
-    final double maxX = (layoutSize.width - zoneSize.width)
-        .clamp(0.0, layoutSize.width)
-        .toDouble();
-    final double maxY = (layoutSize.height - zoneSize.height)
-        .clamp(0.0, layoutSize.height)
-        .toDouble();
-
-    return Offset(
-      snapped.dx.clamp(0.0, maxX).toDouble(),
-      snapped.dy.clamp(0.0, maxY).toDouble(),
-    );
-  }
-
-  double _snapToGrid(double value) {
-    return (value / _gridSize).round() * _gridSize;
   }
 
   // =========================
@@ -674,18 +612,33 @@ class _RegisterStorageScreenState
   void _navigateToEditor() async {
     _clearDetailAddressFocus();
 
-    setState(() => _suspendPreviewZoneClamp = true);
-    _prepareForEditorCanvas(); // ✅ B안 핵심: 편집 진입 직전에 1000 캔버스 기준으로 이동
+    // 건물 실측 크기가 있어야 도면에 축척이 생긴다. 처음 한 번만 묻는다.
+    if (!await _ensureBuildingSize()) return;
+    if (!mounted) return;
 
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const DrawScreen()),
     );
 
-    if (mounted) {
-      setState(() => _suspendPreviewZoneClamp = false);
-    }
     _clearDetailAddressFocus();
+  }
+
+  /// 건물 크기가 없으면 입력받는다. 입력하면 외곽 네 벽이 자동으로 생긴다.
+  Future<bool> _ensureBuildingSize() async {
+    final drawState = ref.read(drawProvider);
+    if (drawState.width > 0 && drawState.height > 0) return true;
+
+    final size = await showDialog<Size>(
+      context: context,
+      builder: (dialogContext) => const _BuildingSizeDialog(),
+    );
+    if (size == null) return false;
+
+    ref
+        .read(drawProvider.notifier)
+        .setBuildingSize(size.width, size.height);
+    return true;
   }
 
   Future<void> _showAddZoneDialog() async {
@@ -716,17 +669,9 @@ class _RegisterStorageScreenState
 
     if (zone == null) {
       final drawState = ref.read(drawProvider);
-      final zoneSize = Size(
-        result.width * _gridSize,
-        result.height * _gridSize,
-      );
-      final layoutSize = Size(
-        drawState.width.toDouble(),
-        drawState.height.toDouble(),
-      );
       final position = _findAvailableZonePosition(
-        zoneSize: zoneSize,
-        layoutSize: layoutSize,
+        zoneSizeM: Size(result.width, result.height),
+        layoutSizeM: Size(drawState.width, drawState.height),
         zones: ref.read(zoneProvider),
       );
 
@@ -750,56 +695,6 @@ class _RegisterStorageScreenState
         ),
       );
     }
-  }
-
-  // =========================
-  // B안 핵심: 편집(1000x1000) 진입 직전 좌표계 변환
-  // =========================
-
-  void _prepareForEditorCanvas() {
-    final drawState = ref.read(drawProvider);
-    final zones = ref.read(zoneProvider);
-
-    final points = <Offset>[
-      ...drawState.lines.expand((l) => [l.start, l.end]),
-      ...drawState.doors,
-      ...zones.expand(
-        (z) => [
-          Offset(z.x.toDouble(), z.y.toDouble()),
-          Offset(
-            z.x.toDouble() + (z.width.toDouble() * _gridSize),
-            z.y.toDouble() + (z.height.toDouble() * _gridSize),
-          ),
-        ],
-      ),
-    ];
-
-    if (points.isEmpty) return;
-
-    final minX = points.map((p) => p.dx).reduce(min);
-    final minY = points.map((p) => p.dy).reduce(min);
-    final maxX = points.map((p) => p.dx).reduce(max);
-    final maxY = points.map((p) => p.dy).reduce(max);
-
-    final contentCenter = Offset(
-      (minX + maxX) / 2,
-      (minY + maxY) / 2,
-    );
-    const canvasCenter = Offset(
-      _editorCanvasSize / 2,
-      _editorCanvasSize / 2,
-    );
-
-    final rawTranslation = canvasCenter - contentCenter;
-
-    // 격자 단위로 스냅 (선/문/구역이 동일 delta로 움직여야 함)
-    final translation = Offset(
-      _snapToGrid(rawTranslation.dx),
-      _snapToGrid(rawTranslation.dy),
-    );
-
-    ref.read(drawProvider.notifier).shiftDrawing(translation);
-    ref.read(zoneProvider.notifier).shiftZones(translation);
   }
 
   // =========================
@@ -961,32 +856,34 @@ class _RegisterStorageScreenState
   // =========================
 
   Offset _findAvailableZonePosition({
-    required Size zoneSize,
-    required Size layoutSize,
+    required Size zoneSizeM,
+    required Size layoutSizeM,
     required List<Zone> zones,
   }) {
-    final maxX = (layoutSize.width - zoneSize.width)
-        .clamp(0.0, layoutSize.width)
-        .toDouble();
-    final maxY = (layoutSize.height - zoneSize.height)
-        .clamp(0.0, layoutSize.height)
-        .toDouble();
+    final maxX = (layoutSizeM.width - zoneSizeM.width).clamp(
+      0.0,
+      layoutSizeM.width,
+    );
+    final maxY = (layoutSizeM.height - zoneSizeM.height).clamp(
+      0.0,
+      layoutSizeM.height,
+    );
 
-    for (double y = _gridSize; y <= maxY; y += _gridSize) {
-      for (double x = _gridSize; x <= maxX; x += _gridSize) {
+    for (double y = 0; y <= maxY; y += _cellM) {
+      for (double x = 0; x <= maxX; x += _cellM) {
         final rect = Rect.fromLTWH(
           x,
           y,
-          zoneSize.width,
-          zoneSize.height,
+          zoneSizeM.width,
+          zoneSizeM.height,
         );
 
         final overlaps = zones.any((zone) {
           final otherRect = Rect.fromLTWH(
-            zone.x.toDouble(),
-            zone.y.toDouble(),
-            zone.width.toDouble() * _gridSize,
-            zone.height.toDouble() * _gridSize,
+            zone.x,
+            zone.y,
+            zone.width,
+            zone.height,
           );
           return rect.overlaps(otherRect);
         });
@@ -997,6 +894,107 @@ class _RegisterStorageScreenState
       }
     }
 
-    return Offset(_gridSize, _gridSize);
+    return Offset.zero;
+  }
+}
+
+/// 건물 실측 크기를 묻는 다이얼로그. 여기 넣은 값이 도면의 축척이 된다.
+class _BuildingSizeDialog extends StatefulWidget {
+  const _BuildingSizeDialog();
+
+  @override
+  State<_BuildingSizeDialog> createState() =>
+      _BuildingSizeDialogState();
+}
+
+class _BuildingSizeDialogState extends State<_BuildingSizeDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _widthController = TextEditingController();
+  final _heightController = TextEditingController();
+
+  @override
+  void dispose() {
+    _widthController.dispose();
+    _heightController.dispose();
+    super.dispose();
+  }
+
+  String? _validate(String? value) {
+    final parsed = double.tryParse(value?.trim() ?? '');
+    if (parsed == null) return '숫자를 입력해주세요.';
+    if (parsed < 1 || parsed > 60) return '1~60m 사이로 입력해주세요.';
+    return null;
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    Navigator.pop(
+      context,
+      Size(
+        double.parse(_widthController.text.trim()),
+        double.parse(_heightController.text.trim()),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: const Text('창고 실제 크기'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '줄자로 잰 실제 크기를 넣어주세요.\n'
+              '이 크기대로 도면 외곽이 그려지고, 안에서 칸막이와\n'
+              '구역을 배치하게 됩니다.',
+              style: TextStyle(fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _widthController,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: '가로 (m)',
+              ),
+              validator: _validate,
+            ),
+            TextFormField(
+              controller: _heightController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: '세로 (m)',
+              ),
+              validator: _validate,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('취소', style: TextStyle(color: Colors.grey[700])),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF6B66FF),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('도면 그리기'),
+        ),
+      ],
+    );
   }
 }

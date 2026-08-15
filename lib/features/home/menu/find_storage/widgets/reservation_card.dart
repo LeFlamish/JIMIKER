@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/core/utils/space_units.dart';
 import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
 import 'package:jimiker/data/models/zone.dart';
@@ -267,17 +268,6 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
     }
   }
 
-  /// 1,234,000원 꼴로 보여준다.
-  String _formatWon(int amount) {
-    final digits = amount.toString();
-    final buffer = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
-      buffer.write(digits[i]);
-    }
-    return '$buffer원';
-  }
-
   Future<void> _submitReservation({required Zone? zone}) async {
     if (_selectedDate == null) {
       ScaffoldMessenger.of(
@@ -299,12 +289,8 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
     final user = ref.read(firebaseAuthProvider).currentUser;
     if (user == null) return;
 
+    // 종료일 계산은 서버(createReservation)가 한다. 말일 처리까지 서버 기준이다.
     final DateTime startAt = _selectedDate!;
-    final DateTime endAt = DateTime(
-      startAt.year,
-      startAt.month + _selectedMonth,
-      startAt.day,
-    );
 
     final storageId = widget.storage.id;
     final ownerId = widget.storage.ownerId;
@@ -414,8 +400,27 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
           ),
           if (zone != null) ...[
             const SizedBox(height: 4),
+            // 크기가 제각각인 구역들이라, 면적과 ㎡당 가격이 비교 기준이 된다.
             Text(
-              '월 ${_formatWon(zone.price)}',
+              '${formatZoneSize(zone.width, zone.height)} · '
+              '${formatArea(zone.width * zone.height)}',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              areaHint(zone.width * zone.height),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '월 ${formatWon(zone.price)} · '
+              '${formatPricePerSqm(zone.price, zone.width * zone.height)}',
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -425,7 +430,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
             // 신청 전에 총액을 보여준다. 이 금액이 예약에 그대로 저장된다.
             Text(
               '$_selectedMonth개월 총 '
-              '${_formatWon(zone.price * _selectedMonth)}',
+              '${formatWon(zone.price * _selectedMonth)}',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,

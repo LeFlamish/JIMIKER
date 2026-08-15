@@ -4,10 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:jimiker/data/models/storage.dart';
 
+/// 도면 상태. **좌표는 전부 미터(m), 원점은 건물 좌상단**이다.
+///
+/// 예전에는 화면 픽셀을 그대로 들고 있어서 "한 칸이 몇 m인지"가 어디에도
+/// 없었고, 저장된 도면이 에디터 캔버스 크기에 묶여 있었다. 이제 화면 변환은
+/// 그리는 쪽(위젯)이 ppm(픽셀/미터)으로 알아서 한다.
 class DrawProviderData {
   final List<Line> lines;
   final Set<Offset> doors;
   final bool isDraw;
+
+  /// 건물 실측 크기(m). 등록 시작 때 주인이 입력한다.
   final double height;
   final double width;
 
@@ -37,7 +44,7 @@ class DrawProviderData {
 }
 
 final drawProvider = NotifierProvider<DrawNotifier, DrawProviderData>(
-      () => DrawNotifier(),
+  () => DrawNotifier(),
 );
 
 class DrawNotifier extends Notifier<DrawProviderData> {
@@ -46,11 +53,37 @@ class DrawNotifier extends Notifier<DrawProviderData> {
     return DrawProviderData();
   }
 
-  TransformedData? _transformedData;
-
   void reset() {
-    _transformedData = null;
     state = DrawProviderData();
+  }
+
+  /// 건물 실측 크기를 정한다. 벽이 하나도 없으면 외곽 네 벽을 만들어준다.
+  ///
+  /// 창고는 대부분 직사각형이라, 외곽을 자동으로 그려주면 주인은 내부
+  /// 칸막이만 그리면 된다. 외곽이 입력값에서 나오므로 시작부터 실측이다.
+  void setBuildingSize(double widthM, double heightM) {
+    final needOutline = state.lines.isEmpty;
+
+    final outline = needOutline
+        ? [
+            Line(start: const Offset(0, 0), end: Offset(widthM, 0)),
+            Line(
+              start: Offset(widthM, 0),
+              end: Offset(widthM, heightM),
+            ),
+            Line(
+              start: Offset(widthM, heightM),
+              end: Offset(0, heightM),
+            ),
+            Line(start: Offset(0, heightM), end: const Offset(0, 0)),
+          ]
+        : state.lines;
+
+    state = state.copyWith(
+      width: widthM,
+      height: heightM,
+      lines: outline,
+    );
   }
 
   void setDrawing({
@@ -59,7 +92,6 @@ class DrawNotifier extends Notifier<DrawProviderData> {
     required double width,
     required double height,
   }) {
-    _transformedData = null;
     state = state.copyWith(
       lines: lines,
       doors: doors,
@@ -80,6 +112,16 @@ class DrawNotifier extends Notifier<DrawProviderData> {
     state = state.copyWith(lines: state.lines.toList()..remove(line));
   }
 
+  /// 벽 하나를 교체한다. (길이 수정에 쓴다)
+  void replaceLine(Line oldLine, Line newLine) {
+    state = state.copyWith(
+      lines: [
+        for (final line in state.lines)
+          if (line == oldLine) newLine else line,
+      ],
+    );
+  }
+
   void addDoor(Offset door) {
     state = state.copyWith(doors: {...state.doors, door});
   }
@@ -93,116 +135,4 @@ class DrawNotifier extends Notifier<DrawProviderData> {
       doors: state.doors.toSet()..removeAll(doors),
     );
   }
-
-  void shiftDrawing(Offset offset) {
-    if (offset == Offset.zero) {
-      return;
-    }
-
-    final shiftedLines =
-    state.lines
-        .map(
-          (line) => Line(
-        start: line.start + offset,
-        end: line.end + offset,
-      ),
-    )
-        .toList();
-    final shiftedDoors =
-    state.doors.map((door) => door + offset).toSet();
-
-    state = state.copyWith(
-      lines: shiftedLines,
-      doors: shiftedDoors,
-    );
-  }
-
-  Offset getTransformedDataWithMargin(double margin) {
-    if (state.lines.isEmpty) {
-      _transformedData = TransformedData(
-        shiftedLines: [],
-        shiftedDoors: {},
-        width: 0,
-        height: 0,
-      );
-      return Offset.zero;
-    }
-
-    // 모든 점 수집
-    final allPoints =
-        state.lines
-            .expand((line) => [line.start, line.end])
-            .toList() +
-            state.doors.toList();
-
-    // 최소/최대 좌표 계산
-    final minX = allPoints
-        .map((p) => p.dx)
-        .reduce((a, b) => a < b ? a : b);
-    final minY = allPoints
-        .map((p) => p.dy)
-        .reduce((a, b) => a < b ? a : b);
-    final maxX = allPoints
-        .map((p) => p.dx)
-        .reduce((a, b) => a > b ? a : b);
-    final maxY = allPoints
-        .map((p) => p.dy)
-        .reduce((a, b) => a > b ? a : b);
-
-    final dxOffset = 60 - minX;
-    final dyOffset = 60 - minY;
-
-    // 이동된 선과 문 생성
-    final shiftedLines = state.lines
-        .map(
-          (line) => Line(
-        start: Offset(
-          line.start.dx + dxOffset,
-          line.start.dy + dyOffset,
-        ),
-        end: Offset(
-          line.end.dx + dxOffset,
-          line.end.dy + dyOffset,
-        ),
-      ),
-    )
-        .toList();
-
-    final shiftedDoors = state.doors
-        .map((door) => Offset(door.dx + dxOffset, door.dy + dyOffset))
-        .toSet();
-
-    final width = (maxX - minX) + 120; // 왼쪽 50, 오른쪽 50 마진 포함
-    final height = (maxY - minY) + 120;
-
-    _transformedData = TransformedData(
-      shiftedLines: shiftedLines,
-      shiftedDoors: shiftedDoors,
-      width: width,
-      height: height,
-    );
-
-    state = state.copyWith(
-      lines: shiftedLines,
-      doors: shiftedDoors,
-      width: width,
-      height: height,
-    );
-
-    return Offset(dxOffset, dyOffset);
-  }
-}
-
-class TransformedData {
-  final List<Line> shiftedLines;
-  final Set<Offset> shiftedDoors;
-  final double width;
-  final double height;
-
-  TransformedData({
-    required this.shiftedLines,
-    required this.shiftedDoors,
-    required this.width,
-    required this.height,
-  });
 }
