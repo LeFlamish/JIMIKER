@@ -35,7 +35,7 @@ class ReservationReviewScreen extends ConsumerStatefulWidget {
 
 class _ReservationReviewScreenState
     extends ConsumerState<ReservationReviewScreen> {
-  static const Color _primary = Color(0xFF6B66FF);
+  static const Color _primary = Color(0xFF6B7AF5);
 
   /// 승인·거절 후 화면이 바로 새 상태를 보여주기 위한 로컬 상태.
   late Status _status = widget.reservation.status;

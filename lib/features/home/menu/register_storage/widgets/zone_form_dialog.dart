@@ -132,7 +132,7 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
         ElevatedButton(
           onPressed: _submit,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF6B66FF),
+            backgroundColor: const Color(0xFF6B7AF5),
           ),
           child: Text(widget.zone == null ? '추가' : '수정'),
         ),
@@ -175,7 +175,7 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF6B66FF),
+              color: Color(0xFF6B7AF5),
             ),
           ),
           const SizedBox(height: 3),

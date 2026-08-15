@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -283,11 +282,10 @@ class AuthController extends Notifier<AppUser?> {
           '307056666844-utebfqasio8tbua4lioi8i0isk4dpji5.apps.googleusercontent.com',
     );
 
-    final GoogleSignInAccount? googleUser = await signIn
-        .authenticate();
-    if (googleUser == null) return false;
+    // authenticate()는 취소하면 예외를 던지지, null을 돌려주지 않는다.
+    final GoogleSignInAccount googleUser = await signIn.authenticate();
 
-    final googleAuth = await googleUser.authentication;
+    final googleAuth = googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
       idToken: googleAuth.idToken,
     );
@@ -307,9 +305,9 @@ class AuthController extends Notifier<AppUser?> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => WillPopScope(
-        onWillPop: () async => false,
-        child: const Center(child: CircularProgressIndicator()),
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(child: CircularProgressIndicator()),
       ),
     );
 

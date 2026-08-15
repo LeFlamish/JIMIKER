@@ -231,7 +231,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                   label: const Text("도면 수정"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isLayoutEditing
-                        ? const Color(0xFF6B66FF)
+                        ? const Color(0xFF6B7AF5)
                         : Colors.grey.shade400,
                     foregroundColor: Colors.white,
                   ),
@@ -253,7 +253,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                   label: const Text("구역 수정"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: !_isLayoutEditing
-                        ? const Color(0xFF6B66FF)
+                        ? const Color(0xFF6B7AF5)
                         : Colors.grey.shade400,
                     foregroundColor: Colors.white,
                   ),
@@ -643,9 +643,9 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
         height: zonePx.height,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: const Color(0x336B66FF),
+          color: const Color(0x336B7AF5),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: const Color(0xFF6B66FF)),
+          border: Border.all(color: const Color(0xFF6B7AF5)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -653,7 +653,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
             Text(
               zone.index,
               style: const TextStyle(
-                color: Color(0xFF6B66FF),
+                color: Color(0xFF6B7AF5),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -661,7 +661,7 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
               Text(
                 formatZoneSize(zone.width, zone.height),
                 style: const TextStyle(
-                  color: Color(0xFF6B66FF),
+                  color: Color(0xFF6B7AF5),
                   fontSize: 10,
                 ),
               ),

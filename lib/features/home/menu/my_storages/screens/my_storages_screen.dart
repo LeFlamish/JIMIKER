@@ -116,7 +116,7 @@ class _MyStoragesScreenState extends ConsumerState<MyStoragesScreen> {
                 minHeight: 3,
                 color: theme.colorScheme.primary,
                 backgroundColor: theme.colorScheme.primary
-                    .withOpacity(0.12),
+                    .withValues(alpha: 0.12),
               ),
             )
           : null,

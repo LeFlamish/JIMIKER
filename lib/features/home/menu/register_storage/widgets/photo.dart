@@ -8,7 +8,11 @@ class PhotoButton extends StatelessWidget {
   final VoidCallback onTap;
   final int pickedCount;
 
-  const PhotoButton({required this.onTap, required this.pickedCount});
+  const PhotoButton({
+    super.key,
+    required this.onTap,
+    required this.pickedCount,
+  });
 
   @override
   Widget build(BuildContext context) {

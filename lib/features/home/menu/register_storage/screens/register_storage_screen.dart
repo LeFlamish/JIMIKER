@@ -207,7 +207,7 @@ class _RegisterStorageScreenState
                               label: const Text("구역 추가"),
                               style: TextButton.styleFrom(
                                 foregroundColor: const Color(
-                                  0xFF6B66FF,
+                                  0xFF6B7AF5,
                                 ),
                               ),
                             ),
@@ -307,7 +307,7 @@ class _RegisterStorageScreenState
                 icon: const Icon(Icons.draw_outlined),
                 label: const Text("건물 내부 구조 그리기"),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6B66FF),
+                  backgroundColor: const Color(0xFF6B7AF5),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
@@ -363,7 +363,7 @@ class _RegisterStorageScreenState
                   ),
                   child: const Icon(
                     Icons.dashboard_customize,
-                    color: Color(0xFF6B66FF),
+                    color: Color(0xFF6B7AF5),
                   ),
                 ),
                 const SizedBox(width: 15),
@@ -392,7 +392,7 @@ class _RegisterStorageScreenState
                         '월 ${formatWon(zone.price)} · '
                         '${formatPricePerSqm(zone.price, zone.width * zone.height)}',
                         style: const TextStyle(
-                          color: Color(0xFF6B66FF),
+                          color: Color(0xFF6B7AF5),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -450,9 +450,9 @@ class _RegisterStorageScreenState
             height: zoneH,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: const Color(0x336B66FF),
+              color: const Color(0x336B7AF5),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFF6B66FF)),
+              border: Border.all(color: const Color(0xFF6B7AF5)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -460,7 +460,7 @@ class _RegisterStorageScreenState
                 Text(
                   zone.index,
                   style: const TextStyle(
-                    color: Color(0xFF6B66FF),
+                    color: Color(0xFF6B7AF5),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -468,7 +468,7 @@ class _RegisterStorageScreenState
                   Text(
                     formatZoneSize(zone.width, zone.height),
                     style: const TextStyle(
-                      color: Color(0xFF6B66FF),
+                      color: Color(0xFF6B7AF5),
                       fontSize: 10,
                     ),
                   ),
@@ -593,6 +593,7 @@ class _RegisterStorageScreenState
         );
       }
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("등록 요청이 완료되었습니다.")),
       );
@@ -688,7 +689,7 @@ class _RegisterStorageScreenState
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6B66FF),
+              backgroundColor: const Color(0xFF6B7AF5),
               foregroundColor: Colors.white,
             ),
             child: const Text('수정하고 재심사 받기'),
@@ -823,7 +824,7 @@ class _RegisterStorageScreenState
       onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, color: const Color(0xFF6B66FF)),
+        prefixIcon: Icon(icon, color: const Color(0xFF6B7AF5)),
         filled: true,
         fillColor: Colors.white,
         enabledBorder: OutlineInputBorder(
@@ -832,7 +833,7 @@ class _RegisterStorageScreenState
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF6B66FF)),
+          borderSide: const BorderSide(color: Color(0xFF6B7AF5)),
         ),
       ),
     );
@@ -903,7 +904,7 @@ class _RegisterStorageScreenState
           child: Ink(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF6B66FF), Color(0xFF8FD3F4)],
+                colors: [Color(0xFF6B7AF5), Color(0xFF8FD3F4)],
               ),
               borderRadius: BorderRadius.circular(16),
             ),
@@ -1086,7 +1087,7 @@ class _BuildingSizeDialogState extends State<_BuildingSizeDialog> {
         ElevatedButton(
           onPressed: _submit,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF6B66FF),
+            backgroundColor: const Color(0xFF6B7AF5),
             foregroundColor: Colors.white,
           ),
           child: const Text('도면 그리기'),

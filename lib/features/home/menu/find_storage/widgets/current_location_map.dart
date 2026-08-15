@@ -117,7 +117,7 @@ class _CurrentLocationMapState
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -186,6 +186,7 @@ class _CurrentLocationMapState
         SnackBar(content: Text('구역 정보를 불러오지 못했어요: $error')),
       );
     }
+    if (!mounted) return;
     showModalBottomSheet<void>(
       context: context,
       enableDrag: false,

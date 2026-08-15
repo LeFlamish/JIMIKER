@@ -32,11 +32,12 @@ class JimikerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: '지미커',
       theme: ThemeData(
+        // 화면들이 쓰는 브랜드 보라(6B7AF5)와 배경(F5F6FA)에 맞춘다.
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF5E5BFF),
+          seedColor: const Color(0xFF6B7AF5),
         ),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+        scaffoldBackgroundColor: const Color(0xFFF5F6FA),
       ),
       home: HomeScreen(),
     );

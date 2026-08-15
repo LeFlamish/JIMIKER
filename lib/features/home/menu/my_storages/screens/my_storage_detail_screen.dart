@@ -517,8 +517,8 @@ class MyStorageDetailScreen extends ConsumerWidget {
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF6B66FF),
-                    side: const BorderSide(color: Color(0xFF6B66FF)),
+                    foregroundColor: const Color(0xFF6B7AF5),
+                    side: const BorderSide(color: Color(0xFF6B7AF5)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

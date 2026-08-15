@@ -41,7 +41,7 @@ class _StorageBottomSheetState
     _maxExtent,
   ];
 
-  static const Color _primary = Color(0xFF6B66FF);
+  static const Color _primary = Color(0xFF6B7AF5);
 
   double _currentExtent = _initialExtent;
   bool _isDragging = false;

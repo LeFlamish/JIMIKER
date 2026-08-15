@@ -91,7 +91,7 @@ class MyUsagesNotifier extends Notifier<MyUsagesState> {
       debugPrint('Failed to load usages: $error\n$stackTrace');
       state = state.copyWith(
         isLoading: false,
-        errorMessage: '이용 중인 보관함을 불러오지 못했어요.',
+        errorMessage: '이용 중인 창고를 불러오지 못했어요.',
       );
     }
   }

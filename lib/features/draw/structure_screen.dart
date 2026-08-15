@@ -106,10 +106,10 @@ class StructureScreen extends ConsumerWidget {
           decoration: BoxDecoration(
             color: isSelected
                 ? const Color(0xFF48CAE4).withValues(alpha: 0.35)
-                : const Color(0x336B66FF),
+                : const Color(0x336B7AF5),
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: const Color(0xFF6B66FF),
+              color: const Color(0xFF6B7AF5),
               width: isSelected ? 2.5 : 1,
             ),
           ),
@@ -119,7 +119,7 @@ class StructureScreen extends ConsumerWidget {
               Text(
                 zone.index,
                 style: const TextStyle(
-                  color: Color(0xFF6B66FF),
+                  color: Color(0xFF6B7AF5),
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -128,7 +128,7 @@ class StructureScreen extends ConsumerWidget {
                 Text(
                   formatZoneSize(zone.width, zone.height),
                   style: const TextStyle(
-                    color: Color(0xFF6B66FF),
+                    color: Color(0xFF6B7AF5),
                     fontSize: 10,
                   ),
                 ),

@@ -43,7 +43,7 @@ class EndedUsageCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -132,7 +132,7 @@ class EndedUsageCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          "보관함 ${usage.containerIndex}번",
+                          "${usage.containerIndex} 구역",
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -267,25 +267,24 @@ class _EndedUsageListScreenState
     );
   }
 
+  // ListView라야 빈 화면에서도 당겨서 새로고침이 된다.
   Widget _buildEmptyView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 56,
-            color: Colors.grey.shade300,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '이용 기록이 없습니다.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
-          ),
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const SizedBox(height: 100),
+        Icon(
+          Icons.inventory_2_outlined,
+          size: 56,
+          color: Colors.grey.shade300,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '지난 이용 내역이 없어요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey.shade600),
+        ),
+      ],
     );
   }
 }

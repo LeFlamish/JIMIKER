@@ -23,7 +23,7 @@ class Storage {
   final double width;
   final double height;
 
-  /// {lines: List<Line>, doors: Set<Offset>} — 좌표는 전부 m,
+  /// `{lines: List<Line>, doors: Set<Offset>}` — 좌표는 전부 m,
   /// 원점은 건물 좌상단이다.
   final Map<String, dynamic> layout;
   final bool approved;

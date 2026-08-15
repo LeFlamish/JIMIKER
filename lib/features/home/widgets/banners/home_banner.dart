@@ -1,8 +1,18 @@
 // lib/features/home/widgets/home_banner.dart
 import 'package:flutter/material.dart';
 
+/// 홈 상단 배너 한 장. 캐러셀이 문구만 바꿔서 여러 장 돌린다.
 class HomeBanner extends StatelessWidget {
-  const HomeBanner({super.key});
+  const HomeBanner({
+    super.key,
+    required this.badge,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String badge;
+  final String title;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +23,7 @@ class HomeBanner extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF5E5BFF), Color(0xFF7AE8D6)],
+          colors: [Color(0xFF6B7AF5), Color(0xFF7AE8D6)],
         ),
       ),
       child: Stack(
@@ -24,22 +34,14 @@ class HomeBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: const [
-                    Text(
-                      'JIMIKER',
-                      style: TextStyle(
-                        fontSize: 12,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white70,
-                      ),
-                    ),
-                    Spacer(),
-                    Icon(Icons.notifications_none, color: Colors.white),
-                    SizedBox(width: 12),
-                    Icon(Icons.lock_outline, color: Colors.white),
-                  ],
+                const Text(
+                  'JIMIKER',
+                  style: TextStyle(
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white70,
+                  ),
                 ),
                 const SizedBox(height: 18),
                 Container(
@@ -51,9 +53,9 @@ class HomeBanner extends StatelessWidget {
                     color: Colors.white24,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text(
-                    '지미커 사용 방법 확인',
-                    style: TextStyle(
+                  child: Text(
+                    badge,
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -61,9 +63,9 @@ class HomeBanner extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '지미커 사용자 가이드',
-                  style: TextStyle(
+                Text(
+                  title,
+                  style: const TextStyle(
                     fontSize: 18,
                     height: 1.3,
                     fontWeight: FontWeight.bold,
@@ -71,10 +73,9 @@ class HomeBanner extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '창고를 공유하고 싶은 공간 소유자도,\n'
-                  '창고를 사용하고 싶은 공간 수요자도.',
-                  style: TextStyle(
+                Text(
+                  subtitle,
+                  style: const TextStyle(
                     fontSize: 11,
                     height: 1.4,
                     color: Colors.white70,
@@ -96,7 +97,9 @@ class HomeBanner extends StatelessWidget {
                   margin: EdgeInsets.only(left: index == 0 ? 0 : 8),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(30),
-                    color: Colors.white.withValues(alpha: 0.9 - index * 0.15),
+                    color: Colors.white.withValues(
+                      alpha: 0.9 - index * 0.15,
+                    ),
                   ),
                 );
               }),

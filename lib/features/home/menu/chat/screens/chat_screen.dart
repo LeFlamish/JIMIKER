@@ -20,6 +20,26 @@ class ChatScreen extends StatelessWidget {
     final chatService = ChatService(FirebaseFirestore.instance);
 
     return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('채팅'),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        titleTextStyle: const TextStyle(
+          color: Color(0xFF222222),
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: Colors.black,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: chatService.streamChatRooms(user.uid),
@@ -27,7 +47,16 @@ class ChatScreen extends StatelessWidget {
             if (snapshot.hasError) {
               // 콘솔에서 에러 메시지 확인
               debugPrint('chat rooms error: ${snapshot.error}');
-              return Center(child: Text('에러: ${snapshot.error}'));
+              return Center(
+                child: Text(
+                  '채팅 목록을 불러오지 못했어요.\n잠시 후 다시 열어주세요.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    height: 1.5,
+                  ),
+                ),
+              );
             }
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -45,7 +74,27 @@ class ChatScreen extends StatelessWidget {
                   });
 
             if (rooms.isEmpty) {
-              return const Center(child: Text('열려있는 채팅방이 없습니다.'));
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.chat_bubble_outline,
+                      size: 56,
+                      color: Colors.grey.shade300,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '아직 대화가 없어요.\n예약하거나 예약을 받으면 1:1 대화가 열려요.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              );
             }
 
             return ListView.separated(

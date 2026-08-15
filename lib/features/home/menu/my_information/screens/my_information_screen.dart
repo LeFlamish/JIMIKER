@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/data/services/deletion_service.dart';
 import 'package:jimiker/features/auth/terms/terms_document_screen.dart';
+import 'package:jimiker/features/auth/terms/terms_documents.dart';
 import 'package:jimiker/features/home/menu/my_information/profile_edit/screens/profile_edit_screen.dart';
 import 'package:jimiker/services/auth_providers.dart';
 
 class MyInformationScreen extends ConsumerWidget {
   const MyInformationScreen({super.key});
 
-  // 브랜드 컬러 정의 (스크린샷 기반 추정)
-  final Color primaryPurple = const Color(0xFF6A65F6); // 메인 보라색
-  final Color gradientStart = const Color(0xFF6A65F6);
+  // 브랜드 컬러
+  final Color primaryPurple = const Color(0xFF6B7AF5);
+  final Color gradientStart = const Color(0xFF6B7AF5);
   final Color gradientEnd = const Color(0xFF82D8FF); // 메인 하늘색
-  final Color backgroundColor = const Color(0xFFF5F5F5); // 배경 연회색
+  final Color backgroundColor = const Color(0xFFF5F6FA);
   final Color textDark = const Color(0xFF222222);
 
   @override
@@ -91,10 +93,15 @@ class MyInformationScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    _buildMenuTile(Icons.notifications_none, "알림 설정"),
+                    _buildMenuTile(
+                      Icons.notifications_none,
+                      "알림 설정",
+                      onTap: () => _showNotificationGuide(context),
+                    ),
                     _buildMenuTile(
                       Icons.headset_mic_outlined,
                       "고객센터 / 문의하기",
+                      onTap: () => _showContactDialog(context),
                     ),
                     _buildMenuTile(
                       Icons.info_outline,
@@ -154,7 +161,7 @@ class MyInformationScreen extends ConsumerWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: gradientStart.withOpacity(0.3),
+            color: gradientStart.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -168,7 +175,7 @@ class MyInformationScreen extends ConsumerWidget {
             height: 60,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
             ),
             child: Container(
               width: 60,
@@ -221,20 +228,97 @@ class MyInformationScreen extends ConsumerWidget {
               ),
             ],
           ),
-          // const Spacer(),
-          // // 수정 아이콘
-          // Container(
-          //   padding: const EdgeInsets.all(8),
-          //   decoration: BoxDecoration(
-          //     color: Colors.white.withOpacity(0.2),
-          //     borderRadius: BorderRadius.circular(12),
-          //   ),
-          //   child: const Icon(
-          //     Icons.edit,
-          //     color: Colors.white,
-          //     size: 18,
-          //   ),
-          // ),
+        ],
+      ),
+    );
+  }
+
+  /// 알림은 앱 안이 아니라 기기 설정에서 켜고 끈다. 가는 길을 알려준다.
+  void _showNotificationGuide(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('알림 설정'),
+        content: const Text(
+          '예약 승인·채팅 같은 알림은 기기 설정에서 켜고 끌 수 있어요.\n\n'
+          '설정 → 애플리케이션 → 지미커 → 알림',
+          style: TextStyle(height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 문의 창구. 메일 주소를 바로 복사할 수 있게 한다.
+  void _showContactDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('고객센터 / 문의하기'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '이용 중 불편한 점이나 궁금한 점은\n아래 메일로 보내주세요.',
+              style: TextStyle(height: 1.5),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F6FA),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                contactEmail,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              '닫기',
+              style: TextStyle(color: Colors.grey[700]),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(
+                const ClipboardData(text: contactEmail),
+              );
+              if (!dialogContext.mounted) return;
+              Navigator.of(dialogContext).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('메일 주소를 복사했어요.')),
+              );
+            },
+            child: const Text(
+              '주소 복사',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );
@@ -253,7 +337,7 @@ class MyInformationScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16), // 스크린샷의 둥근 모서리 반영
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -299,7 +383,8 @@ class MyInformationScreen extends ConsumerWidget {
         ),
         title: const Text('회원 탈퇴'),
         content: const Text(
-          '탈퇴하면 프로필과 등록한 창고가 삭제돼요.\n'
+          '탈퇴하면 프로필 정보가 지워지고, 등록한 창고는 '
+          '지도와 목록에서 내려가요.\n'
           '이미 끝난 거래 기록은 상대방에게도 필요해서 남지만, '
           '내 이름은 "탈퇴한 사용자"로 바뀝니다.\n\n'
           '되돌릴 수 없어요. 정말 탈퇴할까요?',
