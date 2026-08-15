@@ -58,9 +58,9 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBGdGO7UYnz058HpY8w6Sc-u_n471KwjKI',
-    // com.jimiker.app 으로 등록된 앱. (예전 com.example.jimiker 앱은
-    // 1:307056666844:android:7c7a25bc2e5e5658b36c19 이었다)
-    appId: '1:307056666844:android:dfff25d8248259f4b36c19',
+    // com.jimiker2.app 으로 등록된 앱.
+    // (com.example.jimiker · com.jimiker.app 시절 앱은 쓰지 않는다)
+    appId: '1:307056666844:android:440489dee2c2d8c2b36c19',
     messagingSenderId: '307056666844',
     projectId: 'jimiker-ssdev',
     storageBucket: 'jimiker-ssdev.firebasestorage.app',

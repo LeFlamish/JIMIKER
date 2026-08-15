@@ -14,38 +14,6 @@
       },
       "oauth_client": [
         {
-          "client_id": "307056666844-7m9crbkh81dqjat75dgml49m1k0l3vud.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.jimiker",
-            "certificate_hash": "1173d58781a031436d2fe71bb02c948c36d83eab"
-          }
-        },
-        {
-          "client_id": "307056666844-o1lijrcn3q69u9lqgh64k17p2tjuild2.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.jimiker",
-            "certificate_hash": "7b938e75979a5770ecfe874f141358b68b5d8dab"
-          }
-        },
-        {
-          "client_id": "307056666844-o8b4gk4c4l47hsag059dcmrs9g4hoi4q.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.jimiker",
-            "certificate_hash": "f547b64b5c445a18bc02eb6c068a1be7ea6a1201"
-          }
-        },
-        {
-          "client_id": "307056666844-qn6au0s6u4b3t0fasnm8l8trte5bsmom.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.jimiker",
-            "certificate_hash": "5bf861176e8f07003e70b613df2b7cd223ff59ab"
-          }
-        },
-        {
           "client_id": "307056666844-utebfqasio8tbua4lioi8i0isk4dpji5.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -81,6 +49,82 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "307056666844-scvcekglnq4onm1m0adc31maoicoek3m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.jimiker.app",
+            "certificate_hash": "5bf861176e8f07003e70b613df2b7cd223ff59ab"
+          }
+        },
+        {
+          "client_id": "307056666844-utebfqasio8tbua4lioi8i0isk4dpji5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGdGO7UYnz058HpY8w6Sc-u_n471KwjKI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "307056666844-utebfqasio8tbua4lioi8i0isk4dpji5.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "307056666844-4o83s8ljdoe2vhr1ubhq9rqg0jgap16q.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.jimiker"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:307056666844:android:440489dee2c2d8c2b36c19",
+        "android_client_info": {
+          "package_name": "com.jimiker2.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "307056666844-d1nvpnvcusugm7fafks20e63hr2u1q5h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.jimiker2.app",
+            "certificate_hash": "5bf861176e8f07003e70b613df2b7cd223ff59ab"
+          }
+        },
+        {
+          "client_id": "307056666844-j3bnb8d1a75vfuhn1r00ghhao50k85s9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.jimiker2.app",
+            "certificate_hash": "f547b64b5c445a18bc02eb6c068a1be7ea6a1201"
+          }
+        },
+        {
+          "client_id": "307056666844-joh64ibsks28apbvig0rsf9adlrmch8k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.jimiker2.app",
+            "certificate_hash": "1173d58781a031436d2fe71bb02c948c36d83eab"
+          }
+        },
+        {
+          "client_id": "307056666844-tspceltnf0lusl1dkl3elhoj2ugq410v.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.jimiker2.app",
+            "certificate_hash": "7b938e75979a5770ecfe874f141358b68b5d8dab"
+          }
+        },
         {
           "client_id": "307056666844-utebfqasio8tbua4lioi8i0isk4dpji5.apps.googleusercontent.com",
           "client_type": 3

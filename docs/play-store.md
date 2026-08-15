@@ -7,39 +7,45 @@
 
 ## 1. 업로드가 막히는 것
 
-### ✅ 패키지명 → `com.jimiker.app`
+### ✅ 패키지명 → `com.jimiker2.app`
 
 `com.example.jimiker`에서 바꿨다. Play는 `com.example`로 시작하는 패키지를
 받지 않는다. **한 번 올리면 영원히 못 바꾸므로 다시 손대지 말 것.**
 
 바뀐 곳:
 - `android/app/build.gradle.kts` — applicationId, namespace
-- `android/app/src/main/kotlin/com/jimiker/app/MainActivity.kt` — 패키지 · 경로
+- `android/app/src/main/kotlin/com/jimiker2/app/MainActivity.kt` — 패키지 · 경로
 - `android/app/google-services.json` — 새 앱 등록 포함
 - `lib/services/firebase_options.dart` · `firebase.json` — android appId
 
 Firestore 데이터, Storage 파일, Auth 가입자(UID 포함), Functions는 그대로다.
 
-#### ☐ 새 패키지의 SHA-1 등록 (안 하면 구글 로그인이 안 된다)
+> 이름에 `2`가 붙은 이유: `com.jimiker.app`으로 SHA-1을 등록하려니
+> "다른 프로젝트에 같은 SHA-1 + 패키지명 조합이 있다"는 경고가 떴다.
+> 조합이 겹치면 구글 로그인이 엉뚱한 OAuth 클라이언트로 붙을 수 있어
+> 패키지명을 바꿔 피했다.
 
-받은 `google-services.json`의 `com.jimiker.app` 항목에는 웹 클라이언트
-(`client_type: 3`)만 있고 **Android 클라이언트(`client_type: 1`)가 없다.**
-= SHA-1이 등록되지 않았다는 뜻이다.
+#### ✅ SHA-1 등록 완료
+
+`com.jimiker2.app`에 디버그 인증서 지문 4개가 등록돼 있다.
+(`google-services.json`의 `client_type: 1` 항목 4개)
+
+나중에 다른 PC에서 빌드하면 그 기기의 디버그 지문을 추가해야 한다.
 
 ```bash
 cd C:\JIMIKER\android
 gradlew signingReport      # Variant: debug 의 SHA1 복사
 ```
 
-Firebase 콘솔 → 프로젝트 설정 → `com.jimiker.app` 앱 → **디지털 지문 추가**
+Firebase 콘솔 → 프로젝트 설정 → `com.jimiker2.app` 앱 → **디지털 지문 추가**
 
-> `google-services.json`을 다시 받지 않아도 된다. SHA-1은 구글 서버 쪽
-> 설정이고, 앱에 들어가는 값이 아니다. (다시 받아도 무해하다)
+> 지문을 추가한 뒤 `google-services.json`을 다시 받지 않아도 된다.
+> SHA-1은 구글 서버 쪽 설정이고 앱에 들어가는 값이 아니다.
 
 #### ☐ Maps 키 제한 변경
 
 Google Cloud Console → 사용자 인증 정보 → Maps 키 →
-애플리케이션 제한을 `com.jimiker.app` + 같은 SHA-1로 바꾼다.
+애플리케이션 제한을 `com.jimiker2.app` + 같은 SHA-1로 바꾼다.
 안 바꾸면 지도가 회색으로 나온다.
 
 #### iOS는 아직 그대로

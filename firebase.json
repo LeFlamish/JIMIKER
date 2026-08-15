@@ -4,7 +4,7 @@
       "android": {
         "default": {
           "projectId": "jimiker-ssdev",
-          "appId": "1:307056666844:android:dfff25d8248259f4b36c19",
+          "appId": "1:307056666844:android:440489dee2c2d8c2b36c19",
           "fileOutput": "android/app/google-services.json"
         }
       },
@@ -12,7 +12,7 @@
         "lib/firebase_options.dart": {
           "projectId": "jimiker-ssdev",
           "configurations": {
-            "android": "1:307056666844:android:dfff25d8248259f4b36c19",
+            "android": "1:307056666844:android:440489dee2c2d8c2b36c19",
             "ios": "1:307056666844:ios:3b04f19968717ea7b36c19",
             "web": "1:307056666844:web:46f45168f3e37b42b36c19"
           }
