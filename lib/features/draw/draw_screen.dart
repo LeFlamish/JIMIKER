@@ -44,8 +44,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   // 드래그 시작 기준(포인터/오프셋)을 저장해서 튐·누적 오차를 막는다.
   final Map<String, Offset> _zoneDragStartOffsets = {};
   final Map<String, Offset> _zoneDragStartPointers = {};
-  final Map<String, Size> _zoneResizeStartSizes = {};
-  final Map<String, Offset> _zoneResizeStartPointers = {};
 
   double get _buildingW => ref.read(drawProvider).width;
   double get _buildingH => ref.read(drawProvider).height;
@@ -131,6 +129,13 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                     minScale: 0.2,
                     maxScale: 3.0,
                     constrained: false,
+                    // 축소된 캔버스가 화면보다 작아지면 InteractiveViewer가
+                    // 경계 보정으로 내용물을 좌상단에 붙여버린다. 터치할 때마다
+                    // 도면이 위로 튕기던 원인. 경계 제한을 풀어서 캔버스가
+                    // 화면 가운데 그대로 있게 한다.
+                    boundaryMargin: const EdgeInsets.all(
+                      double.infinity,
+                    ),
                     clipBehavior: Clip.none,
                     child: SizedBox(
                       width: canvas.width,
@@ -618,7 +623,11 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   }
 
   // ==========================
-  // 구역 오버레이 (이동·크기 조절·복제)
+  // 구역 오버레이 (이동·복제)
+  //
+  // 크기 변경은 여기서 하지 않는다. 도면 위에서 구역을 잡아 늘이는 건
+  // 이동 드래그와 헷갈리고 실수로 계약 조건(크기)이 바뀔 수 있어서,
+  // 크기는 등록 화면의 구역 설정에서만 숫자로 고친다.
   // ==========================
 
   List<Widget> _buildZoneOverlays({
@@ -658,77 +667,6 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
               ),
           ],
         ),
-      );
-
-      final withHandle = Stack(
-        clipBehavior: Clip.none,
-        children: [
-          content,
-          // 우하단 크기 조절 핸들. 끌면 0.5m 단위로 늘고 준다.
-          Positioned(
-            right: -6,
-            bottom: -6,
-            child: GestureDetector(
-              onPanStart: (details) {
-                _zoneResizeStartSizes[zone.index] = Size(
-                  zone.width,
-                  zone.height,
-                );
-                _zoneResizeStartPointers[zone.index] =
-                    details.globalPosition;
-              },
-              onPanUpdate: (details) {
-                final startSize =
-                    _zoneResizeStartSizes[zone.index] ??
-                    Size(zone.width, zone.height);
-                final startPointer =
-                    _zoneResizeStartPointers[zone.index] ??
-                    details.globalPosition;
-
-                final deltaPx =
-                    (details.globalPosition - startPointer) /
-                    _viewScale;
-
-                final newWidth = _snapValue(
-                  startSize.width + deltaPx.dx / _ppm,
-                ).clamp(_cellM, _buildingW - zone.x);
-                final newHeight = _snapValue(
-                  startSize.height + deltaPx.dy / _ppm,
-                ).clamp(_cellM, _buildingH - zone.y);
-
-                ref
-                    .read(zoneProvider.notifier)
-                    .updateZone(
-                      zone.copyWith(
-                        width: newWidth,
-                        height: newHeight,
-                      ),
-                    );
-              },
-              onPanEnd: (_) {
-                _zoneResizeStartSizes.remove(zone.index);
-                _zoneResizeStartPointers.remove(zone.index);
-              },
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFF6B66FF),
-                    width: 2,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.open_in_full,
-                  size: 12,
-                  color: Color(0xFF6B66FF),
-                ),
-              ),
-            ),
-          ),
-        ],
       );
 
       return Positioned(
@@ -772,9 +710,9 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                   _zoneDragStartOffsets.remove(zone.index);
                   _zoneDragStartPointers.remove(zone.index);
                 },
-                child: withHandle,
+                child: content,
               )
-            : IgnorePointer(ignoring: true, child: withHandle),
+            : IgnorePointer(ignoring: true, child: content),
       );
     }).toList();
   }

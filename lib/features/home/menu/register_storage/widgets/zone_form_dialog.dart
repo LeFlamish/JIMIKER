@@ -82,14 +82,6 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
               ),
               const SizedBox(height: 14),
               _buildAreaPreview(),
-              const SizedBox(height: 6),
-              Text(
-                '크기는 도면에서 구역 모서리를 끌어서도 바꿀 수 있어요.',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: Colors.grey[500],
-                ),
-              ),
             ],
           ),
         ),
