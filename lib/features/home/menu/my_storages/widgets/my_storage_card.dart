@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jimiker/core/utils/space_units.dart';
 import 'package:jimiker/core/widgets/cached_image.dart';
+import 'package:jimiker/services/auth_providers.dart';
 
 import '../../../../../data/models/reservation.dart';
 import '../../../../../data/models/storage.dart';
@@ -230,6 +233,20 @@ class StorageWithReservationsCard extends StatelessWidget {
     String formatDate(DateTime d) =>
         "${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}";
 
+    // 계약 금액 스냅샷이 있는 예약만 금액 줄을 보여준다. (없으면 옛 기록)
+    final monthly = reservation.monthlyPrice;
+    final months = reservation.months;
+    final total =
+        reservation.totalPrice ??
+        (monthly != null && months != null ? monthly * months : null);
+    final priceLine = monthly == null
+        ? null
+        : [
+            '월 ${formatWon(monthly)}',
+            if (months != null) '$months개월',
+            if (total != null) '총 ${formatWon(total)}',
+          ].join(' · ');
+
     return GestureDetector(
       onTap: () => onReservationTap(reservation), // 탭 이벤트 전달
       child: Container(
@@ -248,8 +265,8 @@ class StorageWithReservationsCard extends StatelessWidget {
               children: [
                 Text(
                   reservation.containerIndex.isNotEmpty
-                      ? "보관함 ${reservation.containerIndex}"
-                      : "보관함",
+                      ? "${reservation.containerIndex} 구역"
+                      : "보관 구역",
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
@@ -259,6 +276,8 @@ class StorageWithReservationsCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
+            _buildRequesterLine(reservation),
+            const SizedBox(height: 4),
             Text(
               "${formatDate(reservation.startAt)} ~ ${formatDate(reservation.endAt)}",
               style: const TextStyle(
@@ -266,9 +285,20 @@ class StorageWithReservationsCard extends StatelessWidget {
                 color: Color(0xFF666666),
               ),
             ),
+            if (priceLine != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                priceLine,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF444444),
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             const Text(
-              "탭해서 승인 또는 거절할 수 있어요.",
+              "탭해서 요청을 검토할 수 있어요.",
               style: TextStyle(
                 fontSize: 11,
                 color: Color(0xFF999999),
@@ -277,6 +307,48 @@ class StorageWithReservationsCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// 누가 신청했는지 목록에서 바로 보이게 한다.
+  Widget _buildRequesterLine(Reservation reservation) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final requesterAsync = ref.watch(
+          userStreamProvider(reservation.userId),
+        );
+        final label = requesterAsync.when(
+          data: (user) {
+            final name = user?.nickName.trim() ?? '';
+            return name.isEmpty ? '알 수 없는 신청자' : '$name님의 신청';
+          },
+          loading: () => '신청자 확인 중…',
+          error: (_, __) => '신청자 정보를 불러오지 못했어요',
+        );
+
+        return Row(
+          children: [
+            const Icon(
+              Icons.person_outline,
+              size: 14,
+              color: Color(0xFF6B7AF5),
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF444444),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
