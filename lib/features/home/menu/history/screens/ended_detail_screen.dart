@@ -99,10 +99,14 @@ class EndedDetailScreen extends ConsumerWidget {
   }
 
   Widget _buildHistoryCard(WidgetRef ref) {
-    final zonesAsync = ref.watch(
-      storageZonesProvider(storage.id ?? ''),
-    );
-    final price = zonesAsync.maybeWhen(
+    // 계약할 때 박아둔 금액이 있으면 그것이 정답이다.
+    // 없는 건 이 필드가 생기기 전 기록이라, 그때만 구역의 현재 가격을
+    // 대신 읽는다. 주인이 그 사이 가격을 바꿨으면 다를 수 있어 표시로 알린다.
+    final agreedPrice = ended.monthlyPrice;
+    final zonesAsync = agreedPrice != null
+        ? null
+        : ref.watch(storageZonesProvider(storage.id ?? ''));
+    final currentPrice = zonesAsync?.maybeWhen(
       data: (zones) {
         for (final zone in zones) {
           if (zone.index == ended.containerIndex) return zone.price;
@@ -111,6 +115,8 @@ class EndedDetailScreen extends ConsumerWidget {
       },
       orElse: () => null,
     );
+
+    final price = agreedPrice ?? currentPrice;
 
     return DetailCard(
       child: Column(
@@ -130,9 +136,20 @@ class EndedDetailScreen extends ConsumerWidget {
           ),
           DetailInfoRow(label: '이용 개월', value: '$_months개월'),
           DetailInfoRow(
-            label: '당시 월 요금',
+            label: agreedPrice != null ? '계약 월 요금' : '현재 월 요금',
             value: price == null ? '정보 없음' : '$price원',
           ),
+          if (ended.totalPrice != null)
+            DetailInfoRow(
+              label: '총 이용 금액',
+              value: '${ended.totalPrice}원',
+            ),
+          if (agreedPrice == null && price != null)
+            const DetailInfoRow(
+              label: '',
+              value: '이 기록에는 계약 금액이 없어 현재 가격을 보여줍니다.',
+              valueColor: Color(0xFF888888),
+            ),
         ],
       ),
     );

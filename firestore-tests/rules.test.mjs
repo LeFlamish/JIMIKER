@@ -37,8 +37,8 @@ const BOSS = 'boss';   // 매니저
 /**
  * 예약 테스트가 쓰는 "정상 영업 중인 창고".
  *
- * 반려·삭제된 창고에는 예약을 만들 수 없게 막아뒀기 때문에,
- * 예약 자체를 확인하는 테스트에는 살아 있는 창고가 하나 필요하다.
+ * 예약 확정(update)은 살아 있는 창고에서만 되기 때문에,
+ * 예약 관련 테스트에는 살아 있는 창고가 하나 필요하다.
  * 창고 규칙 테스트와 섞이지 않도록 id를 따로 쓴다.
  */
 const OPEN_STORAGE = 'open1';
@@ -431,27 +431,13 @@ test('chat_rooms: 나를 참여자에서 빼는 수정은 막는다', async () =
 
 // ---------------------------------------------------------- reservations
 
-test('reservations: 본인 이름으로 waiting 상태만 만들 수 있다', async () => {
-  await assertSucceeds(
+test('reservations: 앱에서 직접 만들 수 없다 (서버 전용)', async () => {
+  // 기간 겹침은 규칙으로 볼 수 없어서 createReservation 함수가 만든다.
+  // 본인 이름에 waiting 상태여도, 살아 있는 창고여도 막혀야 한다.
+  await assertFails(
     setDoc(doc(asAlice(), 'reservations', 'r1'), {
       userId: ALICE,
       ownerId: BOB,
-      storageId: OPEN_STORAGE,
-      status: 'waiting',
-    }),
-  );
-  await assertFails(
-    setDoc(doc(asAlice(), 'reservations', 'r2'), {
-      userId: ALICE,
-      ownerId: BOB,
-      storageId: OPEN_STORAGE,
-      status: 'approved',
-    }),
-  );
-  await assertFails(
-    setDoc(doc(asAlice(), 'reservations', 'r3'), {
-      userId: BOB,
-      ownerId: CAROL,
       storageId: OPEN_STORAGE,
       status: 'waiting',
     }),
@@ -560,64 +546,6 @@ test('reservations: 제3자는 남의 예약을 지울 수 없다', async () => 
   await assertFails(deleteDoc(doc(asCarol(), 'reservations', 'r1')));
 });
 
-test('reservations: 반려된 창고에는 새로 예약할 수 없다', async () => {
-  // 목록에서는 사라졌어도 상세 화면을 열어둔 사람은 계속 신청할 수 있다.
-  await seed(async (db) => {
-    await setDoc(doc(db, 'storages', 'closed1'), {
-      ownerId: BOB,
-      approved: false,
-      reviewStatus: 'rejected',
-    });
-  });
-
-  await assertFails(
-    setDoc(doc(asAlice(), 'reservations', 'r1'), {
-      userId: ALICE,
-      ownerId: BOB,
-      storageId: 'closed1',
-      status: 'waiting',
-    }),
-  );
-});
-
-test('reservations: 주인이 내린 창고와 없는 창고에도 예약할 수 없다', async () => {
-  await seed(async (db) => {
-    await setDoc(doc(db, 'storages', 'gone1'), {
-      ownerId: BOB,
-      approved: true,
-      reviewStatus: 'approved',
-      deleted: true,
-    });
-    // approved 필드가 아예 없던 시절의 문서
-    await setDoc(doc(db, 'storages', 'legacy1'), {ownerId: BOB});
-  });
-
-  await assertFails(
-    setDoc(doc(asAlice(), 'reservations', 'r1'), {
-      userId: ALICE,
-      ownerId: BOB,
-      storageId: 'gone1',
-      status: 'waiting',
-    }),
-  );
-  await assertFails(
-    setDoc(doc(asAlice(), 'reservations', 'r2'), {
-      userId: ALICE,
-      ownerId: BOB,
-      storageId: 'nosuch',
-      status: 'waiting',
-    }),
-  );
-  await assertFails(
-    setDoc(doc(asAlice(), 'reservations', 'r3'), {
-      userId: ALICE,
-      ownerId: BOB,
-      storageId: 'legacy1',
-      status: 'waiting',
-    }),
-  );
-});
-
 test('reservations: 반려된 창고의 예약은 확정할 수 없고 정리만 된다', async () => {
   // 관리자가 반려하면서 취소해둔 예약을 주인이 되살리지 못해야 한다.
   await seed(async (db) => {
@@ -690,7 +618,7 @@ test('storages: 매니저도 규칙으로는 승인할 수 없다 (Functions 전
   );
 });
 
-test('정지된 계정은 예약과 창고 등록이 막힌다', async () => {
+test('정지된 계정은 창고 등록이 막힌다', async () => {
   await seed(async (db) => {
     await setDoc(doc(db, 'users', ALICE), {
       uid: ALICE,
@@ -699,14 +627,6 @@ test('정지된 계정은 예약과 창고 등록이 막힌다', async () => {
     });
   });
 
-  await assertFails(
-    setDoc(doc(asAlice(), 'reservations', 'r1'), {
-      userId: ALICE,
-      ownerId: BOB,
-      storageId: OPEN_STORAGE,
-      status: 'waiting',
-    }),
-  );
   await assertFails(
     setDoc(doc(asAlice(), 'storages', 's9'), {
       ownerId: ALICE,
@@ -739,17 +659,15 @@ test('정지된 계정도 채팅과 읽기는 된다', async () => {
   await assertSucceeds(getDoc(doc(asAlice(), 'storages', 's1')));
 });
 
-test('정지되지 않은 계정은 그대로 예약할 수 있다', async () => {
+test('정지되지 않은 계정은 그대로 창고를 올릴 수 있다', async () => {
   await seed(async (db) => {
     await setDoc(doc(db, 'users', ALICE), {uid: ALICE, userType: 'user'});
   });
 
   await assertSucceeds(
-    setDoc(doc(asAlice(), 'reservations', 'r1'), {
-      userId: ALICE,
-      ownerId: BOB,
-      storageId: OPEN_STORAGE,
-      status: 'waiting',
+    setDoc(doc(asAlice(), 'storages', 's9'), {
+      ownerId: ALICE,
+      approved: false,
     }),
   );
 });

@@ -235,11 +235,14 @@ service cloud.firestore {
     match /reservations/{reservationId} {
       allow read: if isSignedIn();
 
-      // 예약 신청은 본인 이름으로만, 항상 대기 상태로, 살아 있는 창고에만.
-      allow create: if isSelf(request.resource.data.userId)
-                    && request.resource.data.status == 'waiting'
-                    && isNotSuspended()
-                    && storageIsOpen(request.resource.data.storageId);
+      // 예약 생성은 Cloud Functions(createReservation)만 한다.
+      //
+      // 규칙으로는 "이미 잡힌 기간과 겹치는지"를 볼 수 없다. 다른 문서를
+      // 범위로 훑어보는 수단이 없기 때문이다. 그래서 앱에서 직접 쓰게 두면
+      // 두 사람이 같은 순간에 눌렀을 때 둘 다 통과한다.
+      // 계약 금액을 그 시점 값으로 박는 일도 서버가 해야 믿을 수 있다.
+      // (Admin SDK는 이 규칙을 거치지 않으므로 함수 쪽은 영향받지 않는다)
+      allow create: if false;
 
       // 승인/거절은 창고 주인이, 취소는 예약자가 한다.
       // 예약자와 창고는 바뀔 수 없다.

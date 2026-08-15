@@ -240,6 +240,234 @@ async function notifyUser(
 
 /**
  * ─────────────────────────────────────────────────────────────
+ * 예약 생성
+ * ─────────────────────────────────────────────────────────────
+ *
+ * 앱에서 바로 reservations 문서를 쓰지 않고 여기를 거친다. 두 가지 때문이다.
+ *
+ * 1. 기간 겹침은 보안 규칙으로 막을 수 없다.
+ *    규칙은 다른 문서를 "범위로" 훑어볼 수 없어서, 이미 잡힌 예약과
+ *    겹치는지 확인할 방법이 없다. 앱에서만 확인하면 두 사람이 같은 순간에
+ *    누를 때 둘 다 성공한다.
+ *
+ * 2. 계약 금액을 그 시점 값으로 박아둬야 한다.
+ *    금액을 안 남기면 화면이 창고의 "지금" 가격을 읽어오는데, 주인이 나중에
+ *    올리면 작년에 끝난 이용 내역의 금액까지 바뀐다. 분쟁 때 근거가 없다.
+ */
+
+/** 예약 한 건에 허용하는 최대 개월 수 */
+const MAX_RESERVATION_MONTHS = 24;
+
+/**
+ * 시작일에 개월 수를 더한다. (예약 종료일)
+ *
+ * 말일 처리에 주의한다. 1월 31일 + 1개월을 그냥 두면 3월 3일이 되어버린다.
+ * 그 달에 없는 날짜면 말일로 맞춘다.
+ * @param {Date} start 시작일
+ * @param {number} months 개월 수
+ * @return {Date} 종료일
+ */
+function addMonths(start: Date, months: number): Date {
+  const end = new Date(start.getTime());
+  const day = end.getUTCDate();
+
+  end.setUTCDate(1);
+  end.setUTCMonth(end.getUTCMonth() + months);
+
+  const lastDay = new Date(
+    Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  end.setUTCDate(Math.min(day, lastDay));
+
+  return end;
+}
+
+/**
+ * 두 기간이 겹치는지.
+ *
+ * 한쪽이 끝나는 날에 다른 쪽이 시작하는 것은 겹침이 아니다.
+ * (3월 1일에 끝나고 3월 1일에 시작하는 예약은 나란히 붙을 수 있다)
+ * @param {Date} aStart 이번 예약 시작
+ * @param {Date} aEnd 이번 예약 종료
+ * @param {Date} bStart 이미 잡힌 예약 시작
+ * @param {Date} bEnd 이미 잡힌 예약 종료
+ * @return {boolean} 겹치면 true
+ */
+function overlaps(
+  aStart: Date, aEnd: Date, bStart: Date, bEnd: Date,
+): boolean {
+  return aStart < bEnd && aEnd > bStart;
+}
+
+/**
+ * 예약을 만든다.
+ *
+ * 같은 구역·같은 기간이 이미 잡혀 있으면 거절한다. 확인과 생성을 한
+ * 트랜잭션에 넣고, 구역 문서를 같이 건드려서 동시에 들어온 요청 중
+ * 하나만 통과하게 한다.
+ */
+export const createReservation = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+
+  const storageId = String(request.data?.storageId ?? "");
+  const containerIndex = String(request.data?.containerIndex ?? "");
+  const startAtMs = Number(request.data?.startAtMs);
+  const months = Math.trunc(Number(request.data?.months));
+
+  if (!storageId || !containerIndex) {
+    throw new HttpsError("invalid-argument", "예약할 구역을 선택해주세요.");
+  }
+  if (!Number.isFinite(startAtMs)) {
+    throw new HttpsError("invalid-argument", "시작 날짜를 선택해주세요.");
+  }
+  if (!(months >= 1 && months <= MAX_RESERVATION_MONTHS)) {
+    throw new HttpsError(
+      "invalid-argument",
+      `이용 기간은 1개월부터 ${MAX_RESERVATION_MONTHS}개월까지 고를 수 있어요.`,
+    );
+  }
+
+  // 날짜만 쓰므로 시각은 잘라낸다. 기기 시계가 조금 달라도 같은 날이 된다.
+  const startAt = new Date(startAtMs);
+  startAt.setUTCHours(0, 0, 0, 0);
+  const endAt = addMonths(startAt, months);
+
+  // 지난 날짜로는 잡을 수 없다. 시차와 시계 오차를 감안해 하루 여유를 준다.
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  if (startAt < yesterday) {
+    throw new HttpsError("invalid-argument", "지난 날짜로는 예약할 수 없어요.");
+  }
+
+  const [userSnapshot, storageSnapshot] = await Promise.all([
+    db.collection("users").doc(uid).get(),
+    db.collection("storages").doc(storageId).get(),
+  ]);
+
+  if (userSnapshot.data()?.suspended === true) {
+    throw new HttpsError(
+      "permission-denied",
+      "이용이 정지된 계정입니다. 문의해주세요.",
+    );
+  }
+
+  const storage = storageSnapshot.data();
+  if (!storageSnapshot.exists || !storage) {
+    throw new HttpsError("not-found", "창고를 찾을 수 없습니다.");
+  }
+  if (storage.approved !== true || storage.deleted === true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "지금은 예약할 수 없는 창고입니다.",
+    );
+  }
+
+  const ownerId = String(storage.ownerId ?? "");
+  if (!ownerId) {
+    throw new HttpsError("failed-precondition", "창고 정보가 올바르지 않아요.");
+  }
+  if (ownerId === uid) {
+    throw new HttpsError(
+      "failed-precondition",
+      "내가 등록한 창고는 예약할 수 없어요.",
+    );
+  }
+
+  const storageRef = db.collection("storages").doc(storageId);
+  const zoneRef = storageRef.collection("zones").doc(containerIndex);
+  const reservationRef = db.collection("reservations").doc();
+
+  const startTs = Timestamp.fromDate(startAt);
+  const endTs = Timestamp.fromDate(endAt);
+
+  const result = await db.runTransaction(async (transaction) => {
+    // 겹치는지 볼 때는 예약과 이용 중을 모두 본다.
+    // 시작일이 지나면 예약이 usages로 옮겨가기 때문에 한쪽만 보면 샌다.
+    const taken = (collection: string) =>
+      transaction.get(
+        db
+          .collection(collection)
+          .where("storageId", "==", storageId)
+          .where("containerIndex", "==", containerIndex),
+      );
+
+    const [zone, reservations, usages] = await Promise.all([
+      transaction.get(zoneRef),
+      taken("reservations"),
+      taken("usages"),
+    ]);
+
+    const zoneData = zone.data();
+    if (!zone.exists || !zoneData) {
+      throw new HttpsError("not-found", "구역을 찾을 수 없습니다.");
+    }
+
+    const monthlyPrice = Number(zoneData.price);
+    if (!Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "구역 가격이 설정되지 않았어요. 주인에게 문의해주세요.",
+      );
+    }
+
+    const busy = [
+      // 거절된 예약은 자리를 비워둔 것이므로 겹침에서 뺀다.
+      ...reservations.docs.filter((doc) => doc.data().status !== "rejected"),
+      ...usages.docs,
+    ];
+
+    for (const doc of busy) {
+      const data = doc.data();
+      const otherStart = (data.startAt as Timestamp | undefined)?.toDate();
+      const otherEnd = (data.endAt as Timestamp | undefined)?.toDate();
+      if (!otherStart || !otherEnd) continue;
+
+      if (overlaps(startAt, endAt, otherStart, otherEnd)) {
+        throw new HttpsError(
+          "already-exists",
+          "그 기간에는 이미 예약이 있어요. 다른 날짜를 골라주세요.",
+        );
+      }
+    }
+
+    // 구역 문서를 같이 건드려서 같은 구역에 동시에 들어온 요청을 줄 세운다.
+    // 이게 없으면 두 트랜잭션이 서로의 예약을 못 보고 둘 다 통과할 수 있다.
+    transaction.set(
+      zoneRef,
+      {lastReservedAt: FieldValue.serverTimestamp()},
+      {merge: true},
+    );
+
+    transaction.set(reservationRef, {
+      userId: uid,
+      ownerId,
+      storageId,
+      containerIndex,
+      startAt: startTs,
+      endAt: endTs,
+      status: "waiting",
+      createdAt: FieldValue.serverTimestamp(),
+      // 계약한 금액. 주인이 나중에 가격을 바꿔도 이 값은 그대로 남는다.
+      monthlyPrice,
+      months,
+      totalPrice: monthlyPrice * months,
+    });
+
+    return {monthlyPrice, totalPrice: monthlyPrice * months};
+  });
+
+  return {
+    reservationId: reservationRef.id,
+    ownerId,
+    months,
+    ...result,
+  };
+});
+
+/**
+ * ─────────────────────────────────────────────────────────────
  * 예약 → 이용 중 → 이용 내역 흐름
  * ─────────────────────────────────────────────────────────────
  *
@@ -295,6 +523,15 @@ async function activateReservation(
       endAt: data.endAt,
       // 예약을 신청한 시점. 언제 신청했는지가 화면에 필요하다.
       createdAt: data.createdAt,
+      // 계약 금액. 예약할 때 박아둔 값을 그대로 물려준다.
+      // 여기서 다시 구역 가격을 읽으면 그 사이 주인이 바꾼 값이 들어간다.
+      ...(data.monthlyPrice === undefined ?
+        {} :
+        {
+          monthlyPrice: data.monthlyPrice,
+          months: data.months,
+          totalPrice: data.totalPrice,
+        }),
       // 이용 중으로 전환된 시점
       activatedAt: FieldValue.serverTimestamp(),
     });

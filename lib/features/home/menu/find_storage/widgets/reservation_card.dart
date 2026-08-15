@@ -7,6 +7,7 @@ import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/features/draw/zone_provider.dart';
 import 'package:jimiker/features/home/menu/chat/services/open_direct_chat.dart';
 import 'package:jimiker/services/auth_providers.dart';
+import 'package:jimiker/features/home/menu/find_storage/services/reservation_actions.dart';
 
 class ReservationCard extends ConsumerStatefulWidget {
   const ReservationCard({super.key, required this.storage});
@@ -266,6 +267,17 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
     }
   }
 
+  /// 1,234,000원 꼴로 보여준다.
+  String _formatWon(int amount) {
+    final digits = amount.toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(digits[i]);
+    }
+    return '$buffer원';
+  }
+
   Future<void> _submitReservation({required Zone? zone}) async {
     if (_selectedDate == null) {
       ScaffoldMessenger.of(
@@ -303,7 +315,6 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       return;
     }
 
-    final firestore = ref.read(firestoreProvider);
     // 바텀시트를 닫은 뒤에도 써야 하므로 미리 잡아둔다.
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -311,31 +322,16 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
 
     var isReserved = false;
     try {
-      final reservationRef = firestore
-          .collection('reservations')
-          .doc();
-
-      final reservation = Reservation(
-        id: reservationRef.id,
-        userId: user.uid,
-        ownerId: ownerId,
-        storageId: storageId,
-        containerIndex: zone.index,
-        createdAt: DateTime.now(),
-        startAt: startAt,
-        endAt: endAt,
-        status: Status.waiting,
-      );
-
-      final batch = firestore.batch();
-      batch.set(reservationRef, {
-        ...reservation.toMap(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'startAt': Timestamp.fromDate(startAt.toUtc()),
-        'endAt': Timestamp.fromDate(endAt.toUtc()),
-      });
-
-      await batch.commit();
+      // 서버가 기간 겹침을 다시 확인하고 금액을 박아 넣는다.
+      // 앱에서 직접 쓰면 두 사람이 같은 순간에 눌렀을 때 둘 다 성공한다.
+      await ref
+          .read(reservationActionsProvider)
+          .createReservation(
+            storageId: storageId,
+            containerIndex: zone.index,
+            startAt: startAt,
+            months: _selectedMonth,
+          );
       isReserved = true;
 
       messenger.showSnackBar(
@@ -343,7 +339,7 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
       );
     } catch (error) {
       messenger.showSnackBar(
-        SnackBar(content: Text('예약에 실패했어요: $error')),
+        SnackBar(content: Text(readableReservationError(error))),
       );
     } finally {
       // 이미 닫힌 뒤라면(사용자가 시트를 내렸다면) 다시 pop하지 않는다.
@@ -419,10 +415,21 @@ class _ReservationCardState extends ConsumerState<ReservationCard> {
           if (zone != null) ...[
             const SizedBox(height: 4),
             Text(
-              '가격: ${zone.price}원',
+              '월 ${_formatWon(zone.price)}',
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 2),
+            // 신청 전에 총액을 보여준다. 이 금액이 예약에 그대로 저장된다.
+            Text(
+              '$_selectedMonth개월 총 '
+              '${_formatWon(zone.price * _selectedMonth)}',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: _primaryColor,
               ),
             ),
           ],

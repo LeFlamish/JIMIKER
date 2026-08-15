@@ -170,7 +170,15 @@ class MyReservationNotifier extends Notifier<MyReservationState> {
     return storagesById;
   }
 
+  /// 이 예약의 월 금액.
+  ///
+  /// 계약할 때 박아둔 값을 먼저 쓴다. 그게 없는 건 이 필드가 생기기 전에
+  /// 만들어진 예약이라, 그때만 구역의 현재 가격을 대신 읽는다.
+  /// (현재 가격은 주인이 바꿨을 수 있어 계약 금액과 다를 수 있다)
   Future<int?> _price(Reservation reservation) async {
+    final agreed = reservation.monthlyPrice;
+    if (agreed != null) return agreed;
+
     final storageId = reservation.storageId;
     final containerIndex = reservation.containerIndex;
 
