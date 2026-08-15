@@ -90,17 +90,32 @@ service cloud.firestore {
                     && request.resource.data.approved == false
                     && isNotSuspended();
 
-      // 수정/삭제는 주인만. 승인 여부는 서버(Functions)만 바꾼다.
-      // 심사 관련 필드는 관리자 Functions만 바꾼다.
+      // 심사 필드를 하나도 건드리지 않는 수정인지.
+      function reviewFieldsUntouched() {
+        return !request.resource.data.diff(resource.data)
+                  .affectedKeys()
+                  .hasAny([
+                    'approved', 'reviewStatus', 'reviewedAt',
+                    'reviewedBy', 'rejectReason',
+                  ]);
+      }
+
+      // 주인이 스스로 할 수 있는 심사 변경은 "재심사 받으러 내려가기"뿐이다.
+      // 내용을 고치면 승인이 풀리고(pending) 지도에서 내려간다.
+      // 승인으로 올라가는 방향은 여전히 관리자 Functions만 가능하다.
+      function selfDemoteToPending() {
+        return request.resource.data.approved == false
+               && request.resource.data.reviewStatus == 'pending'
+               && request.resource.data.get('rejectReason', '') == ''
+               && !request.resource.data.diff(resource.data)
+                     .affectedKeys()
+                     .hasAny(['reviewedAt', 'reviewedBy']);
+      }
+
+      // 수정/삭제는 주인만. 승인 여부는 서버(Functions)만 올릴 수 있다.
       allow update: if isSelf(resource.data.ownerId)
                     && unchanged('ownerId')
-                    && unchanged('approved')
-                    && !request.resource.data.diff(resource.data)
-                         .affectedKeys()
-                         .hasAny([
-                           'reviewStatus', 'reviewedAt',
-                           'reviewedBy', 'rejectReason',
-                         ]);
+                    && (reviewFieldsUntouched() || selfDemoteToPending());
       allow delete: if isSelf(resource.data.ownerId);
 
       // 구역(zone)은 창고를 따라간다.

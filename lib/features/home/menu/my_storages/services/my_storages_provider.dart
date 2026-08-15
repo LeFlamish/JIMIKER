@@ -231,6 +231,13 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
         'lng': updatedLng,
         'locationId': updatedLocationRef.id,
         'count': zones.length,
+        // 내용이 바뀌면 승인이 풀리고 재심사를 받는다.
+        // 승인만 받아두고 주소·사진·구역을 바꿔치기하는 걸 막는다.
+        // 반려됐던 창고는 이 경로가 곧 "고쳐서 다시 신청"이 된다.
+        // (이용 중인 건은 approved와 무관하게 기간까지 유지된다)
+        'approved': false,
+        'reviewStatus': 'pending',
+        'rejectReason': '',
         'widthM': drawState.width,
         'heightM': drawState.height,
         'layout': {

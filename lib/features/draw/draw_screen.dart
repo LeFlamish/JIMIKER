@@ -718,6 +718,11 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
   }
 
   void _showZoneMenu(Zone zone) {
+    // 예약·이용이 걸린 구역은 상대의 계약이 참조하므로 지울 수 없다.
+    final isLocked = ref
+        .read(lockedZonesProvider)
+        .containsKey(zone.index);
+
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -746,20 +751,37 @@ class _DrawScreenState extends ConsumerState<DrawScreen> {
                 _duplicateZone(zone);
               },
             ),
-            ListTile(
-              leading: const Icon(
-                Icons.delete_outline,
-                color: Color(0xFFD32F2F),
+            if (isLocked)
+              const ListTile(
+                leading: Icon(
+                  Icons.lock_outline,
+                  color: Color(0xFFFF9800),
+                ),
+                title: Text(
+                  '예약·이용이 걸려 있어 삭제할 수 없어요',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    color: Color(0xFF8D6E00),
+                  ),
+                ),
+              )
+            else
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Color(0xFFD32F2F),
+                ),
+                title: const Text(
+                  '이 구역 삭제',
+                  style: TextStyle(color: Color(0xFFD32F2F)),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  ref
+                      .read(zoneProvider.notifier)
+                      .removeZone(zone.index);
+                },
               ),
-              title: const Text(
-                '이 구역 삭제',
-                style: TextStyle(color: Color(0xFFD32F2F)),
-              ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                ref.read(zoneProvider.notifier).removeZone(zone.index);
-              },
-            ),
           ],
         ),
       ),

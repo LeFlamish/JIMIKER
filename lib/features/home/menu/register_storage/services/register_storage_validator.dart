@@ -18,6 +18,11 @@ class RegisterStorageValidator {
     required DrawProviderData drawState,
     required List<Zone> zones,
     required String detailAddress,
+
+    /// 예약·이용이 걸려 있는 구역들(index → 원래 구역).
+    /// 수정 저장 때 이 구역이 사라졌거나 크기가 바뀌었으면 막는다.
+    /// UI가 이미 잠그지만, 검증에서 한 번 더 잡아야 구멍이 안 생긴다.
+    Map<String, Zone> lockedZones = const {},
   }) {
     final errors = <String>[];
 
@@ -77,6 +82,30 @@ class RegisterStorageValidator {
           '구역 면적 합(${zoneAreaSum.toStringAsFixed(1)}㎡)이 '
           '건물 면적(${buildingArea.toStringAsFixed(1)}㎡)을 넘어요. '
           '크기를 다시 확인해주세요.',
+        );
+      }
+    }
+
+    // 상대의 계약이 참조하는 구역은 지우거나 크기를 바꿀 수 없다.
+    for (final locked in lockedZones.values) {
+      final edited = zones
+          .where((zone) => zone.index == locked.index)
+          .toList();
+
+      if (edited.isEmpty) {
+        errors.add(
+          '${locked.index} 구역에는 예약·이용이 걸려 있어 삭제할 수 없어요.',
+        );
+        continue;
+      }
+
+      const epsilon = 0.01;
+      final sizeChanged =
+          (edited.first.width - locked.width).abs() > epsilon ||
+          (edited.first.height - locked.height).abs() > epsilon;
+      if (sizeChanged) {
+        errors.add(
+          '${locked.index} 구역에는 예약·이용이 걸려 있어 크기를 바꿀 수 없어요.',
         );
       }
     }

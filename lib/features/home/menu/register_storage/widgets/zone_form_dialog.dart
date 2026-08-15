@@ -6,7 +6,16 @@ class ZoneFormDialog extends StatefulWidget {
   final ZoneFormData? zone;
   final String index;
 
-  const ZoneFormDialog({super.key, required this.index, this.zone});
+  /// true면 크기(가로·세로)를 잠근다. 예약·이용이 걸려 있는 구역은
+  /// 상대가 그 크기로 계약한 것이라 임대료만 고칠 수 있다.
+  final bool lockSize;
+
+  const ZoneFormDialog({
+    super.key,
+    required this.index,
+    this.zone,
+    this.lockSize = false,
+  });
 
   @override
   State<ZoneFormDialog> createState() => _ZoneFormDialogState();
@@ -67,13 +76,39 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (widget.lockSize) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3E0),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    '이 구역에는 예약·이용이 걸려 있어요.\n'
+                    '상대가 이 크기로 계약했기 때문에 크기는 바꿀 수 없고, '
+                    '임대료 변경은 앞으로의 예약에만 적용됩니다.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.5,
+                      color: Color(0xFF8D6E00),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
               _buildNumberField(
                 controller: _widthController,
                 label: '가로 길이 (m)',
+                enabled: !widget.lockSize,
               ),
               _buildNumberField(
                 controller: _heightController,
                 label: '세로 길이 (m)',
+                enabled: !widget.lockSize,
               ),
               _buildNumberField(
                 controller: _priceController,
@@ -164,9 +199,11 @@ class _ZoneFormDialogState extends State<ZoneFormDialog> {
     required TextEditingController controller,
     required String label,
     bool isInteger = false,
+    bool enabled = true,
   }) {
     return TextFormField(
       controller: controller,
+      enabled: enabled,
       keyboardType: TextInputType.numberWithOptions(
         decimal: !isInteger,
       ),

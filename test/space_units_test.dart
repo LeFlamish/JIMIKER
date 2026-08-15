@@ -144,6 +144,52 @@ void main() {
     });
   });
 
+  group('등록 검증: 예약·이용 걸린 구역 보호', () {
+    RegisterStorageValidationResult validate({
+      required List<Zone> zones,
+      required Map<String, Zone> lockedZones,
+    }) {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container.read(drawProvider.notifier).setBuildingSize(10, 8);
+
+      return RegisterStorageValidator.validate(
+        registerData: RegisterData(),
+        drawState: container.read(drawProvider),
+        zones: zones,
+        detailAddress: '지하 1층',
+        lockedZones: lockedZones,
+      );
+    }
+
+    test('잠긴 구역을 지우면 막는다', () {
+      // A구역에 예약이 걸려 있는데 수정본에서 A가 사라졌다.
+      final result = validate(
+        zones: [_zone(index: 'B')],
+        lockedZones: {'A': _zone(index: 'A')},
+      );
+      expect(result.message, contains('A 구역'));
+      expect(result.message, contains('삭제할 수 없어요'));
+    });
+
+    test('잠긴 구역의 크기를 바꾸면 막는다', () {
+      // 상대는 2×3m로 계약했는데 1×1m로 줄였다.
+      final result = validate(
+        zones: [_zone(index: 'A', width: 1, height: 1)],
+        lockedZones: {'A': _zone(index: 'A', width: 2, height: 3)},
+      );
+      expect(result.message, contains('크기를 바꿀 수 없어요'));
+    });
+
+    test('잠긴 구역이라도 위치·가격 변경은 통과한다', () {
+      final result = validate(
+        zones: [_zone(index: 'A', x: 4, y: 2, price: 99000)],
+        lockedZones: {'A': _zone(index: 'A')},
+      );
+      expect(result.message, isNot(contains('A 구역')));
+    });
+  });
+
   group('구역 이름', () {
     test('중간 구역을 지워도 이름이 겹치지 않는다', () {
       final container = ProviderContainer();

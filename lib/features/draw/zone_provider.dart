@@ -9,6 +9,16 @@ final zoneProvider = NotifierProvider<ZoneNotifier, List<Zone>>(
 
 final selectedZoneProvider = StateProvider<String?>((ref) => null);
 
+/// 수정 중인 창고에서 "예약·이용이 걸려 있는" 구역들. (index → 원래 구역)
+///
+/// 누가 A구역을 예약해뒀는데 주인이 수정 화면에서 A를 지우거나 크기를
+/// 바꾸면 상대의 계약이 공중에 뜬다. 이 목록에 있는 구역은 삭제와
+/// 크기 변경이 막히고, 검증 때 원래 크기와 대조한다.
+/// 수정 화면에 들어갈 때 채워지고 나올 때 비워진다.
+final lockedZonesProvider = StateProvider<Map<String, Zone>>(
+  (ref) => {},
+);
+
 class ZoneNotifier extends Notifier<List<Zone>> {
   @override
   List<Zone> build() => [];

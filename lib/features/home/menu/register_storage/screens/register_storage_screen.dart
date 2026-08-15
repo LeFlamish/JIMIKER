@@ -53,6 +53,8 @@ class _RegisterStorageScreenState
       if (editConfig != null) {
         _hydrateEditData(editConfig);
       } else {
+        // 새 등록에는 잠긴 구역이 없다. 이전 수정에서 남았을 수 있어 비운다.
+        ref.read(lockedZonesProvider.notifier).state = {};
         final registerState = ref.read(registerProvider);
         _addressController.text = registerState.address ?? '';
         _detailAddressController.text =
@@ -68,6 +70,7 @@ class _RegisterStorageScreenState
         ref.read(registerProvider.notifier).reset();
         ref.read(zoneProvider.notifier).reset();
         ref.read(drawProvider.notifier).reset();
+        ref.read(lockedZonesProvider.notifier).state = {};
       });
     }
     _addressController.dispose();
@@ -320,6 +323,7 @@ class _RegisterStorageScreenState
   }
 
   Widget _buildZoneList(List<Zone> zones) {
+    final lockedZones = ref.watch(lockedZonesProvider);
     if (zones.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(20),
@@ -338,6 +342,7 @@ class _RegisterStorageScreenState
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final zone = zones[index];
+        final isLocked = lockedZones.containsKey(zone.index);
         return InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () => _showZoneDialog(zone: zone),
@@ -395,18 +400,32 @@ class _RegisterStorageScreenState
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.redAccent,
-                    size: 20,
+                if (isLocked)
+                  Tooltip(
+                    message: '예약·이용이 걸려 있어 삭제할 수 없어요',
+                    triggerMode: TooltipTriggerMode.tap,
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.lock_outline,
+                        color: Color(0xFFFF9800),
+                        size: 20,
+                      ),
+                    ),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.redAccent,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      ref
+                          .read(zoneProvider.notifier)
+                          .removeZone(zone.index);
+                    },
                   ),
-                  onPressed: () {
-                    ref
-                        .read(zoneProvider.notifier)
-                        .removeZone(zone.index);
-                  },
-                ),
               ],
             ),
           ),
@@ -510,6 +529,33 @@ class _RegisterStorageScreenState
           .get();
       final zones = zonesSnapshot.docs.map(Zone.fromDoc).toList();
       ref.read(zoneProvider.notifier).setZones(zones);
+
+      // 예약·이용이 걸린 구역은 잠근다. 상대의 계약이 참조하는 구역을
+      // 주인이 지우거나 크기를 바꾸면 그 계약이 공중에 뜬다.
+      final results = await Future.wait([
+        firestore
+            .collection('reservations')
+            .where('storageId', isEqualTo: storageId)
+            .get(),
+        firestore
+            .collection('usages')
+            .where('storageId', isEqualTo: storageId)
+            .get(),
+      ]);
+
+      final busyIndexes = <String>{
+        // 거절된 예약은 이미 끝난 얘기라 잠그지 않는다.
+        for (final doc in results[0].docs)
+          if (doc.data()['status'] != 'rejected')
+            doc.data()['containerIndex']?.toString() ?? '',
+        for (final doc in results[1].docs)
+          doc.data()['containerIndex']?.toString() ?? '',
+      }..remove('');
+
+      ref.read(lockedZonesProvider.notifier).state = {
+        for (final zone in zones)
+          if (busyIndexes.contains(zone.index)) zone.index: zone,
+      };
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -609,6 +655,50 @@ class _RegisterStorageScreenState
     }
   }
 
+  /// 승인돼 있던 창고를 수정하면 재심사를 받는다는 사실을 알리고 동의받는다.
+  ///
+  /// 수정 즉시 지도에서 내려가기 때문에, 모르고 눌렀다가 매물이 사라졌다고
+  /// 놀라지 않게 저장 전에 한 번 짚어준다.
+  Future<bool> _confirmResubmitIfApproved() async {
+    final status = widget.editConfig?.storage.reviewStatus;
+    if (status != ReviewStatus.approved) return true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text('수정하면 재심사를 받아요'),
+        content: const Text(
+          '수정 내용은 관리자 심사를 다시 거칩니다.\n\n'
+          '· 승인될 때까지 지도와 목록에서 내려갑니다\n'
+          '· 그동안 새 예약을 받거나 대기 중 예약을 확정할 수 없어요\n'
+          '· 이미 이용 중인 건과 확정된 예약은 그대로 유지됩니다',
+          style: TextStyle(fontSize: 13.5, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              '취소',
+              style: TextStyle(color: Colors.grey[700]),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6B66FF),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('수정하고 재심사 받기'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   void _navigateToEditor() async {
     _clearDetailAddressFocus();
 
@@ -649,10 +739,15 @@ class _RegisterStorageScreenState
   Future<void> _showZoneDialog({Zone? zone, String? index}) async {
     final zoneIndex = index ?? zone?.index ?? '';
 
+    final isLocked =
+        zone != null &&
+        ref.read(lockedZonesProvider).containsKey(zone.index);
+
     final result = await showDialog<ZoneFormData>(
       context: context,
       builder: (context) => ZoneFormDialog(
         index: zoneIndex,
+        lockSize: isLocked,
         zone: zone == null
             ? null
             : ZoneFormData(
@@ -770,6 +865,7 @@ class _RegisterStorageScreenState
                         drawState: drawState,
                         zones: zones,
                         detailAddress: detailAddress,
+                        lockedZones: ref.read(lockedZonesProvider),
                       );
 
                   if (!validationResult.isValid) {
@@ -782,6 +878,7 @@ class _RegisterStorageScreenState
                   }
 
                   if (isEditMode) {
+                    if (!await _confirmResubmitIfApproved()) return;
                     await _submitEdit(
                       detailAddress: detailAddress,
                       drawState: drawState,

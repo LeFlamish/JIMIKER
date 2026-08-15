@@ -596,11 +596,64 @@ test('storages: 주인도 심사 필드는 건드릴 수 없다', async () => {
     updateDoc(doc(asAlice(), 'storages', 's1'), {reviewStatus: 'approved'}),
   );
   await assertFails(
-    updateDoc(doc(asAlice(), 'storages', 's1'), {rejectReason: ''}),
+    updateDoc(doc(asAlice(), 'storages', 's1'), {
+      rejectReason: '사유 조작',
+    }),
   );
   // 심사와 무관한 수정은 그대로 된다.
   await assertSucceeds(
     updateDoc(doc(asAlice(), 'storages', 's1'), {detailAddress: '101호'}),
+  );
+});
+
+test('storages: 수정하면 스스로 재심사 상태로 내려갈 수 있다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'storages', 's1'), {
+      ownerId: ALICE,
+      approved: true,
+      reviewStatus: 'approved',
+      rejectReason: '',
+      detailAddress: '지하 1층',
+    });
+  });
+
+  // 내용을 고치면서 approved:false + pending으로 함께 내려가는 것 = 허용
+  await assertSucceeds(
+    updateDoc(doc(asAlice(), 'storages', 's1'), {
+      detailAddress: '지하 2층',
+      approved: false,
+      reviewStatus: 'pending',
+      rejectReason: '',
+    }),
+  );
+});
+
+test('storages: 내려가는 척하며 심사 기록을 조작할 수 없다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'storages', 's1'), {
+      ownerId: ALICE,
+      approved: true,
+      reviewStatus: 'approved',
+      rejectReason: '',
+      reviewedBy: BOSS,
+    });
+  });
+
+  // 재심사로 내려가면서 reviewedBy(누가 승인했는지)를 바꾸는 것 = 차단
+  await assertFails(
+    updateDoc(doc(asAlice(), 'storages', 's1'), {
+      approved: false,
+      reviewStatus: 'pending',
+      rejectReason: '',
+      reviewedBy: ALICE,
+    }),
+  );
+  // approved는 그대로 두고 reviewStatus만 pending으로 바꾸는 것도 차단
+  // (지도 노출은 유지한 채 심사만 기다리는 어중간한 상태를 못 만든다)
+  await assertFails(
+    updateDoc(doc(asAlice(), 'storages', 's1'), {
+      reviewStatus: 'pending',
+    }),
   );
 });
 
