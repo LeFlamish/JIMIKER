@@ -7,6 +7,17 @@ gradle-wrapper.jar
 GeneratedPluginRegistrant.java
 .cxx/
 
+# 안드로이드 스튜디오가 표준 위치(/local.properties, /.gradle) 말고
+# app/ 아래에도 같은 것을 만들 때가 있다. 위 규칙은 맨 앞의 / 때문에
+# android/ 바로 아래만 걸러서 그것들이 그대로 커밋된다.
+# 내 PC의 SDK 경로와 사용자 이름이 들어 있어 저장소에 올리면 안 된다.
+**/local.properties
+**/.gradle/
+
+# gradle 빌드 산출물 (문제 리포트 등)
+/build/
+app/build/
+
 # Remember to never publicly share your keystore.
 # See https://flutter.dev/to/reference-keystore
 key.properties
