@@ -57,15 +57,44 @@ Firebase에 iOS 앱을 새로 등록하면서 `project.pbxproj`와
 
 ### ☐ 업로드 키스토어
 
-```bash
-keytool -genkey -v -keystore C:\keys\jimiker-upload.jks \
-  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#### 열쇠가 두 개다
+
+```
+내 PC                  Google Play                 사용자 기기
+─────                  ───────────                 ──────────
+업로드 키로 서명   →   업로드 키로 본인 확인  →   앱 서명 키로
+(내가 보관)            → 앱 서명 키로 재서명       서명된 앱 설치
+                       (구글이 보관)
 ```
 
-- 저장소 폴더 **바깥**에 둘 것 (`.gitignore`에 넣어뒀지만 애초에 밖이 안전하다)
-- **파일과 비밀번호를 백업할 것.** 잃어버리면 앱 업데이트를 영원히 못 한다
+- **업로드 키** — 여기서 만드는 것. Play에 올릴 때 본인임을 증명한다
+- **앱 서명 키** — 구글이 만들어 보관한다. 사용자에게 가는 앱에 찍히는 도장
 
-만든 뒤 `android/key.properties`를 만든다 (이 파일도 깃에 안 올라간다):
+내 PC에서 빌드한 앱과 스토어에서 받은 앱은 **서명이 다르다.**
+그래서 6번(첫 업로드 후 할 일)에서 Play의 SHA-1을 Firebase에 또 등록해야 한다.
+
+#### 만들기
+
+`keytool`은 Android Studio가 들고 있는 JDK에 있다.
+
+```powershell
+mkdir C:\keys
+
+& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" `
+  -genkey -v `
+  -keystore C:\keys\jimiker-upload.jks `
+  -keyalg RSA -keysize 2048 -validity 10000 `
+  -alias upload
+```
+
+물어보는 것 중 국가 코드는 `KR`, 키 비밀번호는 그냥 Enter를 치면
+저장소 비밀번호와 같아진다. `-validity 10000`은 약 27년으로,
+Play가 요구하는 2033년 이후까지 유효하다.
+
+#### 연결하기
+
+`android/key.properties`를 만든다 (깃에 안 올라간다. 양식은
+`android/key.properties.example`).
 
 ```properties
 storeFile=C:/keys/jimiker-upload.jks
@@ -74,8 +103,32 @@ keyAlias=upload
 keyPassword=(비밀번호)
 ```
 
+⚠️ 윈도우에서도 슬래시(`/`)를 쓴다. 역슬래시는 이스케이프로 읽혀 경로를 못 찾는다.
+
 ✅ 이 파일이 있으면 릴리스 빌드가 자동으로 이 키로 서명된다.
-파일이 없으면 예전처럼 디버그 키로 서명된다(개발용).
+없으면 예전처럼 디버그 키로 서명된다(개발용).
+
+#### 확인
+
+```powershell
+flutter build appbundle
+
+& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" `
+  -list -printcert -jarfile build\app\outputs\bundle\release\app-release.aab
+```
+
+소유자에 입력한 이름이 나오면 성공이다.
+`CN=Android Debug`가 나오면 `key.properties`를 못 읽은 것이다.
+
+#### 백업
+
+- `.jks` 파일을 저장소 폴더 **바깥**에, 두 곳 이상에
+- 비밀번호 두 개도 함께
+
+업로드 키를 잃어버려도 구글에 요청하면 본인 확인 후 새 키를 등록해준다.
+"영원히 못 고친다"까지는 아니지만 며칠 걸리고 지원팀을 거쳐야 하니
+백업해두는 편이 훨씬 싸다.
+(진짜 못 바꾸는 앱 서명 키는 구글이 보관하므로 잃어버릴 일이 없다)
 
 ### ☐ 앱 아이콘
 
