@@ -70,6 +70,30 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# 앱 아이콘 생성 설정.
+#
+#   dart run flutter_launcher_icons
+#
+# 원본(assets/icon/app_icon.png)에서 해상도별 아이콘을 만들어
+# android/app/src/main/res/mipmap-*/ 에 덮어쓴다.
+# 아이콘 그림을 바꾸면 원본만 갈아끼우고 위 명령을 다시 돌리면 된다.
+flutter_launcher_icons:
+  android: true
+  # iOS는 Firebase 설정(GoogleService-Info.plist)도 없고 번들 id도 아직
+  # com.example.jimiker다. iOS를 실제로 낼 때 함께 켠다.
+  ios: false
+
+  image_path: "assets/icon/app_icon.png"
+
+  # 안드로이드 8.0부터 런처가 아이콘에 마스크를 씌운다. 기기에 따라 원,
+  # 둥근 사각형, 물방울 모양이 되는데 바깥쪽은 잘려나간다.
+  # 그래서 앞면(캐릭터)을 안쪽으로 밀어 넣고 뒷면은 흰색으로 채운다.
+  min_sdk_android: 24
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  adaptive_icon_foreground_inset: 18
 
 
 # For information on the generic Dart part of this file, see the
