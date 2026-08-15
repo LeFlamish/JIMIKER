@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:jimiker/features/home/menu/find_storage/widgets/reservation_card.dart';
 import 'package:jimiker/features/home/menu/find_storage/widgets/storage_bottom_sheet.dart';
 import 'package:jimiker/features/search/search_screen.dart';
 
 import '../../../../../data/models/storage.dart';
 import '../../../../../data/models/zone.dart';
 import '../../../../../services/auth_providers.dart';
-import '../../../../draw/draw_provider.dart';
-import '../../../../draw/structure_screen.dart';
 import '../../../../draw/zone_provider.dart';
 import '../services/find_storage_provider.dart';
 import '../services/location_service.dart';

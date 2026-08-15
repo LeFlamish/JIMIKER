@@ -34,42 +34,25 @@ class ReservationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 기간 계산 (일수)
-    final duration = reservation.endAt
-        .difference(reservation.startAt)
-        .inDays;
-
-    // 상태에 따른 색상 결정
-    Color statusColor;
-    String statusText;
-    Color bgColor;
-
-    switch (reservation.status) {
-      case Status.approved:
-        statusColor = const Color(0xFF2E7D32); // Green
-        statusText = "예약 확정";
-        bgColor = const Color(0xFFE8F5E9);
-        break;
-
-      case Status.waiting:
-        statusColor = const Color(0xFFFF9800); // Orange
-        statusText = "승인 대기";
-        bgColor = const Color(0xFFFFF3E0);
-        break;
-
-      case Status.rejected:
-        statusColor = const Color(0xFFD32F2F); // Red
-        statusText = "거절됨";
-        bgColor = const Color(0xFFFFEBEE);
-        break;
-
-      default:
-        // enum 값이 확장되거나 예외 케이스가 있어도 화면이 깨지지 않도록 방어
-        statusColor = Colors.grey;
-        statusText = "상태 확인 필요";
-        bgColor = Colors.grey.shade100;
-        break;
-    }
+    // Status를 하나라도 빠뜨리면 여기서 컴파일이 막힌다.
+    // (default를 두면 새 상태를 추가해도 조용히 "상태 확인 필요"로 빠진다)
+    final (statusColor, statusText, bgColor) = switch (reservation.status) {
+      Status.approved => (
+        const Color(0xFF2E7D32),
+        "예약 확정",
+        const Color(0xFFE8F5E9),
+      ),
+      Status.waiting => (
+        const Color(0xFFFF9800),
+        "승인 대기",
+        const Color(0xFFFFF3E0),
+      ),
+      Status.rejected => (
+        const Color(0xFFD32F2F),
+        "거절됨",
+        const Color(0xFFFFEBEE),
+      ),
+    };
 
     return GestureDetector(
       onTap: onTap,

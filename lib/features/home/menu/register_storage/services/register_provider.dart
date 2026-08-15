@@ -158,8 +158,6 @@ class RegisterNotifier extends Notifier<RegisterData> {
 
     state = state.copyWith(isSubmitting: true);
 
-    late final DocumentReference locationRef;
-
     try {
       final downloadUrls = await Future.wait(
         state.images.asMap().entries.map((entry) async {
