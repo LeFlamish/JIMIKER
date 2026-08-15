@@ -1,4 +1,3 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/core/utils/space_units.dart';
@@ -6,18 +5,23 @@ import 'package:jimiker/core/widgets/cached_image.dart';
 import 'package:jimiker/core/widgets/detail_section.dart';
 import 'package:jimiker/core/widgets/storage_detail_sections.dart';
 import 'package:jimiker/data/models/storage.dart';
+import 'package:jimiker/features/admin/screens/storage_deletion_review_screen.dart';
 import 'package:jimiker/features/admin/services/admin_providers.dart';
 import 'package:jimiker/services/auth_providers.dart';
 import 'package:jimiker/services/storage_zones_provider.dart';
 
-/// 창고 승인 화면. 대기 / 승인됨 / 반려됨을 탭으로 넘긴다.
+/// 창고 승인 화면. 대기 / 승인됨 / 반려됨 / 삭제 요청을 탭으로 넘긴다.
 class StorageReviewScreen extends ConsumerWidget {
-  const StorageReviewScreen({super.key});
+  const StorageReviewScreen({super.key, this.initialTab = 0});
+
+  /// 홈의 알림 카드에서 삭제 요청 탭으로 바로 들어올 때 쓴다.
+  final int initialTab;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
+      initialIndex: initialTab,
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F6FA),
         appBar: AppBar(
@@ -46,6 +50,7 @@ class StorageReviewScreen extends ConsumerWidget {
               Tab(text: '대기'),
               Tab(text: '승인됨'),
               Tab(text: '반려됨'),
+              Tab(text: '삭제 요청'),
             ],
           ),
         ),
@@ -54,9 +59,65 @@ class StorageReviewScreen extends ConsumerWidget {
             _ReviewList(status: ReviewStatus.pending),
             _ReviewList(status: ReviewStatus.approved),
             _ReviewList(status: ReviewStatus.rejected),
+            _DeletionRequestList(),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 주인이 삭제를 요청한 창고 목록.
+class _DeletionRequestList extends ConsumerWidget {
+  const _DeletionRequestList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final storagesAsync = ref.watch(deletionRequestsProvider);
+
+    return storagesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            '목록을 불러오지 못했어요.\n$error',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600], height: 1.5),
+          ),
+        ),
+      ),
+      data: (storages) {
+        if (storages.isEmpty) {
+          return Center(
+            child: Text(
+              '처리할 삭제 요청이 없어요.',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 14,
+          ),
+          itemCount: storages.length,
+          itemBuilder: (context, index) => _StorageRow(
+            storage: storages[index],
+            caption: storages[index].deleteRequestReason.trim().isEmpty
+                ? null
+                : '사유: ${storages[index].deleteRequestReason.trim()}',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => StorageDeletionReviewScreen(
+                  storage: storages[index],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -120,10 +181,17 @@ class _ReviewList extends ConsumerWidget {
 }
 
 class _StorageRow extends StatelessWidget {
-  const _StorageRow({required this.storage, required this.onTap});
+  const _StorageRow({
+    required this.storage,
+    required this.onTap,
+    this.caption,
+  });
 
   final Storage storage;
   final VoidCallback onTap;
+
+  /// 목록에 한 줄 더 보여줄 부가 정보. (예: 삭제 요청 사유)
+  final String? caption;
 
   String _formatDate(DateTime date) =>
       '${date.year}.${date.month.toString().padLeft(2, '0')}'
@@ -184,6 +252,18 @@ class _StorageRow extends StatelessWidget {
                         color: Colors.grey[600],
                       ),
                     ),
+                    if (caption != null) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        caption!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF8D6E00),
+                        ),
+                      ),
+                    ],
                     if (storage.rejectReason.isNotEmpty) ...[
                       const SizedBox(height: 5),
                       Text(
@@ -338,33 +418,11 @@ class _StorageReviewDetailScreenState
     } catch (error) {
       if (mounted) setState(() => _isWorking = false);
       messenger.showSnackBar(
-        SnackBar(content: Text('처리하지 못했어요: ${_readableError(error)}')),
+        SnackBar(
+          content: Text('처리하지 못했어요: ${readableAdminError(error)}'),
+        ),
       );
     }
-  }
-
-  String _readableError(Object error) {
-    if (error is FirebaseFunctionsException) {
-      final message = error.message?.trim() ?? '';
-
-      // 함수 자체가 없으면 Firebase가 영문 NOT_FOUND를 그대로 돌려준다.
-      // 우리가 던지는 not-found에는 한글 안내가 붙으므로 이걸로 구분된다.
-      if (error.code == 'not-found' &&
-          (message.isEmpty || message.toUpperCase() == 'NOT_FOUND')) {
-        return '이 기능이 서버에 아직 배포되지 않았어요.\n'
-            'firebase deploy --only functions 를 실행해주세요.';
-      }
-
-      // 서버가 보낸 안내 문구를 그대로 쓴다.
-      if (message.isNotEmpty) return message;
-
-      return switch (error.code) {
-        'unauthenticated' => '로그인이 필요합니다.',
-        'permission-denied' => '관리자 권한이 없습니다.',
-        _ => error.code,
-      };
-    }
-    return error.toString();
   }
 
   Future<bool?> _confirm({

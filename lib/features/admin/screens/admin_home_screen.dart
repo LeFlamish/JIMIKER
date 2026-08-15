@@ -101,32 +101,48 @@ class AdminHomeScreen extends ConsumerWidget {
   }
 
   Widget _buildSummary(BuildContext context, AdminSummary summary) {
+    // 처리할 게 남아 있으면 먼저 눈에 띄게 알린다.
+    final highlights = <Widget>[
+      if (summary.pendingStorages > 0)
+        _Highlight(
+          icon: Icons.pending_actions,
+          color: const Color(0xFFFF9800),
+          background: const Color(0xFFFFF3E0),
+          title: '승인 대기 ${summary.pendingStorages}건',
+          message: '등록 신청이 처리를 기다리고 있어요.',
+          onTap: () => _push(context, const StorageReviewScreen()),
+        ),
+      if (summary.pendingDeletions > 0)
+        _Highlight(
+          icon: Icons.delete_outline,
+          color: const Color(0xFFD32F2F),
+          background: const Color(0xFFFFEBEE),
+          title: '삭제 요청 ${summary.pendingDeletions}건',
+          message: '주인이 창고 삭제 승인을 기다리고 있어요.',
+          onTap: () => _push(
+            context,
+            const StorageReviewScreen(initialTab: 3),
+          ),
+        ),
+      if (summary.overdueUsages > 0)
+        _Highlight(
+          icon: Icons.error_outline,
+          color: const Color(0xFFD32F2F),
+          background: const Color(0xFFFFEBEE),
+          title: '기간이 지난 이용 ${summary.overdueUsages}건',
+          message: '이용 내역으로 넘어가지 않았어요. 이관 함수를 확인해주세요.',
+          onTap: () => _push(context, const AdminTradesScreen()),
+        ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 처리할 게 남아 있으면 먼저 눈에 띄게 알린다.
-        if (summary.pendingStorages > 0)
-          _Highlight(
-            icon: Icons.pending_actions,
-            color: const Color(0xFFFF9800),
-            background: const Color(0xFFFFF3E0),
-            title: '승인 대기 ${summary.pendingStorages}건',
-            message: '등록 신청이 처리를 기다리고 있어요.',
-            onTap: () => _push(context, const StorageReviewScreen()),
-          ),
-        if (summary.overdueUsages > 0) ...[
-          if (summary.pendingStorages > 0) const SizedBox(height: 10),
-          _Highlight(
-            icon: Icons.error_outline,
-            color: const Color(0xFFD32F2F),
-            background: const Color(0xFFFFEBEE),
-            title: '기간이 지난 이용 ${summary.overdueUsages}건',
-            message: '이용 내역으로 넘어가지 않았어요. 이관 함수를 확인해주세요.',
-            onTap: () => _push(context, const AdminTradesScreen()),
-          ),
+        for (var i = 0; i < highlights.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          highlights[i],
         ],
-        if (summary.pendingStorages > 0 || summary.overdueUsages > 0)
-          const SizedBox(height: 16),
+        if (highlights.isNotEmpty) const SizedBox(height: 16),
         GridView(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),

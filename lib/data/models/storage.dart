@@ -33,6 +33,13 @@ class Storage {
   final bool deleted;
   final DateTime? deletedAt;
 
+  /// 주인이 삭제를 요청한 상태. 삭제는 운영자 승인 절차만 할 수 있어서
+  /// (보안 규칙이 delete를 막는다) 주인은 이 표시로 요청만 남긴다.
+  /// 운영자가 승인하면 서버가 정리하고, 반려하면 이 표시를 되돌린다.
+  final bool deleteRequested;
+  final DateTime? deleteRequestedAt;
+  final String deleteRequestReason;
+
   /// 관리자 심사 상태.
   ///
   /// [approved] 하나로는 "아직 심사 안 함"과 "반려됨"이 똑같이 false라
@@ -59,6 +66,9 @@ class Storage {
     required this.approved,
     this.deleted = false,
     this.deletedAt,
+    this.deleteRequested = false,
+    this.deleteRequestedAt,
+    this.deleteRequestReason = '',
     this.reviewStatus = ReviewStatus.pending,
     this.reviewedAt,
     this.reviewedBy = '',
@@ -117,6 +127,12 @@ class Storage {
       approved: data['approved'] ?? false,
       deleted: data['deleted'] ?? false,
       deletedAt: (data['deletedAt'] as Timestamp?)?.toDate().toLocal(),
+      deleteRequested: data['deleteRequested'] ?? false,
+      deleteRequestedAt: (data['deleteRequestedAt'] as Timestamp?)
+          ?.toDate()
+          .toLocal(),
+      deleteRequestReason:
+          data['deleteRequestReason']?.toString() ?? '',
       // 예전 문서에는 reviewStatus가 없다. 그때는 approved로 판단한다.
       reviewStatus: _readReviewStatus(data),
       reviewedAt: (data['reviewedAt'] as Timestamp?)?.toDate().toLocal(),
@@ -181,6 +197,8 @@ class Storage {
     Map<String, dynamic>? layout,
     bool? deleted,
     DateTime? deletedAt,
+    bool? deleteRequested,
+    String? deleteRequestReason,
   }) {
     return Storage(
       id: id,
@@ -199,6 +217,10 @@ class Storage {
       approved: approved,
       deleted: deleted ?? this.deleted,
       deletedAt: deletedAt ?? this.deletedAt,
+      deleteRequested: deleteRequested ?? this.deleteRequested,
+      deleteRequestedAt: deleteRequestedAt,
+      deleteRequestReason:
+          deleteRequestReason ?? this.deleteRequestReason,
       reviewStatus: reviewStatus,
       reviewedAt: reviewedAt,
       reviewedBy: reviewedBy,

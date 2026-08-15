@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:jimiker/data/models/location.dart';
 import 'package:jimiker/data/models/reservation.dart';
 import 'package:jimiker/data/models/storage.dart';
+import 'package:jimiker/data/models/usage.dart';
 import 'package:jimiker/data/models/zone.dart';
 import 'package:jimiker/features/draw/draw_provider.dart';
 import 'package:jimiker/services/auth_providers.dart';
@@ -336,4 +337,88 @@ class MyStoragesNotifier extends Notifier<MyStoragesState> {
       );
     }
   }
+
+  /// 창고 삭제를 요청한다.
+  ///
+  /// 실제 삭제는 운영자가 승인해야 이뤄진다. (보안 규칙이 직접 삭제를 막는다)
+  /// 여기서는 문서에 요청 표시만 남긴다.
+  Future<bool> requestDeletion({
+    required String storageId,
+    String reason = '',
+  }) {
+    return _setDeleteRequest(
+      storageId: storageId,
+      requested: true,
+      reason: reason,
+    );
+  }
+
+  /// 아직 처리되지 않은 삭제 요청을 거둔다.
+  Future<bool> cancelDeleteRequest(String storageId) {
+    return _setDeleteRequest(storageId: storageId, requested: false);
+  }
+
+  Future<bool> _setDeleteRequest({
+    required String storageId,
+    required bool requested,
+    String reason = '',
+  }) async {
+    state = state.copyWith(isUpdating: true, errorMessage: null);
+
+    try {
+      await ref
+          .read(firestoreProvider)
+          .collection('storages')
+          .doc(storageId)
+          .update({
+            'deleteRequested': requested,
+            'deleteRequestReason': requested ? reason : '',
+            if (requested)
+              'deleteRequestedAt': FieldValue.serverTimestamp(),
+          });
+
+      final storage = state.storages[storageId];
+      if (storage != null) {
+        final updatedStorages = Map<String, Storage>.from(
+          state.storages,
+        );
+        updatedStorages[storageId] = storage.copyWith(
+          deleteRequested: requested,
+          deleteRequestReason: requested ? reason : '',
+        );
+        state = state.copyWith(
+          storages: updatedStorages,
+          isUpdating: false,
+        );
+      } else {
+        state = state.copyWith(isUpdating: false);
+      }
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Failed to set delete request: $error\n$stackTrace');
+      state = state.copyWith(
+        isUpdating: false,
+        errorMessage: requested
+            ? '삭제 요청을 보내지 못했어요.'
+            : '삭제 요청을 취소하지 못했어요.',
+      );
+      return false;
+    }
+  }
 }
+
+/// 이 창고에 걸려 있는 이용 중 계약. (주인용 운영 현황판이 본다)
+final storageUsagesProvider = FutureProvider.autoDispose
+    .family<List<Usage>, String>((ref, storageId) async {
+      if (storageId.isEmpty) return const [];
+
+      final snapshot = await ref
+          .read(firestoreProvider)
+          .collection('usages')
+          .where('storageId', isEqualTo: storageId)
+          .get();
+
+      final usages = snapshot.docs.map(Usage.fromDoc).toList()
+        ..sort((a, b) => a.endAt.compareTo(b.endAt));
+      return usages;
+    });

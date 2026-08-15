@@ -112,11 +112,16 @@ service cloud.firestore {
                      .hasAny(['reviewedAt', 'reviewedBy']);
       }
 
-      // 수정/삭제는 주인만. 승인 여부는 서버(Functions)만 올릴 수 있다.
+      // 수정은 주인만. 승인 여부는 서버(Functions)만 올릴 수 있다.
       allow update: if isSelf(resource.data.ownerId)
                     && unchanged('ownerId')
                     && (reviewFieldsUntouched() || selfDemoteToPending());
-      allow delete: if isSelf(resource.data.ownerId);
+
+      // 삭제는 운영자 승인 절차(approveStorageDeletion)만 할 수 있다.
+      // 예약이 걸린 창고를 주인이 말없이 지워버리는 일을 막는다.
+      // 주인은 문서에 deleteRequested만 표시해 삭제를 "요청"한다.
+      // (탈퇴 등 클라이언트 정리는 deleted 표시(소프트 삭제)로 처리한다)
+      allow delete: if false;
 
       // 구역(zone)은 창고를 따라간다.
       //

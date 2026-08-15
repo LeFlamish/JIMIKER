@@ -657,6 +657,44 @@ test('storages: 내려가는 척하며 심사 기록을 조작할 수 없다', a
   );
 });
 
+test('storages: 주인도 창고를 직접 지울 수 없다 (운영자 승인 절차)', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'storages', 's1'), {
+      ownerId: ALICE,
+      approved: true,
+      reviewStatus: 'approved',
+    });
+  });
+
+  await assertFails(deleteDoc(doc(asAlice(), 'storages', 's1')));
+});
+
+test('storages: 삭제는 요청만 남길 수 있고, 남이 대신 못 한다', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'storages', 's1'), {
+      ownerId: ALICE,
+      approved: true,
+      reviewStatus: 'approved',
+    });
+  });
+
+  // 주인: 삭제 요청 표시 + 사유
+  await assertSucceeds(
+    updateDoc(doc(asAlice(), 'storages', 's1'), {
+      deleteRequested: true,
+      deleteRequestReason: '더 이상 운영하지 않아요',
+    }),
+  );
+  // 주인: 요청 취소
+  await assertSucceeds(
+    updateDoc(doc(asAlice(), 'storages', 's1'), {deleteRequested: false}),
+  );
+  // 남이 남의 창고에 삭제 요청을 남길 수는 없다
+  await assertFails(
+    updateDoc(doc(asBob(), 'storages', 's1'), {deleteRequested: true}),
+  );
+});
+
 test('storages: 매니저도 규칙으로는 승인할 수 없다 (Functions 전용)', async () => {
   await seed(async (db) => {
     await setDoc(doc(db, 'storages', 's1'), {

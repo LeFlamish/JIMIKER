@@ -13,17 +13,14 @@ class DeletionBlocked implements Exception {
   String toString() => message;
 }
 
-/// 창고/계정을 지울 때 Firestore와 Storage를 함께 정리한다.
+/// 계정을 지울 때 Firestore와 Storage를 함께 정리한다.
 ///
-/// ## 왜 전부 지우지 않는가
+/// ## 창고는 여기서 "완전히" 지우지 않는다
 ///
-/// 창고 문서는 예약(reservations)·이용중(usages)·이용내역(endeds)이 참조한다.
-/// 그냥 지워버리면 "내가 작년에 어디를 썼는지"가 통째로 사라지고, 상대방(주인/이용자)
-/// 화면도 같이 깨진다. 거래 기록은 양쪽 모두에게 남아 있어야 하는 정보다.
-///
-/// 그래서 두 갈래로 처리한다.
-///  - 참조가 하나도 없는 창고  → 완전 삭제 (문서 + 구역 + Storage 이미지)
-///  - 참조가 남아 있는 창고    → 소프트 삭제 (deleted 표시, 목록/지도에서 감춤)
+/// 창고 문서는 예약(reservations)·이용중(usages)·이용내역(endeds)이 참조하고,
+/// 보안 규칙도 클라이언트의 storages delete를 막는다. 창고를 실제로 지우는 건
+/// 운영자 승인 절차(approveStorageDeletion 함수)뿐이다.
+/// 탈퇴할 때는 내 창고를 deleted 표시(소프트 삭제)로 내리기만 한다.
 ///
 /// 계정은 개인정보만 지우고 거래 기록은 남긴다. 상대방 입장에서 "탈퇴한 사용자"와
 /// 거래한 기록은 그대로 보여야 하기 때문이다.
@@ -42,88 +39,6 @@ class DeletionService {
 
   /// 탈퇴한 계정에 남길 이름
   static const String withdrawnNickName = '탈퇴한 사용자';
-
-  // ------------------------------------------------------------ 창고 삭제
-
-  /// 창고를 삭제한다. 완전히 지웠으면 true, 기록 때문에 보관 처리했으면 false.
-  ///
-  /// 진행 중인 예약이나 이용이 있으면 [DeletionBlocked]를 던진다.
-  Future<bool> deleteStorage(String storageId) async {
-    if (storageId.isEmpty) {
-      throw const DeletionBlocked('창고 정보가 올바르지 않아요.');
-    }
-
-    final blockers = await _countActiveBlockers(storageId);
-    if (blockers > 0) {
-      throw const DeletionBlocked(
-        '아직 이용 중이거나 예약된 창고예요.\n'
-        '예약을 정리한 뒤 다시 시도해주세요.',
-      );
-    }
-
-    final hasHistory = await _hasAnyHistory(storageId);
-    final storageRef = _firestore.collection('storages').doc(storageId);
-
-    if (hasHistory) {
-      // 지난 이용 내역이 참조 중 → 문서는 남기고 목록에서만 감춘다.
-      await storageRef.set({
-        'deleted': true,
-        'deletedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      return false;
-    }
-
-    // 아무도 참조하지 않는 창고 → 사진까지 완전히 정리한다.
-    final snapshot = await storageRef.get();
-    final images =
-        (snapshot.data()?['images'] as List<dynamic>?)
-            ?.cast<String>() ??
-        const [];
-
-    await _deleteSubcollection(storageRef.collection('zones'));
-    await storageRef.delete();
-    await _deleteImages(images);
-    return true;
-  }
-
-  /// 해당 창고를 아직 붙잡고 있는 예약/이용 건수.
-  /// (거절된 예약은 이미 끝난 건이라 세지 않는다.)
-  Future<int> _countActiveBlockers(String storageId) async {
-    final results = await Future.wait([
-      _firestore
-          .collection('reservations')
-          .where('storageId', isEqualTo: storageId)
-          .get(),
-      _firestore
-          .collection('usages')
-          .where('storageId', isEqualTo: storageId)
-          .get(),
-    ]);
-
-    final liveReservations = results[0].docs.where(
-      (doc) => doc.data()['status'] != 'rejected',
-    );
-
-    return liveReservations.length + results[1].docs.length;
-  }
-
-  /// 지난 기록(종료된 이용, 거절된 예약)이 이 창고를 참조하는지.
-  Future<bool> _hasAnyHistory(String storageId) async {
-    final results = await Future.wait([
-      _firestore
-          .collection('endeds')
-          .where('storageId', isEqualTo: storageId)
-          .limit(1)
-          .get(),
-      _firestore
-          .collection('reservations')
-          .where('storageId', isEqualTo: storageId)
-          .limit(1)
-          .get(),
-    ]);
-
-    return results.any((snapshot) => snapshot.docs.isNotEmpty);
-  }
 
   // ------------------------------------------------------------ 계정 삭제
 
@@ -201,6 +116,10 @@ class DeletionService {
     }
   }
 
+  /// 내 창고를 전부 목록·지도에서 내린다. (소프트 삭제)
+  ///
+  /// 문서 자체는 남는다. 지난 거래 기록이 참조할 수 있고,
+  /// 완전 삭제는 운영자 승인 절차(서버)만 할 수 있어서다.
   Future<void> _deleteMyStorages(String uid) async {
     final snapshot = await _firestore
         .collection('storages')
@@ -209,10 +128,14 @@ class DeletionService {
 
     for (final doc in snapshot.docs) {
       try {
-        await deleteStorage(doc.id);
-      } on DeletionBlocked {
-        // 위에서 이미 활성 거래를 걸렀으므로 여기 오면 남겨두고 넘어간다.
-        debugPrint('Skipped storage ${doc.id} while deleting account');
+        await doc.reference.set({
+          'deleted': true,
+          'deletedAt': FieldValue.serverTimestamp(),
+          'deleteRequested': false,
+        }, SetOptions(merge: true));
+      } catch (error) {
+        // 하나가 막혀도 탈퇴 자체는 계속 진행한다.
+        debugPrint('Failed to retire storage ${doc.id}: $error');
       }
     }
   }
@@ -240,19 +163,6 @@ class DeletionService {
   }
 
   // -------------------------------------------------------------- 공통
-
-  Future<void> _deleteSubcollection(
-    CollectionReference<Map<String, dynamic>> collection,
-  ) async {
-    final snapshot = await collection.get();
-    if (snapshot.docs.isEmpty) return;
-
-    final batch = _firestore.batch();
-    for (final doc in snapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    await batch.commit();
-  }
 
   /// 다운로드 URL로 Storage 파일을 지운다.
   ///

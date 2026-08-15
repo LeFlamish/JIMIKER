@@ -60,7 +60,95 @@ class AdminActions {
       'reason': reason,
     });
   }
+
+  /// 삭제 요청을 승인한다. 예약 취소·문서 정리는 서버가 처리한다.
+  Future<DeletionApprovalResult> approveStorageDeletion(
+    String storageId,
+  ) async {
+    final result = await _functions
+        .httpsCallable('approveStorageDeletion')
+        .call({'storageId': storageId});
+
+    final data = result.data;
+    return DeletionApprovalResult(
+      hardDeleted: data is Map && data['hardDeleted'] == true,
+      cancelledReservations: data is Map
+          ? (data['cancelledReservations'] as num?)?.toInt() ?? 0
+          : 0,
+    );
+  }
+
+  /// 삭제 요청을 반려한다. 사유는 주인에게 그대로 전달된다.
+  Future<void> rejectStorageDeletion({
+    required String storageId,
+    required String reason,
+  }) async {
+    await _functions.httpsCallable('rejectStorageDeletion').call({
+      'storageId': storageId,
+      'reason': reason,
+    });
+  }
 }
+
+/// 삭제 승인이 실제로 한 일.
+class DeletionApprovalResult {
+  const DeletionApprovalResult({
+    required this.hardDeleted,
+    required this.cancelledReservations,
+  });
+
+  /// true면 문서·사진까지 완전히 삭제, false면 기록 보존을 위한 내리기.
+  final bool hardDeleted;
+  final int cancelledReservations;
+}
+
+/// Functions 호출 실패를 사람이 읽을 문구로 바꾼다. (관리자 화면 공용)
+String readableAdminError(Object error) {
+  if (error is FirebaseFunctionsException) {
+    final message = error.message?.trim() ?? '';
+
+    // 함수 자체가 없으면 Firebase가 영문 NOT_FOUND를 그대로 돌려준다.
+    // 우리가 던지는 not-found에는 한글 안내가 붙으므로 이걸로 구분된다.
+    if (error.code == 'not-found' &&
+        (message.isEmpty || message.toUpperCase() == 'NOT_FOUND')) {
+      return '이 기능이 서버에 아직 배포되지 않았어요.\n'
+          'firebase deploy --only functions 를 실행해주세요.';
+    }
+
+    // 서버가 보낸 안내 문구를 그대로 쓴다.
+    if (message.isNotEmpty) return message;
+
+    return switch (error.code) {
+      'unauthenticated' => '로그인이 필요합니다.',
+      'permission-denied' => '관리자 권한이 없습니다.',
+      _ => error.code,
+    };
+  }
+  return error.toString();
+}
+
+/// 주인이 삭제를 요청한 창고 목록. 오래 기다린 요청이 위로 온다.
+final deletionRequestsProvider =
+    StreamProvider.autoDispose<List<Storage>>((ref) {
+      return ref
+          .watch(firestoreProvider)
+          .collection('storages')
+          .where('deleteRequested', isEqualTo: true)
+          .snapshots()
+          .map((snapshot) {
+            final storages =
+                snapshot.docs
+                    .map(Storage.fromDoc)
+                    .where((storage) => !storage.deleted)
+                    .toList()
+                  ..sort((a, b) {
+                    final aTime = a.deleteRequestedAt ?? a.createdAt;
+                    final bTime = b.deleteRequestedAt ?? b.createdAt;
+                    return aTime.compareTo(bTime);
+                  });
+            return storages;
+          });
+    });
 
 /// 반려가 실제로 정리한 것들.
 class RejectResult {
@@ -106,6 +194,7 @@ final storagesByReviewProvider = StreamProvider.autoDispose
 class AdminSummary {
   const AdminSummary({
     this.pendingStorages = 0,
+    this.pendingDeletions = 0,
     this.waitingReservations = 0,
     this.activeUsages = 0,
     this.overdueUsages = 0,
@@ -114,6 +203,9 @@ class AdminSummary {
   });
 
   final int pendingStorages;
+
+  /// 주인이 삭제를 요청해 운영자 확인을 기다리는 창고 수.
+  final int pendingDeletions;
   final int waitingReservations;
   final int activeUsages;
 
@@ -150,6 +242,7 @@ final adminSummaryProvider = FutureProvider.autoDispose<AdminSummary>((
     pendingStorages: storages
         .where((s) => s.reviewStatus == ReviewStatus.pending)
         .length,
+    pendingDeletions: storages.where((s) => s.deleteRequested).length,
     waitingReservations: results[1].docs.length,
     activeUsages: usages.length,
     overdueUsages: usages
@@ -332,6 +425,8 @@ class AdminLog {
   String get actionLabel => switch (action) {
     'approveStorage' => '창고 승인',
     'rejectStorage' => '창고 반려',
+    'approveStorageDeletion' => '창고 삭제 승인',
+    'rejectStorageDeletion' => '삭제 요청 반려',
     'suspendUser' => '이용 정지',
     'unsuspendUser' => '정지 해제',
     _ => action,

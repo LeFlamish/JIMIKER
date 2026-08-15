@@ -10,14 +10,16 @@ import '../../../../../data/models/storage.dart';
 class StorageWithReservationsCard extends StatelessWidget {
   final Storage storage;
   final List<Reservation> reservations;
+  final VoidCallback onTap; // 창고 영역 탭 → 상세 현황
   final VoidCallback onEdit; // 수정 버튼 콜백
-  final VoidCallback onDelete; // 삭제 버튼 콜백
+  final VoidCallback onDelete; // 삭제 요청 버튼 콜백
   final Function(Reservation) onReservationTap; // 예약 카드 탭 콜백
 
   const StorageWithReservationsCard({
     super.key,
     required this.storage,
     required this.reservations,
+    required this.onTap,
     required this.onEdit,
     required this.onDelete,
     required this.onReservationTap,
@@ -46,8 +48,11 @@ class StorageWithReservationsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // [상단] 창고 정보
-          Padding(
+          // [상단] 창고 정보 — 탭하면 주인용 상세 현황으로 간다.
+          GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,10 +106,14 @@ class StorageWithReservationsCard extends StatelessWidget {
                               GestureDetector(
                                 onTap: onDelete,
                                 child: Text(
-                                  "삭제",
+                                  storage.deleteRequested
+                                      ? "삭제 요청 중"
+                                      : "삭제 요청",
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: Colors.grey[600],
+                                    color: storage.deleteRequested
+                                        ? const Color(0xFFFF9800)
+                                        : Colors.grey[600],
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -149,12 +158,27 @@ class StorageWithReservationsCard extends StatelessWidget {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                          const Spacer(),
+                          Text(
+                            "상세 현황",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 16,
+                            color: Colors.grey[500],
+                          ),
                         ],
                       ),
                     ],
                   ),
                 ),
               ],
+            ),
             ),
           ),
 

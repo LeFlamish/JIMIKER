@@ -34,6 +34,7 @@ import {
   Timestamp,
 } from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
+import {getStorage} from "firebase-admin/storage";
 
 setGlobalOptions({region: "asia-northeast3"});
 
@@ -786,12 +787,16 @@ async function forEachReservationOfStorage(
 }
 
 /**
- * 반려된 창고에 남아 있는 예약을 모두 취소한다.
- * @param {string} storageId 반려된 창고
+ * 창고에 남아 있는 예약을 모두 취소한다. (심사 반려·삭제 승인 공용)
+ * @param {string} storageId 대상 창고
+ * @param {string} notice 예약자에게 보낼 안내 문구
  * @return {Promise<number>} 취소한 예약 수
  */
 async function cancelReservationsForStorage(
   storageId: string,
+  notice: string =
+  "예약하신 창고가 관리자 심사에서 반려되어 예약이 취소되었습니다.\n" +
+  "결제 전이라 청구되는 금액은 없습니다. 다른 창고를 찾아주세요.",
 ): Promise<number> {
   let cancelled = 0;
   // 한 사람이 여러 구역을 잡아뒀어도 안내는 한 번만 보낸다.
@@ -824,11 +829,7 @@ async function cancelReservationsForStorage(
 
   // 심사 사유는 등록자에게 쓴 내부 메모라 이용자에게는 옮기지 않는다.
   for (const uid of affectedUsers) {
-    await sendSystemMessage(
-      uid,
-      "예약하신 창고가 관리자 심사에서 반려되어 예약이 취소되었습니다.\n" +
-        "결제 전이라 청구되는 금액은 없습니다. 다른 창고를 찾아주세요.",
-    );
+    await sendSystemMessage(uid, notice);
   }
 
   return cancelled;
@@ -990,5 +991,158 @@ export const setUserSuspended = onCall(async (request) => {
     targetUid,
     {reason},
   );
+  return {ok: true};
+});
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * 창고 삭제 승인 절차
+ * ─────────────────────────────────────────────────────────────
+ *
+ * 주인은 창고를 직접 지울 수 없다. (보안 규칙이 delete를 막는다)
+ * 문서에 deleteRequested만 표시해 두면 운영자가 여기서 검토한다.
+ * 예약이 걸린 창고를 주인이 말없이 없애버리는 일을 막기 위해서다.
+ *
+ * 승인해도 무조건 다 지우지는 않는다.
+ *  - 이용 중이 있으면: 승인 자체를 거부한다. 짐이 들어 있는 계약을
+ *    운영자 판단으로 끊을 수 없다. 기간이 끝난 뒤 다시 처리한다.
+ *  - 시작 전 예약: 취소하고 예약자에게 안내한다.
+ *  - 지난 기록(이용 내역·예약 이력)이 참조하면: 문서는 남기고
+ *    deleted 표시만 한다. 기록이 전혀 없으면 사진까지 완전히 지운다.
+ */
+export const approveStorageDeletion = onCall(async (request) => {
+  const managerUid = await requireManager(request.auth?.uid);
+  const storageId = String(request.data?.storageId ?? "");
+
+  if (!storageId) {
+    throw new HttpsError("invalid-argument", "창고를 찾을 수 없습니다.");
+  }
+
+  const storageRef = db.collection("storages").doc(storageId);
+  const snapshot = await storageRef.get();
+  if (!snapshot.exists) {
+    throw new HttpsError("not-found", "창고를 찾을 수 없습니다.");
+  }
+  if (snapshot.data()?.deleteRequested !== true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "주인이 삭제를 요청한 창고가 아닙니다.",
+    );
+  }
+
+  // 짐이 들어 있는 계약은 운영자도 끊지 않는다.
+  const activeUsages = await countUsagesForStorage(storageId);
+  if (activeUsages > 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      `아직 이용 중인 계약이 ${activeUsages}건 있어요.\n` +
+        "기간이 끝난 뒤 처리하거나, 반려로 사유를 알려주세요.",
+    );
+  }
+
+  // 먼저 노출을 끊는다. 뒷정리 중에 새 예약이 들어오면 안 된다.
+  await storageRef.set(
+    {
+      approved: false,
+      deleted: true,
+      deletedAt: FieldValue.serverTimestamp(),
+      deleteRequested: false,
+    },
+    {merge: true},
+  );
+
+  const cancelledReservations = await cancelReservationsForStorage(
+    storageId,
+    "예약하신 창고가 삭제되어 예약이 취소되었습니다.\n" +
+      "결제 전이라 청구되는 금액은 없습니다. 다른 창고를 찾아주세요.",
+  );
+
+  // 지난 기록이 참조하면 문서를 남긴다. (지우면 상대방 내역이 깨진다)
+  const [endeds, reservations] = await Promise.all([
+    db.collection("endeds")
+      .where("storageId", "==", storageId)
+      .limit(1)
+      .get(),
+    db.collection("reservations")
+      .where("storageId", "==", storageId)
+      .limit(1)
+      .get(),
+  ]);
+  const hasHistory = !endeds.empty || !reservations.empty;
+
+  let hardDeleted = false;
+  if (!hasHistory) {
+    const zones = await storageRef.collection("zones").get();
+    const batch = db.batch();
+    zones.docs.forEach((doc) => batch.delete(doc.ref));
+    batch.delete(storageRef);
+    await batch.commit();
+
+    // 사진은 등록·수정 모두 storages/{storageId}/ 아래에 올린다.
+    try {
+      await getStorage()
+        .bucket()
+        .deleteFiles({prefix: `storages/${storageId}/`});
+    } catch (error) {
+      logger.warn(`창고 이미지 정리 실패: ${storageId}`, error);
+    }
+    hardDeleted = true;
+  }
+
+  const ownerId = snapshot.data()?.ownerId as string | undefined;
+  if (ownerId) {
+    const lines = [
+      "요청하신 창고 삭제가 승인되었습니다.",
+      `창고: ${snapshot.data()?.address ?? storageId}`,
+    ];
+    if (cancelledReservations > 0) {
+      lines.push(
+        `시작 전 예약 ${cancelledReservations}건이 함께 취소되었습니다.`,
+      );
+    }
+    await sendSystemMessage(ownerId, lines.join("\n"));
+  }
+
+  await writeAdminLog(managerUid, "approveStorageDeletion", storageId, {
+    cancelledReservations,
+    hardDeleted,
+  });
+  return {ok: true, hardDeleted, cancelledReservations};
+});
+
+/** 삭제 요청을 반려한다. 사유는 주인에게 그대로 전달된다. */
+export const rejectStorageDeletion = onCall(async (request) => {
+  const managerUid = await requireManager(request.auth?.uid);
+  const storageId = String(request.data?.storageId ?? "");
+  const reason = String(request.data?.reason ?? "").trim();
+
+  if (!storageId) {
+    throw new HttpsError("invalid-argument", "창고를 찾을 수 없습니다.");
+  }
+  if (!reason) {
+    throw new HttpsError("invalid-argument", "반려 사유를 적어주세요.");
+  }
+
+  const storageRef = db.collection("storages").doc(storageId);
+  const snapshot = await storageRef.get();
+  if (!snapshot.exists) {
+    throw new HttpsError("not-found", "창고를 찾을 수 없습니다.");
+  }
+
+  await storageRef.set({deleteRequested: false}, {merge: true});
+
+  const ownerId = snapshot.data()?.ownerId as string | undefined;
+  if (ownerId) {
+    await sendSystemMessage(
+      ownerId,
+      "창고 삭제 요청이 반려되었습니다.\n" +
+        `사유: ${reason}\n` +
+        `창고: ${snapshot.data()?.address ?? storageId}`,
+    );
+  }
+
+  await writeAdminLog(managerUid, "rejectStorageDeletion", storageId, {
+    reason,
+  });
   return {ok: true};
 });

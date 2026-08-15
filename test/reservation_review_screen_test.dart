@@ -224,6 +224,7 @@ void main() {
                 child: StorageWithReservationsCard(
                   storage: _storage(),
                   reservations: reservations,
+                  onTap: () {},
                   onEdit: () {},
                   onDelete: () {},
                   onReservationTap: onTap ?? (_) {},
