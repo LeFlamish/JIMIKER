@@ -81,6 +81,11 @@ final userStreamProvider = StreamProvider.family
       return repo.watchUser(uid); // ✅ Stream<AppUser?> 그대로 반환
     });
 
+/// 구글 로그인 서버 클라이언트 ID. (Firebase 콘솔의 웹 클라이언트)
+/// 로그인과 로그아웃(세션 끊기 전 초기화)이 같이 쓴다.
+const String _googleServerClientId =
+    '307056666844-utebfqasio8tbua4lioi8i0isk4dpji5.apps.googleusercontent.com';
+
 /// 실제 로그인/로그아웃 액션 담당 클래스
 /// 로그인 창 Consumer로 사용
 /// AuthController controller로 선언(ref 인자로 넣어주고)
@@ -277,10 +282,7 @@ class AuthController extends Notifier<AppUser?> {
     final auth = ref.read(firebaseAuthProvider);
     final signIn = GoogleSignIn.instance;
 
-    await signIn.initialize(
-      serverClientId:
-          '307056666844-utebfqasio8tbua4lioi8i0isk4dpji5.apps.googleusercontent.com',
-    );
+    await signIn.initialize(serverClientId: _googleServerClientId);
 
     // authenticate()는 취소하면 예외를 던지지, null을 돌려주지 않는다.
     final GoogleSignInAccount googleUser = await signIn.authenticate();
@@ -311,15 +313,35 @@ class AuthController extends Notifier<AppUser?> {
       ),
     );
 
+    // 실패해도 로그아웃을 막으면 안 되는 정리 작업용.
+    Future<void> attempt(Future<void> Function() job) async {
+      try {
+        await job();
+      } catch (_) {
+        // 오프라인이거나 구글 세션이 이미 끊긴 경우 등. 계속 진행한다.
+      }
+    }
+
     try {
       final auth = ref.read(firebaseAuthProvider);
 
       _clearCache(); // ✅ state=null로 notify
 
-      await upsertFcmTokenToUserDoc('');
-      await disposeFcmTokenSync();
+      // 알림 토큰 정리. 실패해도 로그아웃은 계속한다.
+      await attempt(() => upsertFcmTokenToUserDoc(''));
+      await attempt(disposeFcmTokenSync);
+
+      // 진짜 로그아웃. 이것만 실패로 취급한다.
       await auth.signOut();
-      await GoogleSignIn.instance.disconnect();
+
+      // 구글 세션 끊기. 앱을 새로 켠 뒤에는 initialize 전이라 그냥 부르면
+      // PlatformException이 난다. 초기화부터 하고, 그래도 실패하면
+      // (이미 끊긴 세션 등) Firebase 로그아웃은 끝났으므로 무시한다.
+      await attempt(() async {
+        final signIn = GoogleSignIn.instance;
+        await signIn.initialize(serverClientId: _googleServerClientId);
+        await signIn.disconnect();
+      });
 
       if (!context.mounted) return;
 
@@ -331,13 +353,15 @@ class AuthController extends Notifier<AppUser?> {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const SignInScreen()));
-    } catch (e) {
+    } catch (_) {
       if (!context.mounted) return;
 
       Navigator.of(context, rootNavigator: true).pop();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('로그아웃 실패: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.'),
+        ),
+      );
     }
   }
 
