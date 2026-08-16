@@ -35,9 +35,10 @@ class PredictionList extends StatelessWidget {
       if (location == null) return null;
 
       return LatLng(location.lat, location.lng);
-    } catch (_) {
+    } catch (error) {
       // 네트워크가 끊겼거나 서버 함수가 아직 배포되지 않은 경우.
-      // 좌표 없이 돌려보낸다.
+      // 좌표 없이 돌려보내고, 원인은 로그로만 남긴다.
+      debugPrint('getPlaceDetail failed: $error');
       return null;
     }
   }

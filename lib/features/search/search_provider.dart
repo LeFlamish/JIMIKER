@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jimiker/features/search/places_service.dart';
 
@@ -50,9 +51,10 @@ class SearchNotifier extends Notifier<SearchProviderData> {
             .read(placesServiceProvider)
             .autocomplete(query);
         state = state.copyWith(predictions: predictions);
-      } catch (_) {
+      } catch (error) {
         // 네트워크가 끊겼거나 서버 함수가 아직 배포되지 않은 경우.
-        // 이전 결과를 그대로 두고 조용히 넘어간다.
+        // 이전 결과를 그대로 두고, 원인은 로그로만 남긴다.
+        debugPrint('searchPlaces failed: $error');
       }
     });
   }
