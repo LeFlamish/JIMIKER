@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_google_places_hoc081098/google_maps_webservice_places.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:jimiker/core/config/app_config.dart';
+import 'package:jimiker/features/search/places_service.dart';
 
 class PredictionList extends StatelessWidget {
   const PredictionList({super.key, required this.predictions});
 
-  final List<Prediction> predictions;
+  final List<PlacePrediction> predictions;
 
-  static final GoogleMapsPlaces _places = GoogleMapsPlaces(
-    apiKey: googleMapsApiKey,
-  );
+  static final PlacesService _places = PlacesService();
 
   /// 후보 하나를 고르고 좌표와 함께 이전 화면으로 돌아간다.
   ///
@@ -18,7 +15,7 @@ class PredictionList extends StatelessWidget {
   /// 목록 탭과 키보드 '검색' 둘 다 이 경로를 쓴다.
   static Future<void> selectPrediction(
     BuildContext context,
-    Prediction prediction,
+    PlacePrediction prediction,
   ) async {
     final navigator = Navigator.of(context);
     final latLng = await _latLngOf(prediction);
@@ -32,20 +29,15 @@ class PredictionList extends StatelessWidget {
     });
   }
 
-  static Future<LatLng?> _latLngOf(Prediction prediction) async {
-    final placeId = prediction.placeId;
-    if (placeId == null) return null;
-
+  static Future<LatLng?> _latLngOf(PlacePrediction prediction) async {
     try {
-      final detail = await _places.getDetailsByPlaceId(placeId);
-      if (!detail.isOkay) return null;
-
-      final location = detail.result.geometry?.location;
+      final location = await _places.location(prediction.placeId);
       if (location == null) return null;
 
       return LatLng(location.lat, location.lng);
     } catch (_) {
-      // 네트워크가 끊겼거나 키 제한에 걸린 경우. 좌표 없이 돌려보낸다.
+      // 네트워크가 끊겼거나 서버 함수가 아직 배포되지 않은 경우.
+      // 좌표 없이 돌려보낸다.
       return null;
     }
   }
@@ -60,7 +52,7 @@ class PredictionList extends StatelessWidget {
           final prediction = predictions[index];
           return ListTile(
             leading: const Icon(Icons.location_on),
-            title: Text(prediction.description ?? ""),
+            title: Text(prediction.description),
             onTap: () => selectPrediction(context, prediction),
           );
         },

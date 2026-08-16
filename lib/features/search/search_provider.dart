@@ -1,10 +1,9 @@
 import 'dart:async';
-import 'package:flutter_google_places_hoc081098/google_maps_webservice_places.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jimiker/core/config/app_config.dart';
+import 'package:jimiker/features/search/places_service.dart';
 
 class SearchProviderData {
-  List<Prediction> predictions;
+  List<PlacePrediction> predictions;
   List<Map<String, dynamic>> nearbyPlaces;
 
   SearchProviderData({
@@ -12,7 +11,7 @@ class SearchProviderData {
     this.nearbyPlaces = const [],
   });
   SearchProviderData copyWith({
-    List<Prediction>? predictions,
+    List<PlacePrediction>? predictions,
     List<Map<String, dynamic>>? nearbyPlaces,
   }) {
     return SearchProviderData(
@@ -35,27 +34,24 @@ class SearchNotifier extends Notifier<SearchProviderData> {
 
   Timer? _debounce;
 
-  final _places = GoogleMapsPlaces(apiKey: googleMapsApiKey);
-
   void onChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () async {
-      if (value.trim().isEmpty) {
+      final query = value.trim();
+
+      // 너무 짧은 입력은 호출하지 않는다. (서버·Places 요금 절약)
+      if (query.length < 2) {
         state = state.copyWith(predictions: []);
         return;
       }
 
       try {
-        final response = await _places.autocomplete(
-          value,
-          language: 'ko',
-          components: [Component(Component.country, "kr")],
-        );
-        if (response.isOkay) {
-          state = state.copyWith(predictions: response.predictions);
-        }
+        final predictions = await ref
+            .read(placesServiceProvider)
+            .autocomplete(query);
+        state = state.copyWith(predictions: predictions);
       } catch (_) {
-        // 네트워크가 끊겼거나 키 제한에 걸린 경우.
+        // 네트워크가 끊겼거나 서버 함수가 아직 배포되지 않은 경우.
         // 이전 결과를 그대로 두고 조용히 넘어간다.
       }
     });

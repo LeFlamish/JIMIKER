@@ -25,6 +25,7 @@ import {
 } from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {defineSecret} from "firebase-functions/params";
 import {initializeApp} from "firebase-admin/app";
 import {
   DocumentSnapshot,
@@ -40,6 +41,10 @@ setGlobalOptions({region: "asia-northeast3"});
 
 initializeApp();
 const db = getFirestore();
+
+// 장소 검색용 Places API 키. 앱에 넣지 않고 서버 시크릿으로만 보관한다.
+// 배포 전에 한 번: firebase functions:secrets:set PLACES_API_KEY
+const placesApiKey = defineSecret("PLACES_API_KEY");
 
 // storages/{locationId} 문서가 "업데이트"될 때마다 실행
 export const onStorageApproved = onDocumentUpdated(
@@ -1146,3 +1151,107 @@ export const rejectStorageDeletion = onCall(async (request) => {
   });
   return {ok: true};
 });
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * 장소 검색 프록시 (Places API)
+ * ─────────────────────────────────────────────────────────────
+ *
+ * Places 웹 서비스는 앱 신원(SHA)을 실어 보내지 못해서, 앱에 키를 넣으면
+ * 제한 없는 키를 공개하는 꼴이 된다. 그래서 서버가 대신 호출한다.
+ *  - 키는 Secret Manager(PLACES_API_KEY)에만 있다. 앱에는 키가 없다.
+ *  - 로그인한 사용자만 부를 수 있다.
+ *  - 검색어 2글자 미만은 호출하지 않는다. (요금 절약)
+ */
+export const searchPlaces = onCall(
+  {secrets: [placesApiKey]},
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const input = String(request.data?.input ?? "").trim();
+    if (input.length < 2) return {predictions: []};
+    if (input.length > 100) {
+      throw new HttpsError("invalid-argument", "검색어가 너무 깁니다.");
+    }
+
+    const url = new URL(
+      "https://maps.googleapis.com/maps/api/place/autocomplete/json",
+    );
+    url.searchParams.set("input", input);
+    url.searchParams.set("language", "ko");
+    url.searchParams.set("components", "country:kr");
+    url.searchParams.set("key", placesApiKey.value());
+
+    const response = await fetch(url);
+    const data = (await response.json()) as {
+      status?: string;
+      error_message?: string;
+      predictions?: {description?: string; place_id?: string}[];
+    };
+
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      logger.error("places autocomplete", data.status, data.error_message);
+      throw new HttpsError(
+        "internal",
+        "검색하지 못했어요. 잠시 후 다시 시도해주세요.",
+      );
+    }
+
+    return {
+      predictions: (data.predictions ?? [])
+        .filter((item) => item.place_id && item.description)
+        .map((item) => ({
+          placeId: item.place_id,
+          description: item.description,
+        })),
+    };
+  },
+);
+
+/** 고른 장소의 좌표를 돌려준다. (지도 이동용) */
+export const getPlaceDetail = onCall(
+  {secrets: [placesApiKey]},
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const placeId = String(request.data?.placeId ?? "").trim();
+    if (!placeId || placeId.length > 200) {
+      throw new HttpsError("invalid-argument", "장소를 찾을 수 없습니다.");
+    }
+
+    const url = new URL(
+      "https://maps.googleapis.com/maps/api/place/details/json",
+    );
+    url.searchParams.set("place_id", placeId);
+    // 좌표만 받는다. (필드를 좁힐수록 요금이 싸다)
+    url.searchParams.set("fields", "geometry/location");
+    url.searchParams.set("language", "ko");
+    url.searchParams.set("key", placesApiKey.value());
+
+    const response = await fetch(url);
+    const data = (await response.json()) as {
+      status?: string;
+      error_message?: string;
+      result?: {geometry?: {location?: {lat?: number; lng?: number}}};
+    };
+
+    if (data.status !== "OK") {
+      logger.error("places detail", data.status, data.error_message);
+      throw new HttpsError("internal", "장소 정보를 가져오지 못했어요.");
+    }
+
+    const location = data.result?.geometry?.location;
+    if (
+      typeof location?.lat !== "number" ||
+      typeof location?.lng !== "number"
+    ) {
+      throw new HttpsError("not-found", "장소 좌표가 없습니다.");
+    }
+
+    return {lat: location.lat, lng: location.lng};
+  },
+);
