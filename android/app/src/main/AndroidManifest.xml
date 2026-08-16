@@ -39,7 +39,7 @@
             android:value="2" />
 
         <meta-data android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyAuhd1aQTSgjtgnydP3_wgD3SDD2QD-VGU"/>
+            android:value="AIzaSyBGdGO7UYnz058HpY8w6Sc-u_n471KwjKI"/>
 
         <!-- 앱이 꺼져 있을 때 도착한 알림이 쓸 기본 채널.
              NotificationService가 만드는 채널, Functions가 보내는 channelId와 같아야 한다. -->

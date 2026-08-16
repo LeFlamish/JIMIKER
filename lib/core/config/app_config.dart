@@ -14,5 +14,5 @@
 ///   flutter build appbundle --dart-define=GOOGLE_MAPS_API_KEY=...
 const String googleMapsApiKey = String.fromEnvironment(
   'GOOGLE_MAPS_API_KEY',
-  defaultValue: 'AIzaSyAuhd1aQTSgjtgnydP3_wgD3SDD2QD-VGU',
+  defaultValue: 'AIzaSyBGdGO7UYnz058HpY8w6Sc-u_n471KwjKI',
 );
