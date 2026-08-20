@@ -38,7 +38,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final TextEditingController _messageController =
       TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
   bool _isSending = false;
+
+  /// 목록이 바닥에 붙어 있는지. 붙어 있을 때만 새 메시지를 따라 내려간다.
+  /// 옛 대화를 읽으러 위로 올라가 있으면 방해하지 않는다. (카톡과 같은 동작)
+  bool _stickToBottom = true;
 
   @override
   void initState() {
@@ -46,6 +51,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
     // 보고 있는 방의 메시지는 알림으로 또 띄우지 않는다.
     NotificationService.currentChatRoomId = widget.roomId;
+    _scrollController.addListener(_onScroll);
 
     final draft = widget.initialMessage?.trim();
     if (draft != null && draft.isNotEmpty) {
@@ -63,7 +69,26 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     }
     _messageController.dispose();
     _focusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    _stickToBottom =
+        position.maxScrollExtent - position.pixels < 80;
+  }
+
+  /// 프레임이 그려진 뒤 목록을 바닥(최신 메시지)으로 내린다.
+  void _scrollToBottomIfNeeded() {
+    if (!_stickToBottom) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(
+        _scrollController.position.maxScrollExtent,
+      );
+    });
   }
 
   Future<void> _sendMessage(ChatService chatService) async {
@@ -135,6 +160,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           if (widget.opponentUid != null) widget.opponentUid!,
         ],
       );
+
+      // 내가 보낸 메시지는 옛 대화를 읽던 중이었어도 바닥으로 따라 내려간다.
+      _stickToBottom = true;
 
       if (message.isNotEmpty) {
         _messageController.clear();
@@ -223,20 +251,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 final currentUser = FirebaseAuth.instance.currentUser;
                 _markAsRead(chatService, docs, currentUser?.uid);
 
-                // reverse: true면 index 0이 화면 맨 아래에 그려진다.
-                // 최신순으로 받은 목록을 그대로 넘기면 새 메시지가 아래에
-                // 쌓이고, 방을 열었을 때도 가장 최근 대화가 보인다.
+                // 화면은 시간순으로 흐른다: 위가 옛 대화, 아래가 최신.
+                // 방을 열거나 새 메시지가 오면 바닥으로 따라 내려간다.
+                final ordered = docs.reversed.toList();
+                _scrollToBottomIfNeeded();
+
                 return ListView.separated(
-                  reverse: true,
+                  controller: _scrollController,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
                   ),
-                  itemCount: docs.length,
+                  itemCount: ordered.length,
                   separatorBuilder: (_, __) =>
                       const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final data = docs[index].data();
+                    final data = ordered[index].data();
                     final isMine = data['uid'] == currentUser?.uid;
 
                     return Align(
