@@ -18,6 +18,20 @@ class ChatService {
     return 'dm_${uids.join('_')}';
   }
 
+  /// dm 방 id에 박혀 있는 두 참여자 uid. 못 읽는 형태면 빈 목록.
+  ///
+  /// 방 id는 [directRoomId]가 'dm_{uid}_{uid}' 꼴로 만들고 Firebase uid에는
+  /// 밑줄이 없어서 되돌려 읽을 수 있다. 부르는 쪽이 상대 uid를 빠뜨려도
+  /// 여기서 복원해, 참여자가 한 명뿐인 방(상대 목록에 안 뜨는 방)이
+  /// 만들어지는 일을 막는다.
+  static List<String> participantsFromRoomId(String roomId) {
+    if (!roomId.startsWith('dm_')) return const [];
+    final uids = roomId.substring(3).split('_');
+    if (uids.length != 2) return const [];
+    if (uids.any((uid) => uid.isEmpty)) return const [];
+    return uids;
+  }
+
   /// 이미 저장된(=메시지가 한 번이라도 오간) 상대와의 방이 있으면 그 id, 없으면 null.
   Future<String?> findExistingRoomId({
     required String uid,
@@ -162,6 +176,9 @@ class ChatService {
       final mergedParticipants = <String>{
         ...existingParticipants,
         ...participantUids,
+        // 방 id에서 두 참여자를 복원한다. 인자가 비어도 상대가 빠지지 않고,
+        // 참여자가 한 명뿐이던 기존 방도 다음 메시지에 복구된다.
+        ...participantsFromRoomId(roomId),
         user.uid,
       }..removeWhere((uid) => uid.isEmpty);
 

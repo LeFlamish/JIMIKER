@@ -79,4 +79,32 @@ void main() {
       );
     });
   });
+
+  group('ChatService.participantsFromRoomId', () {
+    test('dm 방 id에서 두 참여자를 복원한다', () {
+      expect(
+        ChatService.participantsFromRoomId('dm_aaa_zzz'),
+        ['aaa', 'zzz'],
+      );
+      // directRoomId와 왕복이 된다.
+      final roomId = ChatService.directRoomId('userB', 'userA');
+      expect(
+        ChatService.participantsFromRoomId(roomId),
+        ['userA', 'userB'],
+      );
+    });
+
+    test('dm 방이 아니거나 형태가 다르면 빈 목록', () {
+      expect(
+        ChatService.participantsFromRoomId('system_userA'),
+        isEmpty,
+      );
+      expect(ChatService.participantsFromRoomId('dm_only'), isEmpty);
+      expect(ChatService.participantsFromRoomId('dm__zzz'), isEmpty);
+      expect(
+        ChatService.participantsFromRoomId('dm_a_b_c'),
+        isEmpty,
+      );
+    });
+  });
 }

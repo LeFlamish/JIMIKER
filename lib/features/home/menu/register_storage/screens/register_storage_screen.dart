@@ -1045,38 +1045,42 @@ class _BuildingSizeDialogState extends State<_BuildingSizeDialog> {
       title: const Text('창고 실제 크기'),
       content: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              '줄자로 잰 실제 크기를 넣어주세요.\n'
-              '이 크기대로 도면 외곽이 그려지고, 안에서 칸막이와\n'
-              '구역을 배치하게 됩니다.',
-              style: TextStyle(fontSize: 13, height: 1.5),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _widthController,
-              autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+        // 키보드가 올라오면 세로 공간이 줄어든다. 좁은 화면에서
+        // 넘치지 않게 스크롤로 감싼다.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '줄자로 잰 실제 크기를 넣어주세요. 이 크기대로 도면 외곽이 '
+                '그려지고, 안에서 칸막이와 구역을 배치하게 됩니다.',
+                style: TextStyle(fontSize: 13, height: 1.5),
               ),
-              decoration: const InputDecoration(
-                labelText: '가로 (m)',
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _widthController,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: '가로 (m)',
+                ),
+                validator: _validate,
               ),
-              validator: _validate,
-            ),
-            TextFormField(
-              controller: _heightController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+              TextFormField(
+                controller: _heightController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: '세로 (m)',
+                ),
+                validator: _validate,
               ),
-              decoration: const InputDecoration(
-                labelText: '세로 (m)',
-              ),
-              validator: _validate,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
