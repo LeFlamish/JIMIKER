@@ -15,6 +15,7 @@ class ChatRoomListItem extends StatefulWidget {
     required this.lastMessage,
     required this.updatedAt,
     required this.onTap,
+    this.onLongPress,
     this.unreadCount = 0,
   });
 
@@ -30,6 +31,9 @@ class ChatRoomListItem extends StatefulWidget {
 
   /// 화면에 보이는 상대 이름을 그대로 채팅방 제목으로 넘겨준다.
   final void Function(String opponentName) onTap;
+
+  /// 길게 눌렀을 때. 확인 문구에 쓰도록 화면에 보이는 이름을 넘겨준다.
+  final void Function(String opponentName)? onLongPress;
 
   @override
   State<ChatRoomListItem> createState() => _ChatRoomListItemState();
@@ -85,6 +89,7 @@ class _ChatRoomListItemState extends State<ChatRoomListItem> {
   }
 
   Widget _buildTile({required String name, required String? photoUrl}) {
+    final onLongPress = widget.onLongPress;
     return ChatRoomListTile(
       roomName: name,
       photoUrl: photoUrl,
@@ -92,6 +97,9 @@ class _ChatRoomListItemState extends State<ChatRoomListItem> {
       updatedAt: widget.updatedAt,
       unreadCount: widget.unreadCount,
       onTap: () => widget.onTap(name),
+      onLongPress: onLongPress == null
+          ? null
+          : () => onLongPress(name),
     );
   }
 }

@@ -160,19 +160,36 @@ service cloud.firestore {
       return isSignedIn() && roomId == 'system_' + request.auth.uid;
     }
 
+    // dm 방 id(dm_{uid}_{uid})에 이름이 든 당사자인가.
+    // 방을 나간 사람은 participantUids에 없어 isRoomMember로 확인할 수
+    // 없지만, 다시 말을 걸며 스스로 복귀하는 것은 허용해야 한다.
+    // (uid에는 밑줄이 없으므로 id에서 안전하게 읽어낼 수 있다)
+    function isDmParty(roomId) {
+      return isSignedIn()
+             && (roomId.matches('dm_' + request.auth.uid + '_[^_]+')
+                 || roomId.matches('dm_[^_]+_' + request.auth.uid));
+    }
+
     match /chat_rooms/{roomId} {
       // 첫 메시지를 보낼 때 sendMessage가 트랜잭션 안에서 "아직 없는" 방을 먼저 읽는다.
       // 그때는 resource가 null이라 participantUids를 볼 수 없으므로 통과시켜야 한다.
       // (로그인한 사람이 특정 방 id의 존재 여부만 알 수 있는 정도의 노출이다.)
+      // 나갔던 당사자도 복귀(다시 말 걸기) 트랜잭션이 방을 먼저 읽으므로 허용한다.
       allow get: if isSignedIn()
-                 && (resource == null || isRoomMember(resource.data));
+                 && (resource == null
+                     || isRoomMember(resource.data)
+                     || isDmParty(roomId)
+                     || isOwnSystemRoom(roomId));
 
       // 목록 쿼리는 where('participantUids', arrayContains: uid)로 걸려 있어
       // 이 조건으로 통과한다. 전체 방 조회는 막힌다.
       allow list: if isRoomMember(resource.data);
 
-      // 방은 첫 메시지를 보낼 때 만들어진다. 만드는 사람이 참여자여야 한다.
-      allow create: if isRoomMember(request.resource.data);
+      // 방은 첫 메시지를 보낼 때 만들어진다. 만드는 사람이 참여자여야 하고,
+      // 남을 "나간 사람(leftUids)"으로 미리 박아둘 수는 없다.
+      allow create: if isRoomMember(request.resource.data)
+                    && request.resource.data.get('leftUids', [])
+                         .hasOnly([request.auth.uid]);
 
       // 안 읽은 메시지 수는 Functions가 올리고, 각자 자기 것만 0으로 되돌린다.
       // 막지 않으면 상대의 안 읽음 표시를 내가 지워버릴 수 있다.
@@ -184,10 +201,41 @@ service cloud.firestore {
                     .affectedKeys().hasOnly([request.auth.uid]);
       }
 
-      // 참여자만 수정 가능하고, 수정 후에도 본인이 참여자로 남아 있어야 한다.
-      // (상대를 참여자로 추가하는 건 허용 — 첫 메시지에 상대가 들어간다.)
-      allow update: if isRoomMember(resource.data)
-                    && isRoomMember(request.resource.data)
+      // 참여자에서 빼도 되는 사람은 오직 나 자신뿐이다. (나가기)
+      // 남을 빼는 것(강퇴)은 막는다.
+      function removesNobodyButMe() {
+        return resource.data.participantUids
+                 .removeAll(request.resource.data.participantUids)
+                 .hasOnly([request.auth.uid]);
+      }
+
+      // 나간 사람 목록(leftUids)도 나에 대해서만 넣거나 뺄 수 있다.
+      // 막지 않으면 상대를 "나간 사람"으로 만들어 메시지를 못 받게 할 수 있다.
+      function leftUidsChangedOnlyMine() {
+        return request.resource.data.get('leftUids', [])
+                 .removeAll(resource.data.get('leftUids', []))
+                 .hasOnly([request.auth.uid])
+               && resource.data.get('leftUids', [])
+                 .removeAll(request.resource.data.get('leftUids', []))
+                 .hasOnly([request.auth.uid]);
+      }
+
+      // 나간 사람은 참여자가 아니다 — 두 목록은 절대 겹치지 않는다.
+      function participantsExcludeLeft() {
+        return !request.resource.data.participantUids
+                  .hasAny(request.resource.data.get('leftUids', []));
+      }
+
+      // 수정할 수 있는 사람:
+      // - 지금 참여자 (메시지 보내기, 읽음 처리, 나가기)
+      // - 나갔던 당사자가 자신을 참여자로 되돌리는 경우
+      //   (dm 방 id의 당사자 또는 본인 시스템 방 = 다시 말 걸며 복귀)
+      allow update: if (isRoomMember(resource.data)
+                        || ((isDmParty(roomId) || isOwnSystemRoom(roomId))
+                            && isRoomMember(request.resource.data)))
+                    && removesNobodyButMe()
+                    && leftUidsChangedOnlyMine()
+                    && participantsExcludeLeft()
                     && unreadCountsUntouchedOrMine();
 
       allow delete: if false;
@@ -210,8 +258,11 @@ service cloud.firestore {
 
         // 아직 저장되지 않은 방에 들어가면 앱이 곧바로 메시지 목록을 구독한다.
         // 방이 없으면 메시지도 없으므로 빈 결과를 그대로 돌려주면 된다.
+        // 나갔던 dm 당사자도 다시 말을 걸러 들어오면 지난 대화를 볼 수 있다.
         allow read: if isSignedIn()
-                    && (!parentRoomExists() || isRoomMember(parentRoom()));
+                    && (!parentRoomExists()
+                        || isRoomMember(parentRoom())
+                        || isDmParty(roomId));
 
         allow create: if isRoomMember(parentRoomAfter())
                       && (

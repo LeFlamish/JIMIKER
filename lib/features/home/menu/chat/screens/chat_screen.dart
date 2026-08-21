@@ -113,11 +113,18 @@ class ChatScreen extends StatelessWidget {
                   (uid) => uid != user.uid,
                   orElse: () => '',
                 );
+                // 상대가 방을 나가 참여자에 나만 남았으면 「알 수 없음」.
+                // (방 id로 나간 사람을 되찾아 보여주지 않는다)
+                final opponentMissing = ChatService.opponentMissing(
+                  roomId: doc.id,
+                  participants: participantUids,
+                  myUid: user.uid,
+                );
                 final fallbackName =
                     data['roomName']?.toString().trim().isNotEmpty ==
                         true
                     ? data['roomName'].toString().trim()
-                    : '지미커';
+                    : (opponentMissing ? '알 수 없음' : '지미커');
 
                 return ChatRoomListItem(
                   key: ValueKey(doc.id),
@@ -142,6 +149,15 @@ class ChatScreen extends StatelessWidget {
                       ),
                     );
                   },
+                  onLongPress: (opponentName) {
+                    _confirmLeave(
+                      context: context,
+                      chatService: chatService,
+                      roomId: doc.id,
+                      roomName: opponentName,
+                      uid: user.uid,
+                    );
+                  },
                 );
               },
             );
@@ -149,6 +165,60 @@ class ChatScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 길게 누른 방을 나갈지 물어보고, 확인하면 나간다.
+  ///
+  /// 나가면 내 목록에서만 사라진다. 상대에게는 대화가 그대로 남고,
+  /// 내 이름이 「알 수 없음」으로 표시된다.
+  Future<void> _confirmLeave({
+    required BuildContext context,
+    required ChatService chatService,
+    required String roomId,
+    required String roomName,
+    required String uid,
+  }) async {
+    final isSystemRoom = roomId.startsWith('system_');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('채팅방 나가기'),
+        content: Text(
+          isSystemRoom
+              ? '「$roomName」 방을 나가면 내 목록에서 사라져요.\n'
+                    '새 알림이 오면 방이 다시 열려요.'
+              : '「$roomName」 채팅방을 나가면 내 목록에서 사라져요.\n'
+                    '상대방에게는 내가 「알 수 없음」으로 표시돼요.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('나가기'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await chatService.leaveRoom(roomId: roomId, uid: uid);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('채팅방을 나갔어요.')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('채팅방을 나가지 못했어요. 잠시 후 다시 시도해주세요.'),
+        ),
+      );
+    }
   }
 
   bool _hasMessage(Map<String, dynamic> data) {

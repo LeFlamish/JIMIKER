@@ -107,4 +107,108 @@ void main() {
       );
     });
   });
+
+  group('ChatService.mergeParticipants', () {
+    test('방을 나간 사람은 남이 메시지를 보내도 되살아나지 않는다', () {
+      // zzz가 방을 나간 상태에서 aaa가 메시지를 보낸다.
+      // 호출자가 상대 uid를 넘겨도, 방 id에 상대가 박혀 있어도 안 된다.
+      expect(
+        ChatService.mergeParticipants(
+          roomId: 'dm_aaa_zzz',
+          existing: ['aaa'],
+          requested: ['zzz'],
+          left: ['zzz'],
+          senderUid: 'aaa',
+        ),
+        ['aaa'],
+      );
+    });
+
+    test('나갔던 사람이 직접 말을 걸면 그 순간 복귀한다', () {
+      expect(
+        ChatService.mergeParticipants(
+          roomId: 'dm_aaa_zzz',
+          existing: ['aaa'],
+          requested: [],
+          left: ['zzz'],
+          senderUid: 'zzz',
+        ).toSet(),
+        {'aaa', 'zzz'},
+      );
+    });
+
+    test('참여자가 한 명뿐인 옛 방은 방 id로 복구된다', () {
+      // 예전 버그로 만들어진 방: 아무도 나간 적이 없는데 상대가 빠져 있다.
+      expect(
+        ChatService.mergeParticipants(
+          roomId: 'dm_aaa_zzz',
+          existing: ['aaa'],
+          requested: [],
+          left: [],
+          senderUid: 'aaa',
+        ).toSet(),
+        {'aaa', 'zzz'},
+      );
+    });
+
+    test('빈 uid는 끼어들지 못한다', () {
+      expect(
+        ChatService.mergeParticipants(
+          roomId: 'system_aaa',
+          existing: ['aaa', ''],
+          requested: [''],
+          left: [],
+          senderUid: 'aaa',
+        ),
+        ['aaa'],
+      );
+    });
+  });
+
+  group('ChatService.opponentMissing', () {
+    test('dm 방 참여자에 나만 남으면 상대가 나간 것', () {
+      expect(
+        ChatService.opponentMissing(
+          roomId: 'dm_aaa_zzz',
+          participants: ['aaa'],
+          myUid: 'aaa',
+        ),
+        isTrue,
+      );
+    });
+
+    test('상대가 남아 있으면 정상', () {
+      expect(
+        ChatService.opponentMissing(
+          roomId: 'dm_aaa_zzz',
+          participants: ['aaa', 'zzz'],
+          myUid: 'aaa',
+        ),
+        isFalse,
+      );
+    });
+
+    test('내가 나갔던 방을 다시 열면 상대는 그대로 보인다', () {
+      // 참여자 목록에 상대만 남은 상태를 "상대가 나감"으로 착각하면 안 된다.
+      expect(
+        ChatService.opponentMissing(
+          roomId: 'dm_aaa_zzz',
+          participants: ['zzz'],
+          myUid: 'aaa',
+        ),
+        isFalse,
+      );
+    });
+
+    test('시스템 방에는 적용하지 않는다', () {
+      expect(
+        ChatService.opponentMissing(
+          roomId: 'system_aaa',
+          participants: ['aaa'],
+          myUid: 'aaa',
+        ),
+        isFalse,
+      );
+    });
+  });
 }

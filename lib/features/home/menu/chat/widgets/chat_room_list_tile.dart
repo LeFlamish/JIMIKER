@@ -15,6 +15,9 @@ class ChatRoomListTile extends StatelessWidget {
   final int unreadCount;
   final VoidCallback onTap;
 
+  /// 길게 눌렀을 때 (채팅방 나가기 메뉴)
+  final VoidCallback? onLongPress;
+
   const ChatRoomListTile({
     super.key,
     required this.roomName,
@@ -22,6 +25,7 @@ class ChatRoomListTile extends StatelessWidget {
     required this.lastMessage,
     required this.updatedAt,
     required this.onTap,
+    this.onLongPress,
     this.unreadCount = 0,
   });
 
@@ -85,6 +89,7 @@ class ChatRoomListTile extends StatelessWidget {
         ],
       ),
       onTap: onTap,
+      onLongPress: onLongPress,
     );
   }
 }

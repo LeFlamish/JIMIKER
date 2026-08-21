@@ -32,6 +32,64 @@ class ChatService {
     return uids;
   }
 
+  /// dm 방 참여자 목록에 나 말고 아무도 남지 않았는가.
+  ///
+  /// 상대가 방을 나가면 참여자 목록에서 빠지므로 이 상태가 된다.
+  /// 화면은 이때 상대를 「알 수 없음」으로 보여준다. 방 id에는 상대 uid가
+  /// 남아 있지만, 나간 사람을 다시 알아내는 데 쓰지 않는다.
+  static bool opponentMissing({
+    required String roomId,
+    required Iterable<String> participants,
+    required String? myUid,
+  }) {
+    if (!roomId.startsWith('dm_')) return false;
+    return !participants.any((uid) => uid != myUid);
+  }
+
+  /// 메시지를 보낼 때 방 참여자 목록을 다시 계산한다.
+  ///
+  /// - 방을 나간 사람([left])은 남이 메시지를 보내도 되살아나지 않는다.
+  /// - 보낸 사람 본인은 항상 참여자다. 나갔던 방에 내가 다시 말을 걸면
+  ///   그 순간 복귀한다.
+  /// - 방 id에 든 두 사람을 합쳐, 참여자가 한 명뿐인 옛 방도 복구한다.
+  static List<String> mergeParticipants({
+    required String roomId,
+    required Iterable<String> existing,
+    required Iterable<String> requested,
+    required Iterable<String> left,
+    required String senderUid,
+  }) {
+    final leftSet = left.toSet();
+    final merged =
+        <String>{
+            ...existing,
+            ...requested,
+            ...participantsFromRoomId(roomId),
+          }
+          ..removeWhere(
+            (uid) => uid.isEmpty || leftSet.contains(uid),
+          )
+          ..add(senderUid);
+    return merged.toList();
+  }
+
+  /// 방을 나간다: 참여자에서 나만 빠지고, 나간 사람 목록(leftUids)에 남는다.
+  ///
+  /// 메시지는 지우지 않으므로 상대에게는 대화가 그대로 남는다. 다만 내가
+  /// 참여자에서 빠져 상대 화면에는 「알 수 없음」으로 표시되고, 상대가
+  /// 보내는 메시지도 leftUids 덕분에 나를 되살리지 못한다.
+  Future<void> leaveRoom({
+    required String roomId,
+    required String uid,
+  }) {
+    return _firestore.collection('chat_rooms').doc(roomId).update({
+      'participantUids': FieldValue.arrayRemove([uid]),
+      'leftUids': FieldValue.arrayUnion([uid]),
+      // 내 안 읽음 수는 더 이상 의미가 없다.
+      'unreadCounts.$uid': FieldValue.delete(),
+    });
+  }
+
   /// 이미 저장된(=메시지가 한 번이라도 오간) 상대와의 방이 있으면 그 id, 없으면 null.
   Future<String?> findExistingRoomId({
     required String uid,
@@ -169,18 +227,26 @@ class ChatService {
 
     await _firestore.runTransaction((transaction) async {
       final roomSnapshot = await transaction.get(roomRef);
+      final roomData = roomSnapshot.data();
       final existingParticipants =
-          (roomSnapshot.data()?['participantUids'] as List<dynamic>?)
+          (roomData?['participantUids'] as List<dynamic>?)
               ?.cast<String>() ??
           [];
-      final mergedParticipants = <String>{
-        ...existingParticipants,
-        ...participantUids,
-        // 방 id에서 두 참여자를 복원한다. 인자가 비어도 상대가 빠지지 않고,
-        // 참여자가 한 명뿐이던 기존 방도 다음 메시지에 복구된다.
-        ...participantsFromRoomId(roomId),
-        user.uid,
-      }..removeWhere((uid) => uid.isEmpty);
+      final leftUids =
+          (roomData?['leftUids'] as List<dynamic>?)?.cast<String>() ??
+          [];
+
+      final mergedParticipants = mergeParticipants(
+        roomId: roomId,
+        existing: existingParticipants,
+        requested: participantUids,
+        left: leftUids,
+        senderUid: user.uid,
+      );
+      // 내가 보낸 순간 나는 "나간 사람"이 아니다.
+      final remainingLeft = leftUids
+          .where((uid) => uid != user.uid)
+          .toList();
 
       transaction.set(messageRef, {
         'uid': user.uid,
@@ -192,13 +258,21 @@ class ChatService {
       });
 
       transaction.set(roomRef, {
-        'participantUids': mergedParticipants.toList(),
+        'participantUids': mergedParticipants,
+        'leftUids': remainingLeft,
         'lastMessage': preview,
         // 목록 우측에 뜨는 "마지막 메시지 시각"의 기준
         'updatedAt': now,
         if (!roomSnapshot.exists) 'createdAt': now,
       }, SetOptions(merge: true));
     });
+  }
+
+  /// 방 문서 스트림. 참여자 목록(상대가 나갔는지)을 지켜볼 때 쓴다.
+  Stream<DocumentSnapshot<Map<String, dynamic>>> streamRoom(
+    String roomId,
+  ) {
+    return _firestore.collection('chat_rooms').doc(roomId).snapshots();
   }
 
   /// 채팅 사진을 Storage에 올리고 다운로드 URL을 돌려준다.
@@ -256,6 +330,9 @@ class ChatService {
       transaction.set(roomRef, {
         'roomName': '지미커(시스템)',
         'participantUids': participantUids,
+        // 알림 방은 나가도 새 알림이 오면 다시 열린다.
+        // (예약 승인 같은 중요한 안내를 놓치면 안 되기 때문)
+        'leftUids': FieldValue.arrayRemove([user.uid]),
         'lastMessage': message,
         'updatedAt': now,
         if (!roomSnapshot.exists) 'createdAt': now,

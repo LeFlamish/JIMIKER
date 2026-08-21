@@ -90,6 +90,9 @@ export const onStorageApproved = onDocumentUpdated(
         {
           lastMessage: message,
           updatedAt: FieldValue.serverTimestamp(),
+          // 알림 방을 나갔던 사용자도 새 알림이 오면 다시 참여자가 된다.
+          participantUids: FieldValue.arrayUnion("system", ownerId),
+          leftUids: FieldValue.arrayRemove(ownerId),
         },
         {merge: true},
       );
@@ -718,6 +721,9 @@ async function sendSystemMessage(
       {
         roomName: "지미커(시스템)",
         participantUids: ["system", uid],
+        // 알림 방을 나갔던 사용자도 새 알림이 오면 다시 참여자가 된다.
+        // (예약 승인 같은 중요한 안내를 놓치면 안 되기 때문)
+        leftUids: FieldValue.arrayRemove(uid),
         lastMessage: message,
         updatedAt: FieldValue.serverTimestamp(),
         ...(room.exists ? {} : {createdAt: FieldValue.serverTimestamp()}),

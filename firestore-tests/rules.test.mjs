@@ -16,7 +16,10 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
+  deleteField,
   doc,
   deleteDoc,
   getDoc,
@@ -415,7 +418,27 @@ test('chat_rooms: 본인 시스템 방에만 system 메시지를 남길 수 있�
   );
 });
 
-test('chat_rooms: 나를 참여자에서 빼는 수정은 막는다', async () => {
+test('chat_rooms: 방을 나갈 수 있다 (참여자에서 나만 빠지고 leftUids에 남는다)', async () => {
+  // ChatService.leaveRoom과 동일한 쓰기.
+  const roomId = `dm_${ALICE}_${BOB}`;
+  await seed(async (db) => {
+    await setDoc(doc(db, 'chat_rooms', roomId), {
+      participantUids: [ALICE, BOB],
+      lastMessage: 'hi',
+      unreadCounts: {[ALICE]: 2, [BOB]: 0},
+    });
+  });
+
+  await assertSucceeds(
+    updateDoc(doc(asAlice(), 'chat_rooms', roomId), {
+      participantUids: arrayRemove(ALICE),
+      leftUids: arrayUnion(ALICE),
+      [`unreadCounts.${ALICE}`]: deleteField(),
+    }),
+  );
+});
+
+test('chat_rooms: 남을 빼거나 나간 사람으로 만들 수는 없다', async () => {
   const roomId = `dm_${ALICE}_${BOB}`;
   await seed(async (db) => {
     await setDoc(doc(db, 'chat_rooms', roomId), {
@@ -424,8 +447,123 @@ test('chat_rooms: 나를 참여자에서 빼는 수정은 막는다', async () =
     });
   });
 
+  // 강퇴 금지
   await assertFails(
-    updateDoc(doc(asAlice(), 'chat_rooms', roomId), {participantUids: [BOB]}),
+    updateDoc(doc(asAlice(), 'chat_rooms', roomId), {
+      participantUids: arrayRemove(BOB),
+    }),
+  );
+  // 상대를 "나간 사람"으로 조작해 메시지를 못 받게 하는 것도 금지
+  await assertFails(
+    updateDoc(doc(asAlice(), 'chat_rooms', roomId), {
+      participantUids: arrayRemove(BOB),
+      leftUids: arrayUnion(BOB),
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(asAlice(), 'chat_rooms', roomId), {
+      leftUids: arrayUnion(BOB),
+    }),
+  );
+});
+
+test('chat_rooms: 상대가 나간 방에도 남은 사람은 메시지를 보낼 수 있다', async () => {
+  // 앨리스가 나간 방에 밥이 보낸다. sendMessage 흐름 그대로:
+  // 나간 앨리스는 참여자로 되살리지 않는다. (leftUids 유지)
+  const roomId = `dm_${ALICE}_${BOB}`;
+  await seed(async (db) => {
+    await setDoc(doc(db, 'chat_rooms', roomId), {
+      participantUids: [BOB],
+      leftUids: [ALICE],
+      lastMessage: 'hi',
+    });
+  });
+
+  const db = asBob();
+  await assertSucceeds(
+    runTransaction(db, async (tx) => {
+      await tx.get(doc(db, 'chat_rooms', roomId));
+      tx.set(doc(db, `chat_rooms/${roomId}/messages`, 'm1'), {
+        uid: BOB,
+        message: '계세요?',
+        read: false,
+      });
+      tx.set(
+        doc(db, 'chat_rooms', roomId),
+        {
+          participantUids: [BOB],
+          leftUids: [ALICE],
+          lastMessage: '계세요?',
+        },
+        {merge: true},
+      );
+    }),
+  );
+});
+
+test('chat_rooms: 나갔던 사람이 다시 말을 걸면 복귀한다', async () => {
+  // 앨리스가 나간 방에 앨리스가 문의로 다시 들어와 메시지를 보낸다.
+  // 참여자가 아니어도 dm 방 id의 당사자이므로 지난 대화를 읽고 복귀할 수 있다.
+  const roomId = `dm_${ALICE}_${BOB}`;
+  await seed(async (db) => {
+    await setDoc(doc(db, 'chat_rooms', roomId), {
+      participantUids: [BOB],
+      leftUids: [ALICE],
+      lastMessage: 'hi',
+    });
+    await setDoc(doc(db, `chat_rooms/${roomId}/messages`, 'm1'), {
+      uid: BOB,
+      message: '지난 대화',
+      read: false,
+    });
+  });
+
+  // 지난 메시지 읽기 (방을 열자마자 구독한다)
+  await assertSucceeds(
+    getDoc(doc(asAlice(), `chat_rooms/${roomId}/messages`, 'm1')),
+  );
+  // 제3자는 여전히 못 읽는다
+  await assertFails(
+    getDoc(doc(asCarol(), `chat_rooms/${roomId}/messages`, 'm1')),
+  );
+
+  // 메시지를 보내며 참여자로 복귀 (sendMessage 흐름)
+  const db = asAlice();
+  await assertSucceeds(
+    runTransaction(db, async (tx) => {
+      await tx.get(doc(db, 'chat_rooms', roomId));
+      tx.set(doc(db, `chat_rooms/${roomId}/messages`, 'm2'), {
+        uid: ALICE,
+        message: '다시 문의드려요',
+        read: false,
+      });
+      tx.set(
+        doc(db, 'chat_rooms', roomId),
+        {
+          participantUids: [BOB, ALICE],
+          leftUids: [],
+          lastMessage: '다시 문의드려요',
+        },
+        {merge: true},
+      );
+    }),
+  );
+});
+
+test('chat_rooms: 제3자는 남의 dm 방을 고칠 수 없다', async () => {
+  const roomId = `dm_${ALICE}_${BOB}`;
+  await seed(async (db) => {
+    await setDoc(doc(db, 'chat_rooms', roomId), {
+      participantUids: [ALICE, BOB],
+      lastMessage: 'hi',
+    });
+  });
+
+  // 캐럴은 방 id의 당사자도 아니고 참여자도 아니다.
+  await assertFails(
+    updateDoc(doc(asCarol(), 'chat_rooms', roomId), {
+      participantUids: arrayUnion(CAROL),
+    }),
   );
 });
 
