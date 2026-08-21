@@ -285,13 +285,31 @@ Play Console에서 항목별로 묻는다. 아래는 지금 코드 기준 사실
 
 ## 8. ⚠️ 반드시 함수를 먼저 배포할 것
 
-예약 생성이 `createReservation` 함수로 옮겨졌고, 보안 규칙에서 앱의 직접
-생성을 막았다. **함수를 배포하지 않으면 아무도 예약할 수 없다.**
+앱의 핵심 동작이 서버 함수로 옮겨져 있다. **배포하지 않으면 앱이 반쪽만
+동작한다.**
+
+- 예약 생성 (`createReservation`) — 규칙에서 앱의 직접 생성을 막았으므로
+  배포 전엔 아무도 예약할 수 없다
+- 위치 검색 (`searchPlaces` · `getPlaceDetail`) — Places 키를 앱에 넣지
+  않고 서버가 대신 호출한다
+- 창고 삭제 승인·반려 (`approveStorageDeletion` · `rejectStorageDeletion`)
+  — 규칙에서 앱의 직접 삭제를 막았으므로 배포 전엔 삭제 절차가 안 돈다
+- 채팅 안 읽음 뱃지 (`onChatMessageCreated`) — 없어도 대화 자체는 된다
+
+### 배포 순서
 
 ```bash
+# 1) 위치 검색용 Places 키를 서버 시크릿으로 넣는다 (최초 1회 / 키 교체 시)
+#    이 키는 "애플리케이션 제한 없음 + Places API만 허용"으로 만든 서버 전용 키.
+#    앱에 안 들어가므로 SHA 제한과 무관하다.
+firebase functions:secrets:set PLACES_API_KEY
+
+# 2) 함수와 보안 규칙을 배포한다
 firebase deploy --only functions,firestore:rules
 ```
 
-배포 전이면 앱이 "예약 기능이 서버에 아직 배포되지 않았어요"라고 안내한다.
-채팅 안 읽음 뱃지도 `onChatMessageCreated`가 세므로 배포가 필요하다.
-(뱃지는 없어도 대화 자체는 정상 동작한다)
+⚠️ **시크릿을 넣거나 바꾼 뒤에는 반드시 재배포해야 한다.** 함수는 배포
+시점의 시크릿 값을 물고 올라가므로, `secrets:set`만 하고 재배포를 안 하면
+옛 값(또는 무효 키)으로 계속 돈다. 검색이 `internal` 오류를 내면
+`firebase functions:log`에서 `searchPlaces`의 실제 원인을 확인한다.
+("The provided API key is invalid"면 키가 죽었거나 재배포 전이라는 뜻)
